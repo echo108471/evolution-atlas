@@ -13,5 +13,10 @@ the cited repository evidence directly establishes them. Preserve links from
 derived claims to Git evidence, and do not use contributor history for ranking
 or performance judgment.
 
-Until an implementation stack is chosen, validate changes with
-`git diff --check` and review the rendered Markdown.
+Validate implementation changes with `npm test`, `npm run build`, and
+`git diff --check`. Review rendered Markdown whenever project documents change.
+
+Keep raw Git observations separate from candidate interpretations in both code
+and serialized data. Analyzer output may include contributor and repository
+metadata, so generated datasets belong in ignored local paths unless Eugene
+explicitly approves a fixture for version control.

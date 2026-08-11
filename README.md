@@ -61,8 +61,12 @@ slice:
 - Accuracy, traceability, and an engaging visual experience are all product
   requirements.
 - The initial scope is one repository: `course-recommender`.
-- The implementation stack is intentionally undecided during bootstrap. The
-  first data and interaction prototypes should inform that choice.
+- The first implementation is a local Node.js analyzer plus a static
+  React/TypeScript application built with Vite. D3 supplies temporal scales and
+  graph layout while React owns interface state and SVG rendering.
+- Versioned JSON is the initial boundary between analysis and visualization.
+- No database, hosted service, or model-generated inference is required for the
+  first pilot.
 - No license has been selected.
 
 ## Open questions
@@ -76,8 +80,39 @@ slice:
 - What interaction makes the evidence trail understandable without overwhelming
   the visual narrative?
 
-## Repository status
+## Start here
 
-This repository currently contains the project definition and workspace
-adapters only. Build, test, and development commands will be added with the
-first implementation slice.
+Requires Node.js 22.12 or newer and Git.
+
+```bash
+npm install
+npm run analyze -- --repo . --out public/atlas.json
+npm run dev
+```
+
+The generated `public/atlas.json` is intentionally ignored because repository
+history can contain contributor and project metadata. The application remains
+useful without it: it explains how to generate a local dataset.
+
+Useful checks:
+
+```bash
+npm test
+npm run build
+```
+
+## Project documents
+
+- [Concept](docs/CONCEPT.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Evidence model](docs/EVIDENCE-MODEL.md)
+- [Course Recommender pilot](docs/COURSE-RECOMMENDER-PILOT.md)
+- [Roadmap](docs/ROADMAP.md)
+
+## Current implementation boundary
+
+The analyzer currently emits only observed Git facts: commits as change
+episodes, author associations, changed paths, and top-level code areas. It does
+not yet infer features, semantic intent, or lifecycle stages. That restraint is
+intentional; the pilot will establish which interpretations are useful and
+defensible before they become code.

@@ -2,3 +2,10 @@
 *.swp
 *.tmp
 *~
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local analysis output can contain contributor and repository metadata.
+/public/atlas.json
