@@ -8,6 +8,7 @@
   },
   "scripts": {
     "analyze": "node scripts/analyze.mjs",
+    "interpret": "node scripts/interpret.mjs",
     "dev": "vite",
     "test": "node --test",
     "typecheck": "tsc -b",
@@ -16,6 +17,7 @@
     "check": "npm test && npm run build"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.116.0",
     "d3": "^7.9.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

@@ -90,6 +90,30 @@ npm run analyze -- --repo . --out public/atlas.json
 npm run dev
 ```
 
+Feature induction is a separate, optional stage. It reads an observed dataset,
+asks a model to propose candidate features, and discards any commit it cites
+that is not in the dataset:
+
+```bash
+npm run interpret -- --in public/atlas.json
+```
+
+It needs a model credential; the observed pipeline above does not. Every feature
+it emits is a `candidate` carrying its method, confidence, and the commits
+behind it, for a maintainer to accept or reject.
+
+Requests can go to Anthropic directly or through OpenRouter, which serves the
+same Messages API — only the base URL, credential, and model naming differ. The
+provider is auto-detected from whichever key is set, or named explicitly:
+
+```bash
+npm run interpret -- --provider openrouter    # needs OPENROUTER_API_KEY
+npm run interpret -- --provider anthropic     # needs ANTHROPIC_API_KEY, or `ant auth login`
+```
+
+Each candidate records which provider and model produced it in its `method`
+field, so interpretations from different routes stay distinguishable.
+
 The generated `public/atlas.json` is intentionally ignored because repository
 history can contain contributor and project metadata. The application remains
 useful without it: it explains how to generate a local dataset.
@@ -111,8 +135,12 @@ npm run build
 
 ## Current implementation boundary
 
-The analyzer currently emits only observed Git facts: commits as change
-episodes, author associations, changed paths, and top-level code areas. It does
-not yet infer features, semantic intent, or lifecycle stages. That restraint is
-intentional; the pilot will establish which interpretations are useful and
-defensible before they become code.
+The analyzer emits only observed Git facts: commits as change episodes, author
+associations, changed paths, and top-level code areas. It infers nothing.
+
+Feature candidates come from the separate interpretation stage, which never
+writes into that observed layer — it appends candidates alongside it and flips
+`analysis.mode` to `interpreted`. A model proposes only which commits form a
+capability; the code areas and contributors behind each feature are then read
+off those commits rather than proposed. Contributor association therefore stays
+an observation even when the feature it hangs from is an interpretation.

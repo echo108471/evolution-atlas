@@ -50,6 +50,8 @@ export interface FeatureCandidate {
   status: Exclude<InterpretationStatus, 'observed'>
   confidence: number
   method: string
+  /** Why these commits were grouped, and what the evidence does not establish. */
+  rationale?: string
   lifecycleStage?: 'introduced' | 'expanded' | 'hardened' | 'migrated' | 'removed'
   evidence: EvidenceReference[]
 }

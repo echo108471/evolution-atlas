@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { AtlasGraph } from './AtlasGraph'
+import {
+  LIFECYCLE_STAGES,
+  defaultControls,
+  selectVisible,
+  type ViewControls,
+} from './derive'
 import type {
   AtlasDataset,
   ChangeEpisode,
@@ -119,16 +125,54 @@ function EvidencePanel({ entity, dataset }: { entity: SelectedEntity | null; dat
   }
 
   const feature = entity.value
+  const episodeBySha = new Map(dataset.episodes.map((episode) => [episode.commitSha, episode]))
+  const contributorCounts = new Map<string, number>()
+  for (const reference of feature.evidence) {
+    for (const id of episodeBySha.get(reference.commitSha)?.contributorIds ?? []) {
+      contributorCounts.set(id, (contributorCounts.get(id) ?? 0) + 1)
+    }
+  }
+  const nameById = new Map(dataset.contributors.map((c) => [c.id, c.displayName]))
+
   return (
     <div className="inspector-content">
       <span className="eyebrow">{feature.status} feature</span>
       <h2>{feature.label}</h2>
       <dl>
         <div><dt>Confidence</dt><dd>{Math.round(feature.confidence * 100)}%</dd></div>
-        <div><dt>Method</dt><dd>{feature.method}</dd></div>
         <div><dt>Lifecycle</dt><dd>{feature.lifecycleStage ?? 'Not assigned'}</dd></div>
+        <div><dt>Supporting commits</dt><dd>{feature.evidence.length}</dd></div>
+        <div><dt>Method</dt><dd><code>{feature.method}</code></dd></div>
       </dl>
-      <p className="boundary-note">This is an interpretation. Inspect its evidence before accepting it.</p>
+
+      {feature.rationale && <p className="rationale">{feature.rationale}</p>}
+
+      <h3>Contributors</h3>
+      <ul className="chip-list">
+        {[...contributorCounts.entries()]
+          .sort((left, right) => right[1] - left[1])
+          .map(([id, count]) => (
+            <li key={id}>{nameById.get(id) ?? id}<span>{count}</span></li>
+          ))}
+      </ul>
+
+      <h3>Evidence</h3>
+      <ul className="path-list">
+        {feature.evidence.map((reference) => {
+          const episode = episodeBySha.get(reference.commitSha)
+          return (
+            <li key={reference.commitSha}>
+              <span className="change-status">{episode?.shortSha.slice(0, 7) ?? '???????'}</span>
+              <code>{episode?.subject ?? 'Commit not present in this dataset'}</code>
+            </li>
+          )
+        })}
+      </ul>
+
+      <p className="boundary-note">
+        This grouping is an interpretation produced by a model. The commits, their authors, and
+        the areas they touched are observed; that they form one capability is not.
+      </p>
     </div>
   )
 }
@@ -136,8 +180,12 @@ function EvidencePanel({ entity, dataset }: { entity: SelectedEntity | null; dat
 export default function App() {
   const [dataset, setDataset] = useState<AtlasDataset | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [cutoffIndex, setCutoffIndex] = useState(0)
+  const [controls, setControls] = useState<ViewControls | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  function update(patch: Partial<ViewControls>) {
+    setControls((current) => (current ? { ...current, ...patch } : current))
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -148,8 +196,8 @@ export default function App() {
       })
       .then((loadedDataset) => {
         setDataset(loadedDataset)
-        setCutoffIndex(Math.max(loadedDataset.episodes.length - 1, 0))
-        setSelectedId(loadedDataset.episodes.at(-1)?.id ?? null)
+        setControls(defaultControls(loadedDataset))
+        setSelectedId(null)
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return
@@ -164,7 +212,12 @@ export default function App() {
     [dataset, selectedId],
   )
 
-  if (!dataset) {
+  const visible = useMemo(
+    () => (dataset && controls ? selectVisible(dataset, controls) : null),
+    [dataset, controls],
+  )
+
+  if (!dataset || !controls || !visible) {
     return (
       <main className="load-state">
         <p className="brand-mark">EVOLUTION ATLAS</p>
@@ -186,7 +239,7 @@ export default function App() {
     )
   }
 
-  const cutoffEpisode = dataset.episodes[cutoffIndex]
+  const cutoffEpisode = dataset.episodes[controls.cutoffIndex]
 
   return (
     <main className="app-shell">
@@ -206,30 +259,129 @@ export default function App() {
       </header>
 
       <section className="stats" aria-label="Dataset summary">
-        <div><strong>{Math.min(cutoffIndex + 1, dataset.episodes.length)}</strong><span>visible changes</span></div>
-        <div><strong>{dataset.contributors.length}</strong><span>Git authors</span></div>
-        <div><strong>{dataset.codeAreas.length}</strong><span>path areas</span></div>
-        <div><strong>{dataset.featureCandidates.length}</strong><span>feature candidates</span></div>
+        <div><strong>{visible.features.length}</strong><span>features shown</span></div>
+        <div><strong>{visible.contributorIds.size}</strong><span>contributors shown</span></div>
+        <div><strong>{visible.codeAreaIds.size}</strong><span>areas touched</span></div>
+        <div><strong>{Math.min(controls.cutoffIndex + 1, dataset.episodes.length)}</strong><span>commits in range</span></div>
       </section>
 
-      <section className="timeline-control">
-        <div>
+      <section className="controls" aria-label="View controls">
+        <div className="control">
           <span className="eyebrow">History cutoff</span>
-          <strong>{cutoffEpisode ? formatDate(cutoffEpisode.authoredAt) : 'No commits'}</strong>
+          <input
+            type="range"
+            min="0"
+            max={Math.max(dataset.episodes.length - 1, 0)}
+            value={controls.cutoffIndex}
+            disabled={dataset.episodes.length < 2}
+            aria-label="History cutoff"
+            onChange={(event) => update({ cutoffIndex: Number(event.target.value) })}
+          />
+          <small>{cutoffEpisode ? formatDate(cutoffEpisode.authoredAt) : 'No commits'}</small>
         </div>
-        <input
-          type="range"
-          min="0"
-          max={Math.max(dataset.episodes.length - 1, 0)}
-          value={cutoffIndex}
-          disabled={dataset.episodes.length < 2}
-          aria-label="History cutoff"
-          onChange={(event) => {
-            setCutoffIndex(Number(event.target.value))
-            setSelectedId(dataset.episodes[Number(event.target.value)]?.id ?? null)
-          }}
-        />
-        <span className="cutoff-subject">{cutoffEpisode?.subject ?? 'No committed history'}</span>
+
+        <div className="control">
+          <span className="eyebrow">Minimum confidence</span>
+          <input
+            type="range"
+            min="0"
+            max="0.95"
+            step="0.05"
+            value={controls.minConfidence}
+            aria-label="Minimum confidence"
+            onChange={(event) => update({ minConfidence: Number(event.target.value) })}
+          />
+          <small>
+            {controls.minConfidence === 0
+              ? 'Showing every candidate'
+              : `${Math.round(controls.minConfidence * 100)}% and above`}
+            {visible.hiddenByConfidence > 0 && ` · ${visible.hiddenByConfidence} hidden`}
+          </small>
+        </div>
+
+        <div className="control">
+          <span className="eyebrow">Contributor</span>
+          <select
+            value={controls.contributorId ?? ''}
+            aria-label="Filter by contributor"
+            onChange={(event) => update({ contributorId: event.target.value || null })}
+          >
+            <option value="">Everyone</option>
+            {dataset.contributors.map((contributor) => (
+              <option key={contributor.id} value={contributor.id}>
+                {contributor.displayName}
+              </option>
+            ))}
+          </select>
+          <small>
+            {controls.contributorId
+              ? `${visible.hiddenByContributor} feature(s) hidden`
+              : 'All contributions in view'}
+          </small>
+        </div>
+
+        <div className="control">
+          <span className="eyebrow">Commit detail</span>
+          <div className="toggle-row" role="group" aria-label="Commit detail">
+            <button
+              type="button"
+              className={controls.detail === 'features' ? 'is-active' : ''}
+              onClick={() => update({ detail: 'features' })}
+            >
+              Features only
+            </button>
+            <button
+              type="button"
+              className={controls.detail === 'commits' ? 'is-active' : ''}
+              onClick={() => update({ detail: 'commits' })}
+            >
+              Show evidence
+            </button>
+          </div>
+          <small>
+            {controls.detail === 'commits'
+              ? `${visible.episodes.length} supporting commits drawn`
+              : 'Commits stay in the inspector'}
+          </small>
+        </div>
+
+        <div className="control control--wide">
+          <span className="eyebrow">Lifecycle stage</span>
+          <div className="toggle-row" role="group" aria-label="Lifecycle stage">
+            {LIFECYCLE_STAGES.map((stage) => {
+              const active = controls.lifecycleStages.includes(stage)
+              const present = dataset.featureCandidates.some((f) => f.lifecycleStage === stage)
+              return (
+                <button
+                  key={stage}
+                  type="button"
+                  disabled={!present}
+                  title={present ? undefined : 'No candidate carries this stage'}
+                  className={active ? 'is-active' : ''}
+                  onClick={() =>
+                    update({
+                      lifecycleStages: active
+                        ? controls.lifecycleStages.filter((value) => value !== stage)
+                        : [...controls.lifecycleStages, stage],
+                    })
+                  }
+                >
+                  {stage}
+                </button>
+              )
+            })}
+            {controls.lifecycleStages.length > 0 && (
+              <button type="button" className="is-reset" onClick={() => update({ lifecycleStages: [] })}>
+                clear
+              </button>
+            )}
+          </div>
+          <small>
+            {controls.lifecycleStages.length === 0
+              ? 'Every stage, including unassigned'
+              : `${visible.hiddenByStage} feature(s) hidden`}
+          </small>
+        </div>
       </section>
 
       <section className="workspace-grid">
@@ -237,22 +389,27 @@ export default function App() {
           <div className="panel-heading">
             <div>
               <span className="eyebrow">Repository projection</span>
-              <h2>Observed relationships over time</h2>
+              <h2>Who built what, over time</h2>
             </div>
             <div className="legend" aria-label="Node legend">
               <span className="legend-contributor">Author</span>
-              <span className="legend-episode">Change</span>
+              <span className="legend-feature">Feature</span>
+              {controls.detail === 'commits' && <span className="legend-episode">Commit</span>}
               <span className="legend-area">Area</span>
             </div>
           </div>
           <AtlasGraph
             dataset={dataset}
-            cutoffIndex={cutoffIndex}
+            visible={visible}
+            controls={controls}
             selectedId={selectedId}
             onSelect={setSelectedId}
           />
           <p className="map-footnote">
-            Feature inference is off. Nodes currently represent Git observations and provisional path groupings.
+            Features are candidate interpretations; authorship and touched areas are observed.
+            Node size reflects how much evidence stands behind a claim, not its importance, and a
+            fainter feature dot carries lower model confidence. Horizontal position is the commit
+            date; crowding is resolved vertically so the time axis stays true.
           </p>
         </div>
 

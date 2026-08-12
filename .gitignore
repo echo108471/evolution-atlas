@@ -8,4 +8,6 @@ coverage/
 *.tsbuildinfo
 
 # Local analysis output can contain contributor and repository metadata.
-/public/atlas.json
+# Covers observed, interpreted, and per-model comparison datasets alike.
+/public/atlas*.json
+/public/sweep/
