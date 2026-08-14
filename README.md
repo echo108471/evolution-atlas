@@ -169,15 +169,18 @@ belong to semantic episodes, not features; validation resolves every proposed
 feature id and commit before serialization. Code-area and contributor
 associations are still read from observed commits rather than proposed.
 
-The interpreted viewer leads with calendar chapters, candidate structural
-episodes, feature lanes with colored lifecycle episodes, and a feature-by-code-area
-matrix. Structural diamonds open the supporting commit, prefix mappings, and
-individual path transitions. Lifecycle bars open their own rationale and cited
-commits. Its only relationship graph is scoped
-to the selected feature so the layout stays stable and attribution boundaries
-remain visible. Identity Review makes match evidence inspectable and lets the
-user merge, reject, undo, import, and export decisions without rewriting raw
-history. Decisions are also retained locally for the repository. Contributor
+The interpreted viewer now leads with a repository overview and a searchable,
+selected-feature explorer. A focused lifecycle ribbon coordinates candidate
+semantic episodes, observed commits, code areas, contributor associations, and
+the evidence inspector. The complete shared-axis lane view and feature-by-area
+matrix remain available as power tools. Structural episodes open the supporting
+commit, prefix mappings, and individual path transitions. Lifecycle bars open
+their own rationale and cited commits. Its only relationship graph is scoped to
+the selected feature so the layout stays stable and attribution boundaries
+remain visible. Identity Review is a data-management utility that makes match
+evidence inspectable and lets the user merge, reject, undo, import, and export
+decisions without rewriting raw history. Decisions are also retained locally
+for the repository. Contributor
 Trail then projects one confirmed contributor profile—which may still contain
 only one exact Git identity—through the same evidence: authored commits remain
 highlighted inside complete feature trails, while observed code-area rows

@@ -46,8 +46,9 @@ traceability.
 
 ## Milestone 3 — visual language
 
-- Use stable calendar chapters, feature evidence lanes, and a feature-by-area
-  matrix as the primary visual hierarchy.
+- Lead with a progressive Overview / Explore / People hierarchy. Make one
+  selected feature story the default detailed view, with complete evidence lanes
+  and the feature-by-area matrix retained as power tools.
 - Show candidate structural reorganizations as a separate timeline layer with
   path-prefix mappings and commit-level drill-down.
 - Keep contributor associations in selected-feature detail rather than making

@@ -1,0 +1,423 @@
+import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+
+import { AreaMatrix } from './AreaMatrix'
+import { StoryLanes } from './StoryLanes'
+import { LIFECYCLE_STAGES } from './lifecycle'
+import type {
+  AreaMatrixModel,
+  CalendarChapter,
+  StoryLane,
+  StoryModel,
+} from './story'
+import { deriveFeatureAssociations } from './story'
+import type { AtlasDataset, FeatureCandidate, LifecycleStage } from './model'
+
+export type ExploreView = 'focus' | 'lanes' | 'matrix'
+
+interface FeatureExplorerProps {
+  dataset: AtlasDataset
+  story: StoryModel
+  visibleFeatures: FeatureCandidate[]
+  selectedFeature: FeatureCandidate | null
+  selectedId: string | null
+  selectedChapterId: string | null
+  selectedLifecycleStage: LifecycleStage | 'all'
+  matrix: AreaMatrixModel
+  view: ExploreView
+  onViewChange: (view: ExploreView) => void
+  onSelect: (id: string) => void
+  onSelectFeature: (id: string) => void
+  inspector: ReactNode
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
+function formatSpan(lane: StoryLane) {
+  const start = formatDate(new Date(lane.startTime).toISOString())
+  const end = formatDate(new Date(lane.endTime).toISOString())
+  return start === end ? start : `${start} – ${end}`
+}
+
+function LifecycleLegend() {
+  return (
+    <div className="visual-legend" aria-label="Lifecycle legend">
+      {LIFECYCLE_STAGES.map((stage) => (
+        <span key={stage}>
+          <i className={`legend-mark legend-mark--${stage}`} />
+          {stage}
+        </span>
+      ))}
+      <span><i className="legend-mark legend-mark--commit" />cited commit</span>
+    </div>
+  )
+}
+
+function FeatureFocus({
+  dataset,
+  lane,
+  chapters,
+  selectedId,
+  selectedChapterId,
+  selectedLifecycleStage,
+  onSelect,
+}: {
+  dataset: AtlasDataset
+  lane: StoryLane
+  chapters: CalendarChapter[]
+  selectedId: string | null
+  selectedChapterId: string | null
+  selectedLifecycleStage: LifecycleStage | 'all'
+  onSelect: (id: string) => void
+}) {
+  const associations = useMemo(
+    () => deriveFeatureAssociations(dataset, lane.feature),
+    [dataset, lane.feature],
+  )
+
+  return (
+    <article className="feature-focus">
+      <header className="feature-focus__header">
+        <div>
+          <span className="eyebrow">Selected feature story</span>
+          <h2>{lane.feature.label}</h2>
+          <p>{lane.feature.rationale ?? 'This candidate groups repository evidence into one capability trail.'}</p>
+        </div>
+        <div className="feature-focus__confidence">
+          <strong>{Math.round(lane.feature.confidence * 100)}%</strong>
+          <span>candidate confidence</span>
+        </div>
+      </header>
+
+      <section className="feature-focus__timeline" aria-label={`${lane.feature.label} timeline`}>
+        <div className="focus-axis" aria-hidden="true">
+          {chapters.map((chapter) => (
+            <span
+              key={chapter.id}
+              className={selectedChapterId === chapter.id ? 'is-selected' : ''}
+              style={{ left: `${chapter.startPercent}%`, width: `${chapter.widthPercent}%` }}
+            >
+              {chapter.label}
+            </span>
+          ))}
+        </div>
+
+        <div className="focus-track">
+          {chapters.map((chapter) => (
+            <span
+              key={chapter.id}
+              className={`focus-track__chapter${selectedChapterId === chapter.id ? ' is-selected' : ''}`}
+              style={{ left: `${chapter.startPercent}%`, width: `${chapter.widthPercent}%` }}
+            />
+          ))}
+          {lane.events.length > 1 && (
+            <span
+              className="focus-track__span"
+              style={{
+                left: `${lane.startPercent}%`,
+                width: `${Math.max(lane.endPercent - lane.startPercent, 0.3)}%`,
+              }}
+            />
+          )}
+          {lane.events.map((event) => (
+            <button
+              key={event.id}
+              type="button"
+              className={`focus-commit${selectedId === event.id ? ' is-selected' : ''}`}
+              style={{ left: `${event.percent}%` }}
+              aria-label={`${event.episode.shortSha}: ${event.episode.subject}`}
+              data-tooltip={`${formatDate(event.episode.authoredAt)} · ${event.episode.subject}`}
+              onClick={() => onSelect(event.id)}
+            />
+          ))}
+          {lane.lifecycleEvents.map((event, index) => {
+            const stage = event.semanticEpisode.lifecycleStage
+            const isDimmed = selectedLifecycleStage !== 'all' && selectedLifecycleStage !== stage
+            return (
+              <button
+                key={event.id}
+                type="button"
+                className={`focus-lifecycle focus-lifecycle--${stage}${selectedId === event.id ? ' is-selected' : ''}${isDimmed ? ' is-dimmed' : ''}`}
+                style={{
+                  left: `${event.startPercent}%`,
+                  width: `${Math.max(event.endPercent - event.startPercent, 1.2)}%`,
+                  top: `${18 + (index % 4) * 12}px`,
+                }}
+                aria-label={`${stage}: ${event.semanticEpisode.label}`}
+                data-tooltip={`${stage} · ${event.semanticEpisode.label}`}
+                onClick={() => onSelect(event.id)}
+              />
+            )
+          })}
+        </div>
+        <LifecycleLegend />
+      </section>
+
+      <div className="feature-focus__context">
+        <section>
+          <span className="eyebrow">Observed footprint</span>
+          <h3>Code areas</h3>
+          <div className="context-chips">
+            {associations.areas.map((area) => (
+              <button key={area.id} type="button" onClick={() => onSelect(area.id)}>
+                {area.label}<small>{area.count}</small>
+              </button>
+            ))}
+          </div>
+        </section>
+        <section>
+          <span className="eyebrow">Git associations</span>
+          <h3>Contributors</h3>
+          <div className="context-chips">
+            {associations.contributors.map((contributor) => (
+              <button key={contributor.id} type="button" onClick={() => onSelect(contributor.id)}>
+                {contributor.displayName}<small>{contributor.count}</small>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <section className="lifecycle-cards" aria-labelledby="lifecycle-heading">
+        <div className="subsection-heading">
+          <div>
+            <span className="eyebrow">Candidate lifecycle</span>
+            <h3 id="lifecycle-heading">What changed, in sequence</h3>
+          </div>
+          <span>{lane.lifecycleEvents.length} episodes</span>
+        </div>
+        {lane.lifecycleEvents.length > 0 ? (
+          <ol>
+            {lane.lifecycleEvents.map((event) => {
+              const firstEvidence = event.episodes[0]
+              const stage = event.semanticEpisode.lifecycleStage
+              return (
+                <li key={event.id}>
+                  <button
+                    type="button"
+                    className={selectedId === event.id ? 'is-selected' : ''}
+                    onClick={() => onSelect(event.id)}
+                  >
+                    <span className={`lifecycle-badge lifecycle-badge--${stage}`}>{stage}</span>
+                    <strong>{event.semanticEpisode.label}</strong>
+                    <p>{event.semanticEpisode.rationale}</p>
+                    <small>
+                      {firstEvidence ? formatDate(firstEvidence.authoredAt) : 'Date unavailable'} ·{' '}
+                      {event.episodes.length} cited commit{event.episodes.length === 1 ? '' : 's'} ·{' '}
+                      {Math.round(event.semanticEpisode.confidence * 100)}%
+                    </small>
+                  </button>
+                </li>
+              )
+            })}
+          </ol>
+        ) : (
+          <div className="empty-state">No lifecycle episodes match the current evidence preset.</div>
+        )}
+      </section>
+
+      <details className="method-disclosure">
+        <summary>How to read this feature story</summary>
+        <p>
+          The line connects cited evidence for navigation; it does not claim continuous development.
+          Lifecycle labels are candidate interpretations, and contributor counts describe Git author
+          associations rather than ownership or performance.
+        </p>
+      </details>
+    </article>
+  )
+}
+
+export function FeatureExplorer({
+  dataset,
+  story,
+  visibleFeatures,
+  selectedFeature,
+  selectedId,
+  selectedChapterId,
+  selectedLifecycleStage,
+  matrix,
+  view,
+  onViewChange,
+  onSelect,
+  onSelectFeature,
+  inspector,
+}: FeatureExplorerProps) {
+  const [query, setQuery] = useState('')
+  const normalizedQuery = query.trim().toLowerCase()
+  const laneByFeatureId = useMemo(
+    () => new Map(story.lanes.map((lane) => [lane.feature.id, lane])),
+    [story.lanes],
+  )
+  const visibleFeatureIds = useMemo(
+    () => new Set(visibleFeatures.map((feature) => feature.id)),
+    [visibleFeatures],
+  )
+  const matchingFeatures = story.lanes
+    .map((lane) => lane.feature)
+    .filter(
+      (feature) =>
+        visibleFeatureIds.has(feature.id) && feature.label.toLowerCase().includes(normalizedQuery),
+  )
+  const selectedLane = selectedFeature ? laneByFeatureId.get(selectedFeature.id) ?? null : null
+  const viewDescription =
+    view === 'focus'
+      ? 'A guided story for the selected candidate, with its lifecycle and cited commits in one place.'
+      : view === 'lanes'
+        ? 'A repository-wide comparison for spotting parallel feature and reorganization trails.'
+        : 'A repository-wide matrix showing where cited feature evidence appears in the codebase.'
+
+  return (
+    <section className="explorer-shell">
+      <div className="explorer-flow" aria-label="Explore workflow">
+        <div className="explorer-flow__step is-active">
+          <span className="explorer-flow__number">01</span>
+          <div>
+            <strong>Choose a candidate</strong>
+            <small>{matchingFeatures.length} features in the current scope</small>
+          </div>
+        </div>
+        <div className={`explorer-flow__step${selectedLane ? ' is-active' : ''}`}>
+          <span className="explorer-flow__number">02</span>
+          <div>
+            <strong>Follow the lifecycle</strong>
+            <small>{selectedLane ? selectedLane.feature.label : 'Select a feature on the left'}</small>
+          </div>
+        </div>
+        <div className={`explorer-flow__step${selectedId ? ' is-active' : ''}`}>
+          <span className="explorer-flow__number">03</span>
+          <div>
+            <strong>Verify the evidence</strong>
+            <small>{selectedId ? 'Evidence inspector is ready' : 'Select a mark or episode'}</small>
+          </div>
+        </div>
+      </div>
+
+      <aside className="feature-index" aria-label="Feature index">
+        <div className="feature-index__heading">
+          <span className="eyebrow">Feature index</span>
+          <strong>{matchingFeatures.length}</strong>
+        </div>
+        <label className="feature-search">
+          <span className="sr-only">Find a candidate feature</span>
+          <input
+            type="search"
+            value={query}
+            placeholder="Find a feature…"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <div className="feature-index__list">
+          {matchingFeatures.map((feature) => {
+            const lane = laneByFeatureId.get(feature.id)
+            const stages = lane?.lifecycleEvents.map((event) => event.semanticEpisode.lifecycleStage) ?? []
+            return (
+              <button
+                key={feature.id}
+                type="button"
+                className={selectedFeature?.id === feature.id ? 'is-selected' : ''}
+                onClick={() => onSelectFeature(feature.id)}
+              >
+                <strong>{feature.label}</strong>
+                <span>{stages.length > 0 ? stages.join(' → ') : 'lifecycle unassigned'}</span>
+                <small>{lane ? formatSpan(lane) : `${Math.round(feature.confidence * 100)}% confidence`}</small>
+              </button>
+            )
+          })}
+          {matchingFeatures.length === 0 && (
+            <div className="feature-index__empty">No feature names match “{query}”.</div>
+          )}
+        </div>
+      </aside>
+
+      <div className="explorer-main">
+        <div className="explorer-view-switch" role="group" aria-label="Explore view">
+          <span className="explorer-view-switch__label">Guided view</span>
+          <button
+            type="button"
+            className={view === 'focus' ? 'is-active' : ''}
+            aria-pressed={view === 'focus'}
+            onClick={() => onViewChange('focus')}
+          >
+            Feature story
+          </button>
+          <button
+            type="button"
+            className={view === 'lanes' ? 'is-active' : ''}
+            aria-pressed={view === 'lanes'}
+            onClick={() => onViewChange('lanes')}
+          >
+            Compare timelines
+          </button>
+          <button
+            type="button"
+            className={view === 'matrix' ? 'is-active' : ''}
+            aria-pressed={view === 'matrix'}
+            onClick={() => onViewChange('matrix')}
+          >
+            Area matrix
+          </button>
+        </div>
+        <p className="explorer-view-note">{viewDescription}</p>
+
+        {view === 'focus' ? (
+          selectedLane ? (
+            <FeatureFocus
+              dataset={dataset}
+              lane={selectedLane}
+              chapters={story.chapters}
+              selectedId={selectedId}
+              selectedChapterId={selectedChapterId}
+              selectedLifecycleStage={selectedLifecycleStage}
+              onSelect={onSelect}
+            />
+          ) : (
+            <div className="explorer-empty">
+              <span className="eyebrow">Feature story</span>
+              <h2>Choose a feature to trace its evolution.</h2>
+              <p>Search the feature index or remove a filter to restore matching candidates.</p>
+            </div>
+          )
+        ) : view === 'lanes' ? (
+          <div className="power-view">
+            <div className="power-view__heading">
+              <div>
+                <span className="eyebrow">Power view</span>
+                <h2>Compare candidate timelines</h2>
+              </div>
+              <span>{story.lanes.length} feature rows</span>
+            </div>
+            <StoryLanes
+              model={story}
+              selectedId={selectedId}
+              selectedChapterId={selectedChapterId}
+              onSelect={onSelect}
+            />
+          </div>
+        ) : (
+          <div className="power-view">
+            <div className="power-view__heading">
+              <div>
+                <span className="eyebrow">Evidence distribution</span>
+                <h2>Where cited feature evidence lives</h2>
+              </div>
+              <span>{matrix.columns.length} observed areas</span>
+            </div>
+            <AreaMatrix model={matrix} selectedId={selectedId} onSelect={onSelect} />
+          </div>
+        )}
+      </div>
+
+      <aside className="explorer-inspector" aria-label="Evidence inspector">
+        {inspector}
+      </aside>
+    </section>
+  )
+}

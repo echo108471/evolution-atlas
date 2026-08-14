@@ -1,3 +1,4 @@
+import { LIFECYCLE_STAGES } from './lifecycle'
 import type { StoryModel } from './story'
 
 interface StoryLanesProps {
@@ -14,6 +15,16 @@ export function StoryLanes({ model, selectedId, selectedChapterId, onSelect }: S
 
   return (
     <div className="story-lanes">
+      <div className="visual-legend visual-legend--lanes" aria-label="Timeline legend">
+        {LIFECYCLE_STAGES.map((stage) => (
+          <span key={stage}>
+            <i className={`legend-mark legend-mark--${stage}`} />
+            {stage}
+          </span>
+        ))}
+        <span><i className="legend-mark legend-mark--commit" />cited commit</span>
+        <span><i className="legend-mark legend-mark--structure" />reorganization</span>
+      </div>
       <div className="story-axis story-grid">
         <span>Candidate episode or feature</span>
         <div className="story-axis__track" aria-hidden="true">
@@ -147,12 +158,15 @@ export function StoryLanes({ model, selectedId, selectedChapterId, onSelect }: S
         })}
       </ol>
 
-      <p className="method-note">
-        Diamonds are candidate repository reorganizations grounded in path transitions. Dots are
-        cited commits. Colored bars are candidate semantic lifecycle episodes and span only their
-        cited evidence. Dashed lines remain a visual index, not a claim of continuous development
-        or a complete feature lifetime.
-      </p>
+      <details className="method-disclosure">
+        <summary>How to read all timelines</summary>
+        <p>
+          Diamonds are candidate repository reorganizations grounded in path transitions. Dots are
+          cited commits. Colored bars are candidate semantic lifecycle episodes and span only their
+          cited evidence. Dashed lines are a visual index, not a claim of continuous development or
+          a complete feature lifetime.
+        </p>
+      </details>
     </div>
   )
 }

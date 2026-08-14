@@ -69,10 +69,13 @@ export function AreaMatrix({ model, selectedId, onSelect }: AreaMatrixProps) {
           ]
         })}
       </div>
-      <p className="method-note">
-        Cell intensity counts cited commits that touched a top-level path. It describes evidence
-        location, not architectural ownership or implementation size.
-      </p>
+      <details className="method-disclosure">
+        <summary>How to read the area matrix</summary>
+        <p>
+          Cell intensity counts cited commits that touched a top-level path. It describes evidence
+          location, not architectural ownership or implementation size.
+        </p>
+      </details>
     </div>
   )
 }

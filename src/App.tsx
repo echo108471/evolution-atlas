@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { AreaMatrix } from './AreaMatrix'
-import { ChapterStrip } from './ChapterStrip'
 import { ContributorTrail } from './ContributorTrail'
+import { FeatureExplorer, type ExploreView } from './FeatureExplorer'
 import { FeatureNeighborhood } from './FeatureNeighborhood'
 import { IdentityReview } from './IdentityReview'
-import { StoryLanes } from './StoryLanes'
+import { RepositoryOverview } from './RepositoryOverview'
 import { LIFECYCLE_STAGES, normalizeSemanticEpisodes } from './lifecycle'
 import { buildStructuralEpisodes } from './structure.mjs'
 import {
@@ -34,7 +33,6 @@ import {
   buildStoryModel,
   deriveFeatureAssociations,
   featureTouchesChapter,
-  semanticEpisodeTouchesChapter,
   structuralEpisodeTouchesChapter,
 } from './story'
 
@@ -47,8 +45,14 @@ type SelectedEntity =
   | { kind: 'semantic'; value: SemanticEpisodeCandidate }
   | { kind: 'structural'; value: StructuralEpisodeCandidate }
 
-type PrimaryView = 'story' | 'matrix'
-type HistoryMode = 'repository' | 'contributor' | 'identity'
+type ProductSection = 'overview' | 'explore' | 'people' | 'identity'
+type EvidencePreset = 'conservative' | 'balanced' | 'all'
+
+const EVIDENCE_PRESETS: Record<EvidencePreset, { label: string; threshold: number }> = {
+  conservative: { label: 'Conservative', threshold: 0.85 },
+  balanced: { label: 'Balanced', threshold: 0.7 },
+  all: { label: 'All candidates', threshold: 0 },
+}
 
 function identityStorageKey(repository: string) {
   return `evolution-atlas:identity-decisions:${repository}`
@@ -462,17 +466,100 @@ function EvidencePanel({
   )
 }
 
+function ScopeControls({
+  chapters,
+  selectedChapterId,
+  onSelectChapter,
+  lifecycleStage,
+  onLifecycleStage,
+  evidencePreset,
+  onEvidencePreset,
+  resultLabel,
+}: {
+  chapters: Array<{ id: string; label: string }>
+  selectedChapterId: string | null
+  onSelectChapter: (id: string | null) => void
+  lifecycleStage: LifecycleStage | 'all'
+  onLifecycleStage: (stage: LifecycleStage | 'all') => void
+  evidencePreset: EvidencePreset
+  onEvidencePreset: (preset: EvidencePreset) => void
+  resultLabel: string
+}) {
+  return (
+    <section className="scope-bar" aria-label="History scope">
+      <div className="scope-group scope-group--time">
+        <span>Time</span>
+        <div role="group" aria-label="Calendar range">
+          <button
+            type="button"
+            className={selectedChapterId === null ? 'is-active' : ''}
+            aria-pressed={selectedChapterId === null}
+            onClick={() => onSelectChapter(null)}
+          >
+            All
+          </button>
+          {chapters.map((chapter) => (
+            <button
+              key={chapter.id}
+              type="button"
+              className={selectedChapterId === chapter.id ? 'is-active' : ''}
+              aria-pressed={selectedChapterId === chapter.id}
+              onClick={() => onSelectChapter(selectedChapterId === chapter.id ? null : chapter.id)}
+            >
+              {chapter.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <label className="scope-select">
+        <span>Lifecycle</span>
+        <select
+          value={lifecycleStage}
+          onChange={(event) => onLifecycleStage(event.target.value as LifecycleStage | 'all')}
+        >
+          <option value="all">All stages</option>
+          {LIFECYCLE_STAGES.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
+        </select>
+      </label>
+
+      <div className="scope-group scope-group--evidence">
+        <span>Evidence</span>
+        <div role="group" aria-label="Evidence preset">
+          {(Object.entries(EVIDENCE_PRESETS) as Array<[EvidencePreset, { label: string; threshold: number }]>).map(
+            ([preset, definition]) => (
+              <button
+                key={preset}
+                type="button"
+                className={evidencePreset === preset ? 'is-active' : ''}
+                aria-pressed={evidencePreset === preset}
+                title={`${Math.round(definition.threshold * 100)}% minimum candidate confidence`}
+                onClick={() => onEvidencePreset(preset)}
+              >
+                {definition.label}
+              </button>
+            ),
+          )}
+        </div>
+      </div>
+
+      <span className="scope-result">{resultLabel}</span>
+    </section>
+  )
+}
+
 export default function App() {
   const [dataset, setDataset] = useState<AtlasDataset | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null)
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
-  const [view, setView] = useState<PrimaryView>('story')
-  const [historyMode, setHistoryMode] = useState<HistoryMode>('repository')
+  const [section, setSection] = useState<ProductSection>('overview')
+  const [exploreView, setExploreView] = useState<ExploreView>('focus')
   const [selectedContributorId, setSelectedContributorId] = useState<string | null>(null)
   const [identityDecisions, setIdentityDecisions] =
     useState<IdentityDecisionsDocument | null>(null)
-  const [minConfidence, setMinConfidence] = useState(0)
+  const [evidencePreset, setEvidencePreset] = useState<EvidencePreset>('balanced')
   const [lifecycleStage, setLifecycleStage] = useState<LifecycleStage | 'all'>('all')
 
   useEffect(() => {
@@ -502,7 +589,7 @@ export default function App() {
           setIdentityDecisions(emptyDecisions)
         }
         const firstFeature = normalizedDataset.featureCandidates[0]
-        setSelectedId(firstFeature?.id ?? normalizedDataset.episodes.at(-1)?.id ?? null)
+        setSelectedFeatureId(firstFeature?.id ?? null)
         const firstContributor = [...normalizedDataset.contributors].sort(
           (left, right) =>
             Number(left.isBot) - Number(right.isBot) ||
@@ -523,51 +610,53 @@ export default function App() {
     return () => controller.abort()
   }, [])
 
-  const filteredByClaim = useMemo(() => {
+  const minConfidence = EVIDENCE_PRESETS[evidencePreset].threshold
+  const confidenceFeatures = useMemo(() => {
     if (!dataset) return []
-    const lifecycleFeatureIds = new Set(
-      (dataset.semanticEpisodes ?? [])
-        .filter(
-          (episode) =>
-            episode.confidence >= minConfidence &&
-            (lifecycleStage === 'all' || episode.lifecycleStage === lifecycleStage),
-        )
+    return dataset.featureCandidates.filter((feature) => feature.confidence >= minConfidence)
+  }, [dataset, minConfidence])
+  const confidenceSemanticEpisodes = useMemo(
+    () =>
+      (dataset?.semanticEpisodes ?? []).filter((episode) => episode.confidence >= minConfidence),
+    [dataset, minConfidence],
+  )
+  const stageFilteredFeatures = useMemo(() => {
+    if (lifecycleStage === 'all') return confidenceFeatures
+    const featureIds = new Set(
+      confidenceSemanticEpisodes
+        .filter((episode) => episode.lifecycleStage === lifecycleStage)
         .map((episode) => episode.featureId),
     )
-    return dataset.featureCandidates.filter(
-      (feature) =>
-        feature.confidence >= minConfidence &&
-        (lifecycleStage === 'all' || lifecycleFeatureIds.has(feature.id)),
-    )
-  }, [dataset, lifecycleStage, minConfidence])
-  const filteredSemanticEpisodes = useMemo(
-    () =>
-      (dataset?.semanticEpisodes ?? []).filter(
-        (episode) =>
-          episode.confidence >= minConfidence &&
-          (lifecycleStage === 'all' || episode.lifecycleStage === lifecycleStage),
-      ),
-    [dataset, lifecycleStage, minConfidence],
-  )
-  const filteredStructuralEpisodes = useMemo(
+    return confidenceFeatures.filter((feature) => featureIds.has(feature.id))
+  }, [confidenceFeatures, confidenceSemanticEpisodes, lifecycleStage])
+  const confidenceStructuralEpisodes = useMemo(
     () =>
       (dataset?.structuralEpisodes ?? []).filter(
-        (structuralEpisode) => structuralEpisode.confidence >= minConfidence,
+        (episode) => episode.confidence >= minConfidence,
       ),
     [dataset, minConfidence],
   )
 
+  const overviewStory = useMemo(
+    () => (dataset ? buildStoryModel(dataset) : null),
+    [dataset],
+  )
   const baseStory = useMemo(
     () =>
       dataset
         ? buildStoryModel(
             dataset,
-            filteredByClaim,
-            filteredStructuralEpisodes,
-            filteredSemanticEpisodes,
+            stageFilteredFeatures,
+            confidenceStructuralEpisodes,
+            confidenceSemanticEpisodes,
           )
         : null,
-    [dataset, filteredByClaim, filteredSemanticEpisodes, filteredStructuralEpisodes],
+    [
+      confidenceSemanticEpisodes,
+      confidenceStructuralEpisodes,
+      dataset,
+      stageFilteredFeatures,
+    ],
   )
   const selectedChapter =
     baseStory?.chapters.find((chapter) => chapter.id === selectedChapterId) ?? null
@@ -604,34 +693,25 @@ export default function App() {
     contributorOptions[0] ??
     null
   const visibleFeatures = useMemo(() => {
-    if (!dataset || !selectedChapter) return filteredByClaim
-    if (lifecycleStage !== 'all') {
-      const featureIds = new Set(
-        filteredSemanticEpisodes
-          .filter((episode) => semanticEpisodeTouchesChapter(dataset, episode, selectedChapter))
-          .map((episode) => episode.featureId),
-      )
-      return filteredByClaim.filter((feature) => featureIds.has(feature.id))
-    }
-    return filteredByClaim.filter((feature) =>
-      featureTouchesChapter(dataset, feature, selectedChapter, filteredSemanticEpisodes),
+    if (!dataset || !selectedChapter) return stageFilteredFeatures
+    return stageFilteredFeatures.filter((feature) =>
+      featureTouchesChapter(dataset, feature, selectedChapter, confidenceSemanticEpisodes),
     )
-  }, [dataset, filteredByClaim, filteredSemanticEpisodes, lifecycleStage, selectedChapter])
-  const visibleSemanticEpisodes = useMemo(() => {
-    if (!dataset) return []
-    const featureIds = new Set(visibleFeatures.map((feature) => feature.id))
-    return filteredSemanticEpisodes.filter(
-      (episode) =>
-        featureIds.has(episode.featureId) &&
-        (!selectedChapter || semanticEpisodeTouchesChapter(dataset, episode, selectedChapter)),
-    )
-  }, [dataset, filteredSemanticEpisodes, selectedChapter, visibleFeatures])
+  }, [confidenceSemanticEpisodes, dataset, selectedChapter, stageFilteredFeatures])
   const visibleStructuralEpisodes = useMemo(() => {
-    if (!dataset || !selectedChapter) return filteredStructuralEpisodes
-    return filteredStructuralEpisodes.filter((structuralEpisode) =>
+    if (!dataset || !selectedChapter) return confidenceStructuralEpisodes
+    return confidenceStructuralEpisodes.filter((structuralEpisode) =>
       structuralEpisodeTouchesChapter(dataset, structuralEpisode, selectedChapter),
     )
-  }, [dataset, filteredStructuralEpisodes, selectedChapter])
+  }, [confidenceStructuralEpisodes, dataset, selectedChapter])
+  const visibleFeatureIds = useMemo(
+    () => new Set(visibleFeatures.map((feature) => feature.id)),
+    [visibleFeatures],
+  )
+  const visibleSemanticEpisodes = useMemo(
+    () => confidenceSemanticEpisodes.filter((episode) => visibleFeatureIds.has(episode.featureId)),
+    [confidenceSemanticEpisodes, visibleFeatureIds],
+  )
   const story = useMemo(
     () =>
       dataset
@@ -654,45 +734,66 @@ export default function App() {
         ? buildContributorTrail(
             dataset,
             selectedContributor,
-            filteredByClaim,
+            visibleFeatures,
             selectedChapter,
-            filteredSemanticEpisodes,
+            confidenceSemanticEpisodes,
           )
         : null,
-    [dataset, filteredByClaim, filteredSemanticEpisodes, selectedChapter, selectedContributor],
+    [
+      confidenceSemanticEpisodes,
+      dataset,
+      selectedChapter,
+      selectedContributor,
+      visibleFeatures,
+    ],
   )
+  const selectedFeature =
+    dataset?.featureCandidates.find((feature) => feature.id === selectedFeatureId) ?? null
   const selectedEntity = useMemo(
     () => (dataset ? findEntity(dataset, selectedId, identityResolution) : null),
     [dataset, identityResolution, selectedId],
   )
-  const visibleEvidenceCount = useMemo(
-    () =>
-      new Set([
-        ...visibleFeatures.flatMap((feature) =>
-          feature.evidence.map((entry) => entry.commitSha),
-        ),
-        ...visibleSemanticEpisodes.flatMap((episode) =>
-          episode.evidence.map((entry) => entry.commitSha),
-        ),
-      ]).size,
-    [visibleFeatures, visibleSemanticEpisodes],
-  )
+
+  useEffect(() => {
+    if (section !== 'explore' || visibleFeatures.length === 0) return
+    if (!selectedFeatureId || !visibleFeatureIds.has(selectedFeatureId)) {
+      const nextFeature = visibleFeatures[0]
+      setSelectedFeatureId(nextFeature.id)
+      setSelectedId(nextFeature.id)
+    }
+  }, [section, selectedFeatureId, visibleFeatureIds, visibleFeatures])
 
   const handleSelect = (id: string) => {
     setSelectedId(id)
+    const feature = dataset?.featureCandidates.find((candidate) => candidate.id === id)
+    if (feature) setSelectedFeatureId(feature.id)
+    const semantic = dataset?.semanticEpisodes?.find((candidate) => candidate.id === id)
+    if (semantic) setSelectedFeatureId(semantic.featureId)
     const contributor = dataset?.contributors.find((candidate) => candidate.id === id)
-    if (contributor) {
-      const profile = identityResolution.profileByIdentityId.get(contributor.id)
-      setSelectedContributorId(profile?.id ?? contributor.id)
-      setSelectedId(profile?.id ?? contributor.id)
-      setHistoryMode('contributor')
+    const profile = identityResolution.profiles.find((candidate) => candidate.id === id)
+    if (contributor || profile) {
+      const resolvedProfile = contributor
+        ? identityResolution.profileByIdentityId.get(contributor.id)
+        : profile
+      const contributorId = resolvedProfile?.id ?? contributor?.id
+      if (!contributorId) return
+      setSelectedContributorId(contributorId)
+      setSelectedId(contributorId)
+      setSection('people')
     }
   }
 
-  const handleHistoryMode = (mode: HistoryMode) => {
-    setHistoryMode(mode)
-    if (mode === 'contributor') {
-      const selectedFeature = dataset?.featureCandidates.find((feature) => feature.id === selectedId)
+  const handleSectionChange = (nextSection: ProductSection) => {
+    setSection(nextSection)
+    if (nextSection === 'explore') {
+      const feature =
+        visibleFeatures.find((candidate) => candidate.id === selectedFeatureId) ?? visibleFeatures[0]
+      if (feature) {
+        setSelectedFeatureId(feature.id)
+        setSelectedId(feature.id)
+      }
+    }
+    if (nextSection === 'people') {
       const contextualContributor = selectedFeature
         ? deriveFeatureAssociations(dataset!, selectedFeature).contributors.find(
             (contributor) => !contributor.isBot,
@@ -700,17 +801,45 @@ export default function App() {
         : null
       const contributor = contextualContributor ?? selectedContributor
       if (contributor) {
-        const profile = identityResolution.profileByIdentityId.get(contributor.id) ?? contributor
-        setSelectedContributorId(profile.id)
-        setSelectedId(profile.id)
+        const resolved = identityResolution.profileByIdentityId.get(contributor.id) ?? contributor
+        setSelectedContributorId(resolved.id)
+        setSelectedId(resolved.id)
       }
-    } else if (
-      mode === 'repository' &&
-      (dataset?.contributors.some((contributor) => contributor.id === selectedId) ||
-        identityResolution.profiles.some((profile) => profile.id === selectedId))
-    ) {
-      setSelectedId(visibleFeatures[0]?.id ?? dataset?.episodes.at(-1)?.id ?? null)
     }
+  }
+
+  const handleSelectFeature = (id: string) => {
+    setSelectedFeatureId(id)
+    setSelectedId(id)
+  }
+
+  const handleExploreFeature = (id: string) => {
+    setSelectedChapterId(null)
+    setSelectedFeatureId(id)
+    setSelectedId(id)
+    setExploreView('focus')
+    setSection('explore')
+  }
+
+  const handleExploreStage = (stage: LifecycleStage) => {
+    setSelectedChapterId(null)
+    setLifecycleStage(stage)
+    setExploreView('focus')
+    setSection('explore')
+    const featureId = confidenceSemanticEpisodes.find(
+      (episode) => episode.lifecycleStage === stage,
+    )?.featureId
+    if (featureId) {
+      setSelectedFeatureId(featureId)
+      setSelectedId(featureId)
+    }
+  }
+
+  const handleInspectStructure = (id: string) => {
+    setSelectedChapterId(null)
+    setSelectedId(id)
+    setExploreView('lanes')
+    setSection('explore')
   }
 
   const handleContributorChange = (id: string) => {
@@ -742,7 +871,7 @@ export default function App() {
     if (!profile) return
     setSelectedContributorId(profile.id)
     setSelectedId(profile.id)
-    setHistoryMode('contributor')
+    setSection('people')
   }
 
   useEffect(() => {
@@ -757,7 +886,7 @@ export default function App() {
     }
   }, [dataset, identityDecisions])
 
-  if (!dataset || !baseStory || !story || !matrix) {
+  if (!dataset || !overviewStory || !baseStory || !story || !matrix) {
     return (
       <main className="load-state">
         <p className="brand-mark">EVOLUTION ATLAS</p>
@@ -777,219 +906,179 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell">
-      <header className="app-header">
-        <div>
-          <p className="brand-mark">EVOLUTION ATLAS / EVIDENCE-LED HISTORY</p>
-          <h1>{dataset.repository.name}</h1>
-          <p className="subtitle">
-            {historyMode === 'repository'
-              ? 'Candidate capabilities, lifecycle episodes, structural reorganizations, and cited repository evidence.'
-              : historyMode === 'contributor'
-                ? 'One confirmed contributor profile projected through the repository story and its evidence.'
-                : 'Review likely identity matches without rewriting the underlying Git evidence.'}
-          </p>
-        </div>
-        <div className="repository-meta">
-          <span>{dataset.repository.ref}</span>
-          <code>{dataset.repository.headSha.slice(0, 8)}</code>
-          <span>{dataset.analysis.mode}</span>
+    <main className="app-shell app-shell--product">
+      <header className="product-header">
+        <button type="button" className="product-brand" onClick={() => handleSectionChange('overview')}>
+          <span className="brand-mark">EVOLUTION ATLAS</span>
+          <strong>{dataset.repository.name}</strong>
+        </button>
+
+        <nav className="product-nav" aria-label="Primary navigation">
+          <button
+            type="button"
+            className={section === 'overview' ? 'is-active' : ''}
+            aria-current={section === 'overview' ? 'page' : undefined}
+            onClick={() => handleSectionChange('overview')}
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            className={section === 'explore' ? 'is-active' : ''}
+            aria-current={section === 'explore' ? 'page' : undefined}
+            onClick={() => handleSectionChange('explore')}
+          >
+            Explore
+          </button>
+          <button
+            type="button"
+            className={section === 'people' ? 'is-active' : ''}
+            aria-current={section === 'people' ? 'page' : undefined}
+            onClick={() => handleSectionChange('people')}
+          >
+            People
+          </button>
+        </nav>
+
+        <div className="product-utilities">
+          <button
+            type="button"
+            className={section === 'identity' ? 'is-active' : ''}
+            onClick={() => handleSectionChange('identity')}
+          >
+            Manage identities
+            {identityResolution.suggestedCount > 0 && <span>{identityResolution.suggestedCount}</span>}
+          </button>
+          <div className="repository-meta">
+            <span>{dataset.repository.ref}</span>
+            <code>{dataset.repository.headSha.slice(0, 8)}</code>
+          </div>
         </div>
       </header>
 
-      <section className="summary-strip" aria-label="Current view summary">
-        {historyMode === 'repository' ? (
-          <>
-            <div><strong>{visibleFeatures.length}</strong><span>candidate features</span></div>
-            <div><strong>{visibleSemanticEpisodes.length}</strong><span>lifecycle episodes</span></div>
-            <div><strong>{visibleStructuralEpisodes.length}</strong><span>structural episodes</span></div>
-            <div><strong>{visibleEvidenceCount}</strong><span>cited commits</span></div>
-          </>
-        ) : historyMode === 'contributor' ? (
-          <>
-            <div><strong>{contributorTrail?.authoredEpisodes.length ?? 0}</strong><span>authored commits</span></div>
-            <div><strong>{contributorTrail?.featureLanes.length ?? 0}</strong><span>candidate associations</span></div>
-            <div><strong>{contributorTrail?.areaLanes.length ?? 0}</strong><span>observed code areas</span></div>
-          </>
-        ) : (
-          <>
-            <div><strong>{identityResolution.suggestedCount}</strong><span>needs review</span></div>
-            <div><strong>{identityResolution.mergedIdentityCount}</strong><span>identities consolidated</span></div>
-            <div><strong>{identityResolution.profiles.length}</strong><span>contributor profiles</span></div>
-          </>
-        )}
-        <div>
-          <strong>{historyMode === 'identity' ? identityResolution.reviewedCount : selectedChapter?.label ?? 'all'}</strong>
-          <span>{historyMode === 'identity' ? 'resolved matches' : 'calendar range'}</span>
-        </div>
-      </section>
-
-      {historyMode !== 'identity' && (
-        <ChapterStrip
-          chapters={baseStory.chapters}
-          selectedId={selectedChapterId}
-          onSelect={setSelectedChapterId}
+      {section === 'overview' ? (
+        <RepositoryOverview
+          dataset={dataset}
+          story={overviewStory}
+          selectedChapterId={selectedChapterId}
+          onSelectChapter={setSelectedChapterId}
+          onExplore={() => handleSectionChange('explore')}
+          onExploreFeature={handleExploreFeature}
+          onExploreStage={handleExploreStage}
+          onInspect={handleInspectStructure}
         />
-      )}
-
-      <section className="view-toolbar" aria-label="Story controls">
-        <div className="mode-switch" role="group" aria-label="History mode">
-          <button
-            type="button"
-            className={historyMode === 'repository' ? 'is-active' : ''}
-            aria-pressed={historyMode === 'repository'}
-            onClick={() => handleHistoryMode('repository')}
-          >
-            Repository story
-          </button>
-          <button
-            type="button"
-            className={historyMode === 'contributor' ? 'is-active' : ''}
-            aria-pressed={historyMode === 'contributor'}
-            onClick={() => handleHistoryMode('contributor')}
-          >
-            Contributor trail
-          </button>
-          <button
-            type="button"
-            className={historyMode === 'identity' ? 'is-active' : ''}
-            aria-pressed={historyMode === 'identity'}
-            onClick={() => handleHistoryMode('identity')}
-          >
-            Identity review
-          </button>
-        </div>
-
-        {historyMode === 'repository' ? (
-          <div className="view-switch" role="group" aria-label="Repository view">
-            <button
-              type="button"
-              className={view === 'story' ? 'is-active' : ''}
-              onClick={() => setView('story')}
-            >
-              Feature lanes
-            </button>
-            <button
-              type="button"
-              className={view === 'matrix' ? 'is-active' : ''}
-              onClick={() => setView('matrix')}
-            >
-              Code areas
-            </button>
-          </div>
-        ) : historyMode === 'contributor' ? (
-          <label className="compact-control contributor-control">
-            <span>Contributor</span>
-            <select
-              value={selectedContributor?.id ?? ''}
-              onChange={(event) => handleContributorChange(event.target.value)}
-            >
-              {contributorOptions.map((contributor) => (
-                <option key={contributor.id} value={contributor.id}>
-                  {contributor.displayName} · {formatYearSpan(contributor)}
-                  {contributor.isBot ? ' · bot' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-
-        {historyMode !== 'identity' && (
-          <>
-            <label className="compact-control">
-              <span>Confidence ≥ {Math.round(minConfidence * 100)}%</span>
-              <input
-                type="range"
-                min="0"
-                max="0.95"
-                step="0.05"
-                value={minConfidence}
-                onChange={(event) => setMinConfidence(Number(event.target.value))}
-              />
-            </label>
-
-            <label className="compact-control compact-control--select">
-              <span>Lifecycle episode</span>
+      ) : section === 'explore' ? (
+        <>
+          <header className="section-header">
+            <div>
+              <span className="eyebrow">Explore repository history</span>
+              <h1>Follow one feature from claim to evidence.</h1>
+            </div>
+            <span className="candidate-key">Interpretations stay visibly candidate</span>
+          </header>
+          <ScopeControls
+            chapters={baseStory.chapters}
+            selectedChapterId={selectedChapterId}
+            onSelectChapter={setSelectedChapterId}
+            lifecycleStage={lifecycleStage}
+            onLifecycleStage={setLifecycleStage}
+            evidencePreset={evidencePreset}
+            onEvidencePreset={setEvidencePreset}
+            resultLabel={`${visibleFeatures.length} matching features`}
+          />
+          <section className="explore-workspace">
+            <FeatureExplorer
+              dataset={dataset}
+              story={story}
+              visibleFeatures={visibleFeatures}
+              selectedFeature={selectedFeature}
+              selectedId={selectedId}
+              selectedChapterId={selectedChapterId}
+              selectedLifecycleStage={lifecycleStage}
+              matrix={matrix}
+              view={exploreView}
+              onViewChange={setExploreView}
+              onSelect={handleSelect}
+              onSelectFeature={handleSelectFeature}
+              inspector={
+                <div className="inspector-panel inspector-panel--sticky">
+                  <EvidencePanel entity={selectedEntity} dataset={dataset} onSelect={handleSelect} />
+                </div>
+              }
+            />
+          </section>
+        </>
+      ) : section === 'people' ? (
+        <>
+          <header className="section-header people-header">
+            <div>
+              <span className="eyebrow">People in repository context</span>
+              <h1>Trace authored evidence without turning it into a score.</h1>
+            </div>
+            <label className="people-picker">
+              <span>Contributor</span>
               <select
-                value={lifecycleStage}
-                onChange={(event) => setLifecycleStage(event.target.value as LifecycleStage | 'all')}
+                value={selectedContributor?.id ?? ''}
+                onChange={(event) => handleContributorChange(event.target.value)}
               >
-                <option value="all">All stages</option>
-                {LIFECYCLE_STAGES.map((stage) => (
-                  <option key={stage} value={stage}>{stage}</option>
+                {contributorOptions.map((contributor) => (
+                  <option key={contributor.id} value={contributor.id}>
+                    {contributor.displayName} · {formatYearSpan(contributor)}
+                    {contributor.isBot ? ' · bot' : ''}
+                  </option>
                 ))}
               </select>
             </label>
-          </>
-        )}
-      </section>
-
-      <section className={`workspace-grid${historyMode === 'identity' ? ' identity-workspace' : ''}`}>
-        <div className="primary-panel">
-          <div className="panel-heading">
-            <div>
-              <span className="eyebrow">
-                {historyMode === 'contributor'
-                  ? 'Individual history'
-                  : historyMode === 'identity'
-                    ? 'Identity resolution'
-                  : view === 'story'
-                    ? 'Feature chronology'
-                    : 'Structural comparison'}
-              </span>
-              <h2>
-                {historyMode === 'contributor'
-                  ? `${selectedContributor?.displayName ?? 'Contributor'} in repository context`
-                  : historyMode === 'identity'
-                    ? 'Confirm which Git identities belong together'
-                  : view === 'story'
-                    ? 'How capabilities and repository structure changed over time'
-                    : 'Where cited feature evidence lives'}
-              </h2>
+          </header>
+          <ScopeControls
+            chapters={baseStory.chapters}
+            selectedChapterId={selectedChapterId}
+            onSelectChapter={setSelectedChapterId}
+            lifecycleStage={lifecycleStage}
+            onLifecycleStage={setLifecycleStage}
+            evidencePreset={evidencePreset}
+            onEvidencePreset={setEvidencePreset}
+            resultLabel={`${contributorTrail?.authoredEpisodes.length ?? 0} authored commits in scope`}
+          />
+          <section className="people-workspace">
+            <div className="people-primary">
+              {contributorTrail ? (
+                <ContributorTrail
+                  model={contributorTrail}
+                  selectedId={selectedId}
+                  selectedChapterId={selectedChapterId}
+                  onSelect={handleSelect}
+                />
+              ) : (
+                <div className="empty-state">No contributor profile is available.</div>
+              )}
             </div>
-            <span className="candidate-key">
-              {historyMode === 'contributor'
-                ? 'Association, not ownership or performance'
-                : historyMode === 'identity'
-                  ? 'Suggestions never alter raw history'
-                : 'Interpretations stay visibly candidate'}
-            </span>
-          </div>
-
-          {historyMode === 'identity' ? (
-            <IdentityReview
-              dataset={dataset}
-              resolution={identityResolution}
-              decisions={activeIdentityDecisions}
-              onDecision={handleIdentityDecision}
-              onImport={handleIdentityImport}
-              onOpenContributor={handleOpenContributor}
-            />
-          ) : historyMode === 'contributor' && contributorTrail ? (
-            <ContributorTrail
-              model={contributorTrail}
-              selectedId={selectedId}
-              selectedChapterId={selectedChapterId}
-              onSelect={handleSelect}
-            />
-          ) : view === 'story' ? (
-            <StoryLanes
-              model={story}
-              selectedId={selectedId}
-              selectedChapterId={selectedChapterId}
-              onSelect={handleSelect}
-            />
-          ) : (
-            <AreaMatrix model={matrix} selectedId={selectedId} onSelect={handleSelect} />
-          )}
-        </div>
-
-        {historyMode !== 'identity' && (
-          <aside className="inspector-panel">
-            <EvidencePanel entity={selectedEntity} dataset={dataset} onSelect={handleSelect} />
-          </aside>
-        )}
-      </section>
+            <aside className="inspector-panel inspector-panel--sticky">
+              <EvidencePanel entity={selectedEntity} dataset={dataset} onSelect={handleSelect} />
+            </aside>
+          </section>
+        </>
+      ) : (
+        <section className="identity-workspace utility-workspace">
+          <header className="section-header">
+            <div>
+              <span className="eyebrow">Data management</span>
+              <h1>Confirm which Git identities belong together.</h1>
+            </div>
+            <button type="button" className="quiet-action" onClick={() => handleSectionChange('people')}>
+              Back to people
+            </button>
+          </header>
+          <IdentityReview
+            dataset={dataset}
+            resolution={identityResolution}
+            decisions={activeIdentityDecisions}
+            onDecision={handleIdentityDecision}
+            onImport={handleIdentityImport}
+            onOpenContributor={handleOpenContributor}
+          />
+        </section>
+      )}
     </main>
   )
 }

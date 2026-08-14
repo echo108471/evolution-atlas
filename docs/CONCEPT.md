@@ -42,26 +42,29 @@ separate analyses.
 
 ## Visual hierarchy
 
-The primary experience is a stable historical story, not a global force graph:
+The primary experience uses progressive disclosure rather than a global force
+graph or an all-data-at-once dashboard:
 
-1. **Calendar chapters** provide honest, observed time boundaries until
-   evidence-backed semantic eras exist.
-2. **Structural episode lanes** use diamond marks for candidate repository
-   reorganizations, with inspectable old-to-new path-prefix mappings.
-3. **Feature story lanes** place cited commits on a shared time axis. Dashed
-   spans connect the first and last cited evidence without claiming continuous
-   work or a complete feature lifetime.
-4. **The code-area matrix** compares which top-level paths each candidate
-   feature's supporting commits touched.
+1. **Overview** summarizes calendar activity, lifecycle totals, recently
+   evidenced feature stories, and candidate structural reorganizations.
+2. **Explore** starts with a searchable feature index and one selected feature
+   story. Its lifecycle ribbon, observed commits, code areas, contributor
+   associations, and evidence inspector remain coordinated.
+3. **All timelines** retains the complete shared-axis lane view as a power tool.
+   Dashed spans connect cited evidence without claiming continuous work or a
+   complete feature lifetime.
+4. **The code-area matrix** remains a secondary comparison of which top-level
+   paths each candidate feature's supporting commits touched.
 5. **A selected-feature neighborhood** shows only the contributors and code
    areas associated with one feature. The graph is scoped and deterministic,
    not a global constellation whose position changes arbitrarily.
-6. **Contributor trail mode** projects one confirmed contributor profile over
+6. **People** projects one confirmed contributor profile over
    the same chronology. A profile contains one exact Git identity until
    repository evidence or a human decision confirms more. Authored evidence is
    highlighted, other commits remain visible as feature context, and observed
    code-area rows include work outside candidate evidence.
-7. **Identity Review** presents explainable, conservative match suggestions.
+7. **Identity Review** is a data-management utility rather than a primary story
+   mode. It presents explainable, conservative match suggestions.
    Confirming a match changes only the contributor projection. Raw identities
    and authored relationships stay intact, and every decision can be reversed
    or exported.

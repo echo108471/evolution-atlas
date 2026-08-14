@@ -64,11 +64,12 @@ and model output never alters observed Git records.
 
 ### Viewer
 
-The browser loads `public/atlas.json`, derives stable calendar chapters,
-structural-episode and feature-lifecycle lanes, and a feature-by-code-area
-matrix, and exposes an evidence inspector. It does not read a repository
-directly. React owns selection and filtering; D3 supplies the time scale used
-to place observed commit dates. For older local datasets, the same deterministic
+The browser loads `public/atlas.json` and derives a repository overview, a
+searchable feature index, selected-feature lifecycle ribbons, stable calendar
+chapters, complete feature and structural lanes, and a feature-by-code-area
+matrix. Each exploratory view shares an evidence inspector. It does not read a
+repository directly. React owns selection and filtering; D3 supplies the time
+scale used to place observed commit dates. For older local datasets, the same deterministic
 structural detector runs over already serialized path changes in the browser.
 Older feature-level lifecycle claims are shown only as explicit compatibility
 projections until the interpretation is regenerated.

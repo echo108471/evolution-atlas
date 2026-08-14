@@ -180,11 +180,14 @@ export function ContributorTrail({
                 current filters.
               </div>
             )}
-            <p className="method-note">
-              Filled marks are commits attributed to this Git author. Rings preserve the other cited
-              commits in the feature trail. Colored bars show candidate lifecycle episodes; none of
-              these associations establish complete ownership.
-            </p>
+            <details className="method-disclosure">
+              <summary>How to read feature associations</summary>
+              <p>
+                Filled marks are commits attributed to this Git author. Rings preserve the other cited
+                commits in the feature trail. Colored bars show candidate lifecycle episodes; none of
+                these associations establish complete ownership.
+              </p>
+            </details>
           </section>
 
           <section className="contributor-trail__section" aria-labelledby="contributor-areas-heading">
@@ -239,10 +242,13 @@ export function ContributorTrail({
                 ))}
               </ol>
             </div>
-            <p className="method-note">
-              Area rows include all observed commits attributed to this confirmed profile in the selected
-              range, including work not cited by a candidate feature. Density is not an impact score.
-            </p>
+            <details className="method-disclosure">
+              <summary>How to read code-area activity</summary>
+              <p>
+                Area rows include all observed commits attributed to this confirmed profile in the selected
+                range, including work not cited by a candidate feature. Density is not an impact score.
+              </p>
+            </details>
           </section>
         </>
       )}
