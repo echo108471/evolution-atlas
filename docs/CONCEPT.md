@@ -29,15 +29,46 @@ separate analyses.
 
 ## Experience principles
 
-1. **Time is structural.** A time slider changes the graph, not merely a label.
-2. **Evidence is one interaction away.** A node or edge opens its commits,
-   paths, diffs, inference method, and confidence.
+1. **Time is structural.** Evidence events share a stable chronological axis,
+   and selecting a calendar chapter changes the visible story.
+2. **Evidence is one interaction away.** A feature, event, or matrix cell opens
+   its commits, paths, inference method, and confidence.
 3. **Interpretations look different from observations.** Candidate features
    and lifecycle labels never masquerade as raw Git facts.
 4. **Contributor views describe association, not ownership or quality.** The
    interface uses authored, co-authored, associated with, and confirmed by.
 5. **The map should be beautiful enough to invite exploration.** Visual polish
    serves comprehension rather than turning uncertain data into certainty.
+
+## Visual hierarchy
+
+The primary experience is a stable historical story, not a global force graph:
+
+1. **Calendar chapters** provide honest, observed time boundaries until
+   evidence-backed semantic eras exist.
+2. **Structural episode lanes** use diamond marks for candidate repository
+   reorganizations, with inspectable old-to-new path-prefix mappings.
+3. **Feature story lanes** place cited commits on a shared time axis. Dashed
+   spans connect the first and last cited evidence without claiming continuous
+   work or a complete feature lifetime.
+4. **The code-area matrix** compares which top-level paths each candidate
+   feature's supporting commits touched.
+5. **A selected-feature neighborhood** shows only the contributors and code
+   areas associated with one feature. The graph is scoped and deterministic,
+   not a global constellation whose position changes arbitrarily.
+6. **Contributor trail mode** projects one confirmed contributor profile over
+   the same chronology. A profile contains one exact Git identity until
+   repository evidence or a human decision confirms more. Authored evidence is
+   highlighted, other commits remain visible as feature context, and observed
+   code-area rows include work outside candidate evidence.
+7. **Identity Review** presents explainable, conservative match suggestions.
+   Confirming a match changes only the contributor projection. Raw identities
+   and authored relationships stay intact, and every decision can be reversed
+   or exported.
+
+Semantic lifecycle episodes are the narrative unit inside a feature trail. The
+interface keeps their stage-colored spans separate from observed commit marks
+and labels both the episode and its continuity as candidate interpretations.
 
 ## Non-goals
 
@@ -68,7 +99,11 @@ not required for that result.
 - Which lifecycle labels remain useful after manual review of the pilot?
 - How should the map display tangled commits, merges, reverts, generated files,
   renames, and large migrations?
+- Which structural candidates are useful enough to show by default, and when
+  should nested data-folder moves stay collapsed?
 - What is the smallest confidence vocabulary that is honest without making the
   interface feel like a research paper?
 - How should a maintainer correct a candidate without overwriting the original
   evidence or inference record?
+- What precision and abstention thresholds should the identity matcher use
+  after manually labeling the Course Recommender aliases?

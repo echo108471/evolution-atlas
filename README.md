@@ -62,8 +62,8 @@ slice:
   requirements.
 - The initial scope is one repository: `course-recommender`.
 - The first implementation is a local Node.js analyzer plus a static
-  React/TypeScript application built with Vite. D3 supplies temporal scales and
-  graph layout while React owns interface state and SVG rendering.
+  React/TypeScript application built with Vite. D3 supplies temporal scales
+  while React owns the chronology, comparison matrix, and evidence inspector.
 - Versioned JSON is the initial boundary between analysis and visualization.
 - No database, hosted service, or model-generated inference is required for the
   first pilot.
@@ -90,17 +90,29 @@ npm run analyze -- --repo . --out public/atlas.json
 npm run dev
 ```
 
-Feature induction is a separate, optional stage. It reads an observed dataset,
-asks a model to propose candidate features, and discards any commit it cites
-that is not in the dataset:
+Interpretation is a separate, optional two-pass stage. The first pass proposes
+candidate features. The second reviews the same complete commit corpus for
+evidence-linked lifecycle episodes within those features. Any cited commit or
+feature id that does not resolve to the observed dataset is discarded:
 
 ```bash
 npm run interpret -- --in public/atlas.json
 ```
 
-It needs a model credential; the observed pipeline above does not. Every feature
-it emits is a `candidate` carrying its method, confidence, and the commits
-behind it, for a maintainer to accept or reject.
+During lifecycle calibration, validated features can be reused so only the
+second model pass runs. Local boundary checks can also be reapplied without a
+model call:
+
+```bash
+npm run interpret -- --in public/atlas.json --reuse-features
+npm run interpret -- --in public/atlas.json --revalidate
+```
+
+It needs a model credential; the observed pipeline above does not. Features and
+semantic lifecycle episodes are separate `candidate` entities carrying their
+method, confidence, and supporting commits. A feature can therefore show a
+sequence such as introduced → expanded → hardened instead of receiving one
+permanent stage.
 
 Requests can go to Anthropic directly or through OpenRouter, which serves the
 same Messages API — only the base URL, credential, and model naming differ. The
@@ -135,12 +147,39 @@ npm run build
 
 ## Current implementation boundary
 
-The analyzer emits only observed Git facts: commits as change episodes, author
-associations, changed paths, and top-level code areas. It infers nothing.
+The analyzer keeps an observed layer of commits as change episodes, exact Git
+author identities, changed paths, and top-level code areas. A separate,
+explicitly candidate identity-matching layer can suggest that two exact
+identities belong together. It uses normalized names, non-revealing comparisons
+of email handles, GitHub noreply account metadata, and repository `.mailmap`
+evidence; email addresses are never emitted.
+
+The same analysis pass proposes candidate structural episodes when one commit
+contains a concentrated old-to-new path transition. Git rename records are the
+strongest evidence. Repeated delete/add paths with matching suffixes can support
+a lower-confidence candidate. The original file operations remain intact, and
+the candidate claims only an observable repository reorganization—not its
+intent or architectural significance.
 
 Feature candidates come from the separate interpretation stage, which never
-writes into that observed layer — it appends candidates alongside it and flips
-`analysis.mode` to `interpreted`. A model proposes only which commits form a
-capability; the code areas and contributors behind each feature are then read
-off those commits rather than proposed. Contributor association therefore stays
-an observation even when the feature it hangs from is an interpretation.
+writes into that observed layer—it appends candidates alongside it and flips
+`analysis.mode` to `interpreted`. Feature discovery and lifecycle discovery are
+separate model passes over the same complete commit corpus. Lifecycle stages
+belong to semantic episodes, not features; validation resolves every proposed
+feature id and commit before serialization. Code-area and contributor
+associations are still read from observed commits rather than proposed.
+
+The interpreted viewer leads with calendar chapters, candidate structural
+episodes, feature lanes with colored lifecycle episodes, and a feature-by-code-area
+matrix. Structural diamonds open the supporting commit, prefix mappings, and
+individual path transitions. Lifecycle bars open their own rationale and cited
+commits. Its only relationship graph is scoped
+to the selected feature so the layout stays stable and attribution boundaries
+remain visible. Identity Review makes match evidence inspectable and lets the
+user merge, reject, undo, import, and export decisions without rewriting raw
+history. Decisions are also retained locally for the repository. Contributor
+Trail then projects one confirmed contributor profile—which may still contain
+only one exact Git identity—through the same evidence: authored commits remain
+highlighted inside complete feature trails, while observed code-area rows
+include authored changes that no candidate feature cites. It is an association
+view, not an ownership or performance view.

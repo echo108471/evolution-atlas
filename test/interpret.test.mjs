@@ -13,6 +13,7 @@ import {
   resolveProvider,
   supportsOutputConfig,
   validateFeatures,
+  validateSemanticEpisodes,
 } from '../scripts/lib/interpret.mjs'
 
 function episode(shortSha, subject, paths, areaIds, authoredAt) {
@@ -62,6 +63,20 @@ test('buildCorpus renders each commit with its touched paths', () => {
   )
 })
 
+test('buildCorpus preserves old and new paths for rename evidence', () => {
+  const dataset = observedDataset()
+  dataset.episodes[0].changes = [
+    {
+      status: 'R',
+      similarity: '100',
+      previousPath: 'demo/frontend/app.ts',
+      path: 'frontend/app.ts',
+    },
+  ]
+
+  assert.match(buildCorpus(dataset), /demo\/frontend\/app\.ts -> frontend\/app\.ts/)
+})
+
 test('validateFeatures discards cited commits that are not in the dataset', () => {
   const result = validateFeatures(
     [
@@ -69,7 +84,6 @@ test('validateFeatures discards cited commits that are not in the dataset', () =
         label: 'Ranking pipeline',
         rationale: 'Both commits build the ranking path.',
         confidence: 0.8,
-        lifecycleStage: 'introduced',
         commitShas: ['aaaa1111', 'deadbeef', 'bbbb2222'],
       },
     ],
@@ -87,8 +101,8 @@ test('validateFeatures discards cited commits that are not in the dataset', () =
 test('validateFeatures drops a feature whose evidence is entirely unresolvable', () => {
   const result = validateFeatures(
     [
-      { label: 'Imagined', rationale: '', confidence: 0.9, lifecycleStage: 'introduced', commitShas: ['cafe0001'] },
-      { label: 'Real', rationale: '', confidence: 0.5, lifecycleStage: 'unassigned', commitShas: ['aaaa1111'] },
+      { label: 'Imagined', rationale: '', confidence: 0.9, commitShas: ['cafe0001'] },
+      { label: 'Real', rationale: '', confidence: 0.5, commitShas: ['aaaa1111'] },
     ],
     observedDataset(),
   )
@@ -107,7 +121,6 @@ test('validateFeatures marks every derived claim as a candidate interpretation',
         label: 'Ranking pipeline',
         rationale: 'Shared ranking path.',
         confidence: 0.8,
-        lifecycleStage: 'introduced',
         commitShas: ['aaaa1111', 'bbbb2222'],
       },
     ],
@@ -117,7 +130,7 @@ test('validateFeatures marks every derived claim as a candidate interpretation',
   const [feature] = result.featureCandidates
   assert.equal(feature.status, 'candidate')
   assert.equal(feature.method, 'llm-induction:anthropic:claude-opus-5')
-  assert.equal(feature.lifecycleStage, 'introduced')
+  assert.equal('lifecycleStage' in feature, false)
   assert.ok(
     result.relationships.every(
       (relationship) => relationship.interpretationStatus === 'candidate',
@@ -132,7 +145,6 @@ test('validateFeatures reads code areas off the supporting commits, not the mode
         label: 'Ranking pipeline',
         rationale: '',
         confidence: 0.7,
-        lifecycleStage: 'unassigned',
         commitShas: ['aaaa1111', 'bbbb2222'],
       },
     ],
@@ -153,14 +165,14 @@ test('validateFeatures reads code areas off the supporting commits, not the mode
   assert.equal(supports.length, 2)
 })
 
-test('validateFeatures rejects an unrecognized lifecycle stage instead of storing it', () => {
+test('validateFeatures no longer stores a permanent feature-level lifecycle stage', () => {
   const result = validateFeatures(
     [
       {
         label: 'Ranking pipeline',
         rationale: '',
         confidence: 2,
-        lifecycleStage: 'unassigned',
+        lifecycleStage: 'hardened',
         commitShas: ['aaaa1111'],
       },
     ],
@@ -174,7 +186,7 @@ test('validateFeatures rejects an unrecognized lifecycle stage instead of storin
 test('mergeInterpretation preserves observed relationships and flips analysis mode', () => {
   const dataset = observedDataset()
   const validated = validateFeatures(
-    [{ label: 'Ranking', rationale: '', confidence: 0.6, lifecycleStage: 'unassigned', commitShas: ['aaaa1111'] }],
+    [{ label: 'Ranking', rationale: '', confidence: 0.6, commitShas: ['aaaa1111'] }],
     dataset,
   )
   const merged = mergeInterpretation(dataset, validated)
@@ -185,7 +197,92 @@ test('mergeInterpretation preserves observed relationships and flips analysis mo
   assert.equal(dataset.featureCandidates.length, 0, 'input dataset is not mutated')
 })
 
+test('validateSemanticEpisodes keeps lifecycle stages on evidence-scoped episodes', () => {
+  const dataset = observedDataset()
+  const features = validateFeatures(
+    [{ label: 'Ranking', rationale: '', confidence: 0.8, commitShas: ['aaaa1111'] }],
+    dataset,
+  ).featureCandidates
+  const result = validateSemanticEpisodes(
+    [
+      {
+        featureId: features[0].id,
+        label: 'Cover ranking edge cases',
+        rationale: 'Adds tests to the existing ranking path.',
+        confidence: 0.82,
+        lifecycleStage: 'hardened',
+        commitShas: ['bbbb2222', 'missing0'],
+      },
+      {
+        featureId: 'feature:unknown',
+        label: 'Imagined migration',
+        rationale: '',
+        confidence: 0.5,
+        lifecycleStage: 'migrated',
+        commitShas: ['aaaa1111'],
+      },
+    ],
+    dataset,
+    features,
+  )
+
+  assert.equal(result.semanticEpisodes.length, 1)
+  assert.equal(result.semanticEpisodes[0].featureId, features[0].id)
+  assert.equal(result.semanticEpisodes[0].lifecycleStage, 'hardened')
+  assert.deepEqual(result.semanticEpisodes[0].evidence.map((entry) => entry.commitSha), [
+    'bbbb22220000',
+  ])
+  assert.deepEqual(result.unresolvedShas, [
+    { label: 'Cover ranking edge cases', sha: 'missing0' },
+  ])
+  assert.equal(result.unresolvedFeatureIds.length, 1)
+  assert.ok(result.relationships.some((relationship) => relationship.kind === 'evolves-feature'))
+})
+
+test('validateSemanticEpisodes rejects reverted and structural-only migration claims', () => {
+  const dataset = observedDataset()
+  dataset.episodes[1].subject = 'Revert "Move ranking backend"'
+  dataset.structuralEpisodes = [
+    {
+      evidence: [{ commitSha: dataset.episodes[0].commitSha }],
+    },
+  ]
+  const features = validateFeatures(
+    [{ label: 'Ranking', rationale: '', confidence: 0.8, commitShas: ['aaaa1111'] }],
+    dataset,
+  ).featureCandidates
+  const result = validateSemanticEpisodes(
+    [
+      {
+        featureId: features[0].id,
+        label: 'Ranking folder renamed',
+        rationale: 'A structural directory rename preserves the feature.',
+        confidence: 0.8,
+        lifecycleStage: 'migrated',
+        commitShas: ['aaaa1111'],
+      },
+      {
+        featureId: features[0].id,
+        label: 'Failed backend transition reverted',
+        rationale: 'The attempted move was reverted and restored the prior state.',
+        confidence: 0.8,
+        lifecycleStage: 'migrated',
+        commitShas: ['bbbb2222'],
+      },
+    ],
+    dataset,
+    features,
+  )
+
+  assert.equal(result.semanticEpisodes.length, 0)
+  assert.deepEqual(
+    result.discardedEpisodeDetails.map((entry) => entry.reason),
+    ['structural-only', 'reverted-transition'],
+  )
+})
+
 test('interpretAtlas validates model output before it reaches the dataset', async () => {
+  let call = 0
   const client = {
     messages: {
       stream: () => ({
@@ -194,17 +291,20 @@ test('interpretAtlas validates model output before it reaches the dataset', asyn
           content: [
             {
               type: 'text',
-              text: JSON.stringify({
-                features: [
-                  {
-                    label: 'Ranking pipeline',
-                    rationale: 'Shared ranking path.',
-                    confidence: 0.8,
-                    lifecycleStage: 'introduced',
-                    commitShas: ['aaaa1111', 'nonexistent'],
-                  },
-                ],
-              }),
+              text: JSON.stringify(
+                call++ === 0
+                  ? {
+                      features: [
+                        {
+                          label: 'Ranking pipeline',
+                          rationale: 'Shared ranking path.',
+                          confidence: 0.8,
+                          commitShas: ['aaaa1111', 'nonexistent'],
+                        },
+                      ],
+                    }
+                  : { semanticEpisodes: [] },
+              ),
             },
           ],
           usage: { input_tokens: 10, output_tokens: 5 },
@@ -220,8 +320,90 @@ test('interpretAtlas validates model output before it reaches the dataset', asyn
   assert.equal(validated.unresolvedShas.length, 1)
 })
 
+test('interpretAtlas performs a separate lifecycle pass and links episodes to features', async () => {
+  const dataset = observedDataset()
+  const proposedFeature = {
+    label: 'Ranking pipeline',
+    rationale: 'Shared ranking path.',
+    confidence: 0.8,
+    commitShas: ['aaaa1111'],
+  }
+  const featureId = validateFeatures([proposedFeature], dataset).featureCandidates[0].id
+  const responses = [
+    { features: [proposedFeature] },
+    {
+      semanticEpisodes: [
+        {
+          featureId,
+          label: 'Add ranking coverage',
+          rationale: 'Tests exercise the existing ranking path.',
+          confidence: 0.85,
+          lifecycleStage: 'hardened',
+          commitShas: ['bbbb2222'],
+        },
+      ],
+    },
+  ]
+  const requests = []
+  const client = {
+    messages: {
+      stream: (request) => {
+        const response = responses[requests.length]
+        requests.push(request)
+        return {
+          finalMessage: async () => ({
+            stop_reason: 'end_turn',
+            content: [{ type: 'text', text: JSON.stringify(response) }],
+            usage: { input_tokens: 10, output_tokens: 5 },
+          }),
+        }
+      },
+    },
+  }
+
+  const result = await interpretAtlas(dataset, { client })
+
+  assert.equal(requests.length, 2)
+  assert.match(requests[1].system, /Do not assign one permanent lifecycle stage/)
+  assert.equal(result.dataset.semanticEpisodes.length, 1)
+  assert.equal(result.dataset.semanticEpisodes[0].lifecycleStage, 'hardened')
+  assert.equal(result.dataset.semanticEpisodes[0].featureId, featureId)
+  assert.equal(result.usage.input_tokens, 20)
+  assert.equal('lifecycleStage' in result.dataset.featureCandidates[0], false)
+})
+
+test('interpretAtlas can reuse validated features when calibrating lifecycle discovery', async () => {
+  const dataset = observedDataset()
+  dataset.featureCandidates = validateFeatures(
+    [{ label: 'Ranking', rationale: '', confidence: 0.8, commitShas: ['aaaa1111'] }],
+    dataset,
+  ).featureCandidates
+  const requests = []
+  const client = {
+    messages: {
+      stream: (request) => {
+        requests.push(request)
+        return {
+          finalMessage: async () => ({
+            stop_reason: 'end_turn',
+            content: [{ type: 'text', text: '{"semanticEpisodes":[]}' }],
+            usage: {},
+          }),
+        }
+      },
+    },
+  }
+
+  const result = await interpretAtlas(dataset, { client, reuseFeatures: true })
+
+  assert.equal(requests.length, 1)
+  assert.match(requests[0].system, /semantic change episodes/)
+  assert.equal(result.dataset.featureCandidates[0].id, dataset.featureCandidates[0].id)
+})
+
 test('interpretAtlas records which provider and model produced the candidates', async () => {
   const seen = {}
+  let call = 0
   const client = {
     messages: {
       stream: (request) => {
@@ -232,17 +414,20 @@ test('interpretAtlas records which provider and model produced the candidates', 
             content: [
               {
                 type: 'text',
-                text: JSON.stringify({
-                  features: [
-                    {
-                      label: 'Ranking',
-                      rationale: '',
-                      confidence: 0.6,
-                      lifecycleStage: 'unassigned',
-                      commitShas: ['aaaa1111'],
-                    },
-                  ],
-                }),
+                text: JSON.stringify(
+                  call++ === 0
+                    ? {
+                        features: [
+                          {
+                            label: 'Ranking',
+                            rationale: '',
+                            confidence: 0.6,
+                            commitShas: ['aaaa1111'],
+                          },
+                        ],
+                      }
+                    : { semanticEpisodes: [] },
+                ),
               },
             ],
             usage: {},

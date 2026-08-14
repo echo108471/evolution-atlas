@@ -2,6 +2,9 @@ import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { basename, resolve } from 'node:path'
 
+import { buildIdentityMatches } from './identity.mjs'
+import { buildStructuralEpisodes } from '../../src/structure.mjs'
+
 const GIT_MAX_BUFFER = 64 * 1024 * 1024
 
 function runGit(repositoryPath, args) {
@@ -37,6 +40,14 @@ function isBotIdentity(name, email) {
     /(?:^|[+._-])bot(?:@|[+._-])/i.test(email) ||
     /\bbot\b/i.test(name)
   )
+}
+
+function mailmapIdentityKey(repositoryPath, name, email, fallbackKey) {
+  const resolved = tryGit(repositoryPath, ['check-mailmap', `${name} <${email}>`])?.trim()
+  if (!resolved) return fallbackKey
+  const match = resolved.match(/^(.*)\s+<([^<>]+)>$/)
+  if (!match) return fallbackKey
+  return contributorKey(match[1], match[2])
 }
 
 function codeAreaForPath(path) {
@@ -135,6 +146,8 @@ export function buildAtlas(inputPath = '.') {
     .filter(Boolean)
 
   const contributors = new Map()
+  const identityRecords = new Map()
+  const mailmapCache = new Map()
   const codeAreas = new Map()
   const episodes = []
   const relationships = []
@@ -144,6 +157,17 @@ export function buildAtlas(inputPath = '.') {
     const identityKey = contributorKey(commit.authorName, commit.authorEmail)
     const contributorId = stableId('contributor', identityKey)
     const existingContributor = contributors.get(contributorId)
+    const mailmapCacheKey = `${commit.authorName}\0${commit.authorEmail}`
+    let resolvedMailmapKey = mailmapCache.get(mailmapCacheKey)
+    if (!resolvedMailmapKey) {
+      resolvedMailmapKey = mailmapIdentityKey(
+        topLevel,
+        commit.authorName,
+        commit.authorEmail,
+        identityKey,
+      )
+      mailmapCache.set(mailmapCacheKey, resolvedMailmapKey)
+    }
 
     if (existingContributor) {
       existingContributor.firstSeenAt = minDate(existingContributor.firstSeenAt, commit.authoredAt)
@@ -151,6 +175,11 @@ export function buildAtlas(inputPath = '.') {
       if (!existingContributor.aliases.includes(commit.authorName)) {
         existingContributor.aliases.push(commit.authorName)
       }
+      const identityRecord = identityRecords.get(contributorId)
+      if (!identityRecord.names.includes(commit.authorName)) {
+        identityRecord.names.push(commit.authorName)
+      }
+      identityRecord.mailmapKeys.add(resolvedMailmapKey)
     } else {
       contributors.set(contributorId, {
         id: contributorId,
@@ -160,13 +189,21 @@ export function buildAtlas(inputPath = '.') {
         firstSeenAt: commit.authoredAt,
         lastSeenAt: commit.authoredAt,
       })
+      identityRecords.set(contributorId, {
+        id: contributorId,
+        names: [commit.authorName],
+        email: commit.authorEmail,
+        rawKey: identityKey,
+        mailmapKeys: new Set([resolvedMailmapKey]),
+        isBot: isBotIdentity(commit.authorName, commit.authorEmail),
+      })
     }
 
     const episodeId = `episode:${commit.sha}`
     const areaEvidence = new Map()
 
-    for (const change of commit.changes) {
-      const area = codeAreaForPath(change.path)
+    const recordAreaEvidence = (path) => {
+      const area = codeAreaForPath(path)
       const areaId = stableId('area', area.pathPrefix)
       const existingArea = codeAreas.get(areaId)
 
@@ -185,8 +222,13 @@ export function buildAtlas(inputPath = '.') {
       }
 
       const paths = areaEvidence.get(areaId) ?? []
-      paths.push(change.path)
+      if (!paths.includes(path)) paths.push(path)
       areaEvidence.set(areaId, paths)
+    }
+
+    for (const change of commit.changes) {
+      recordAreaEvidence(change.path)
+      if (change.previousPath) recordAreaEvidence(change.previousPath)
     }
 
     episodes.push({
@@ -237,6 +279,8 @@ export function buildAtlas(inputPath = '.') {
   const orderedAreas = [...codeAreas.values()].sort((left, right) =>
     left.label.localeCompare(right.label),
   )
+  const identityMatches = buildIdentityMatches([...identityRecords.values()])
+  const structuralEpisodes = buildStructuralEpisodes(episodes)
 
   return {
     schemaVersion: '0.1.0',
@@ -256,9 +300,12 @@ export function buildAtlas(inputPath = '.') {
       lastAuthoredAt: episodes.at(-1)?.authoredAt ?? null,
     },
     contributors: orderedContributors,
+    identityMatches,
+    structuralEpisodes,
     episodes,
     codeAreas: orderedAreas,
     featureCandidates: [],
+    semanticEpisodes: [],
     relationships,
   }
 }

@@ -46,6 +46,10 @@ This review set is calibration material, not unquestionable ground truth.
 - Begin with path continuity, commit adjacency, rename evidence, and explicit
   issue or feature language.
 - Keep raw commit episodes visible beneath any cluster.
+- Discover persistent feature candidates first, then review the complete history
+  again for evidence-scoped lifecycle episodes within those features.
+- Do not require every lifecycle stage to appear; investigate zero counts against
+  uncited history before treating them as a repository conclusion.
 - Record why candidates were merged, split, or rejected during review.
 - Add model assistance only if deterministic evidence leaves a clearly defined
   semantic labeling gap.
@@ -53,8 +57,9 @@ This review set is calibration material, not unquestionable ground truth.
 ### 4. Evaluate the visual story
 
 Ask the repository owner to explore without a guided tour. Observe whether the
-time slider, graph, filters, and evidence panel answer the pilot questions.
-Capture incorrect or misleading interpretations before polishing the design.
+calendar chapters, feature story, code-area matrix, and evidence inspector
+answer the pilot questions. Capture incorrect or misleading interpretations
+before polishing the design.
 
 ## Acceptance criteria
 

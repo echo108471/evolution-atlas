@@ -93,3 +93,113 @@ test('buildAtlas emits observed identities, episodes, areas, and evidence links'
     rmSync(repositoryPath, { recursive: true, force: true })
   }
 })
+
+test('buildAtlas proposes a cross-email name match without serializing emails', () => {
+  const repositoryPath = mkdtempSync(join(tmpdir(), 'evolution-atlas-identity-test-'))
+
+  try {
+    git(repositoryPath, ['init', '-b', 'main'])
+    git(repositoryPath, ['config', 'user.name', 'Example Author'])
+    git(repositoryPath, ['config', 'user.email', 'personal@example.test'])
+    writeFileSync(join(repositoryPath, 'first.txt'), 'first\n')
+    git(repositoryPath, ['add', 'first.txt'])
+    git(repositoryPath, ['commit', '-m', 'First identity'], '2025-01-02T12:00:00Z')
+
+    git(repositoryPath, ['config', 'user.email', 'work@example.test'])
+    writeFileSync(join(repositoryPath, 'second.txt'), 'second\n')
+    git(repositoryPath, ['add', 'second.txt'])
+    git(repositoryPath, ['commit', '-m', 'Second identity'], '2025-01-03T12:00:00Z')
+
+    const dataset = buildAtlas(repositoryPath)
+    assert.equal(dataset.contributors.length, 2)
+    assert.equal(dataset.identityMatches.length, 1)
+    assert.equal(dataset.identityMatches[0].status, 'candidate')
+    assert.equal(dataset.identityMatches[0].signals[0].kind, 'exact-name')
+    assert.equal(JSON.stringify(dataset.identityMatches).includes('@'), false)
+  } finally {
+    rmSync(repositoryPath, { recursive: true, force: true })
+  }
+})
+
+test('buildAtlas recognizes an explicit repository mailmap identity', () => {
+  const repositoryPath = mkdtempSync(join(tmpdir(), 'evolution-atlas-mailmap-test-'))
+
+  try {
+    git(repositoryPath, ['init', '-b', 'main'])
+    git(repositoryPath, ['config', 'user.name', 'Old Name'])
+    git(repositoryPath, ['config', 'user.email', 'old@example.test'])
+    writeFileSync(
+      join(repositoryPath, '.mailmap'),
+      [
+        'Canonical Person <canonical@example.test> Old Name <old@example.test>',
+        'Canonical Person <canonical@example.test> Work Name <work@example.test>',
+        '',
+      ].join('\n'),
+    )
+    git(repositoryPath, ['add', '.mailmap'])
+    git(repositoryPath, ['commit', '-m', 'Add identity map'], '2025-01-02T12:00:00Z')
+
+    git(repositoryPath, ['config', 'user.name', 'Work Name'])
+    git(repositoryPath, ['config', 'user.email', 'work@example.test'])
+    writeFileSync(join(repositoryPath, 'work.txt'), 'work\n')
+    git(repositoryPath, ['add', 'work.txt'])
+    git(repositoryPath, ['commit', '-m', 'Use work identity'], '2025-01-03T12:00:00Z')
+
+    const dataset = buildAtlas(repositoryPath)
+    assert.equal(dataset.contributors.length, 2)
+    assert.equal(dataset.identityMatches.length, 1)
+    assert.equal(dataset.identityMatches[0].status, 'confirmed')
+    assert.equal(dataset.identityMatches[0].signals[0].kind, 'mailmap')
+  } finally {
+    rmSync(repositoryPath, { recursive: true, force: true })
+  }
+})
+
+test('buildAtlas keeps both sides of a root-folder reorganization', () => {
+  const repositoryPath = mkdtempSync(join(tmpdir(), 'evolution-atlas-reorganization-test-'))
+
+  try {
+    git(repositoryPath, ['init', '-b', 'main'])
+    git(repositoryPath, ['config', 'user.name', 'Example Author'])
+    git(repositoryPath, ['config', 'user.email', 'author@example.test'])
+    for (const [area, file] of [
+      ['frontend', 'app.ts'],
+      ['backend', 'api.ts'],
+      ['infra', 'main.tf'],
+    ]) {
+      mkdirSync(join(repositoryPath, 'demo', area), { recursive: true })
+      writeFileSync(join(repositoryPath, 'demo', area, file), `${area}\n`)
+    }
+    git(repositoryPath, ['add', 'demo'])
+    git(repositoryPath, ['commit', '-m', 'Add demo layout'], '2025-01-02T12:00:00Z')
+
+    for (const area of ['frontend', 'backend', 'infra']) {
+      renameSync(join(repositoryPath, 'demo', area), join(repositoryPath, area))
+    }
+    git(repositoryPath, ['add', '-A'])
+    git(repositoryPath, ['commit', '-m', 'Promote services to repository root'], '2025-01-03T12:00:00Z')
+
+    const dataset = buildAtlas(repositoryPath)
+    const reorganization = dataset.structuralEpisodes[0]
+    const reorganizationEpisode = dataset.episodes[1]
+
+    assert.equal(dataset.structuralEpisodes.length, 1)
+    assert.equal(reorganization.label, 'Promote demo contents to repository root')
+    assert.deepEqual(
+      reorganization.mappings,
+      [{ fromPrefix: 'demo', toPrefix: '', fileCount: 3 }],
+    )
+    assert.deepEqual(
+      reorganizationEpisode.changes.map((change) => change.status),
+      ['R', 'R', 'R'],
+    )
+    assert.deepEqual(
+      reorganizationEpisode.codeAreaIds.map(
+        (areaId) => dataset.codeAreas.find((area) => area.id === areaId).label,
+      ).sort(),
+      ['backend', 'demo', 'frontend', 'infra'],
+    )
+  } finally {
+    rmSync(repositoryPath, { recursive: true, force: true })
+  }
+})

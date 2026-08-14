@@ -10,7 +10,7 @@ Status: in progress.
 - Define the versioned evidence model.
 - Extract commits, Git author associations, changed paths, renames, and
   provisional top-level code areas.
-- Render the time-bounded graph and an evidence inspector.
+- Render the time-bounded evidence chronology and an evidence inspector.
 - Keep feature candidates empty by default.
 - Validate the extractor with a synthetic temporary repository.
 
@@ -23,15 +23,20 @@ history without making semantic claims.
 - Produce and manually review the raw dataset.
 - Build a five-to-ten-item candidate feature set.
 - Test the lifecycle vocabulary and record counterexamples.
-- Identify contributor aliases, bots, merges, and generated paths that distort
-  the first model.
+- Review deterministic structural episodes, starting with the observed
+  `demo/... -> repository root` reorganization, and record false positives.
+- Calibrate the implemented identity matcher against manually reviewed aliases;
+  measure false merges, missed matches, and abstentions before adding signals.
+- Review bots, merges, and generated paths that distort the first model.
 
 Exit signal: a repository owner recognizes useful trails and can explain or
 reject every candidate.
 
 ## Milestone 2 — interpretation layer
 
-- Separate multi-commit semantic episode clustering from raw commits.
+- Keep multi-commit semantic lifecycle episodes separate from raw commits and
+  from persistent feature candidates. Implemented for the first model-assisted
+  pass; pilot calibration remains.
 - Add explicit inference records, confidence, alternatives, and corrections.
 - Implement the smallest heuristics justified by the pilot.
 - Decide whether optional model-assisted labeling adds enough value to keep.
@@ -41,11 +46,24 @@ traceability.
 
 ## Milestone 3 — visual language
 
-- Refine time navigation, feature trails, contributor filters, and code-area
-  continuity.
-- Add rename, merge, revert, migration, and removal treatments.
-- Test SVG limits and move dense layers to Canvas only if measurements require
-  it.
+- Use stable calendar chapters, feature evidence lanes, and a feature-by-area
+  matrix as the primary visual hierarchy.
+- Show candidate structural reorganizations as a separate timeline layer with
+  path-prefix mappings and commit-level drill-down.
+- Keep contributor associations in selected-feature detail rather than making
+  contributor color the organizing principle of the entire history.
+- Provide a contributor-trail mode as a repository-centric projection: retain
+  whole-feature context around person-authored evidence, include observed work
+  outside candidate features, and keep bots and recorded identities explicit.
+- Provide Identity Review with evidence-bearing suggestions, reversible
+  merge/keep-separate decisions, conflict constraints, and JSON import/export.
+- Calibrate the first-class semantic lifecycle episode model, especially
+  hardened-versus-expanded and migrated-versus-structural boundaries.
+- Keep relationship graphs scoped to one selected feature and deterministic.
+- Extend structural detection from same-commit renames to carefully bounded
+  cross-commit moves; add merge, revert, migration, and removal treatments.
+- Test DOM/SVG limits and move dense layers to Canvas only if measurements
+  require it.
 - Create a sanitized visual demo.
 
 Exit signal: the visualization communicates both repository evolution and

@@ -16,6 +16,57 @@ export interface Contributor {
   lastSeenAt: string
 }
 
+export type IdentityMatchStatus = 'candidate' | 'confirmed'
+
+export interface IdentityMatchSignal {
+  kind:
+    | 'mailmap'
+    | 'github-account'
+    | 'email-handle'
+    | 'exact-name'
+    | 'name-handle-alignment'
+  label: string
+  basis: 'observed' | 'repository-config' | 'heuristic'
+  weight: number
+}
+
+export interface IdentityMatchCandidate {
+  id: string
+  identityIds: [string, string]
+  status: IdentityMatchStatus
+  confidence: number
+  method: string
+  signals: IdentityMatchSignal[]
+  conflicts: IdentityMatchSignal[]
+}
+
+export interface StructuralPathTransition {
+  previousPath: string
+  path: string
+  basis: 'git-rename' | 'delete-add-path-continuity'
+  confidence: number
+  similarity?: number
+}
+
+export interface StructuralPrefixMapping {
+  fromPrefix: string
+  toPrefix: string
+  fileCount: number
+}
+
+export interface StructuralEpisodeCandidate {
+  id: string
+  kind: 'repository-reorganization'
+  label: string
+  status: 'candidate' | 'confirmed'
+  confidence: number
+  method: string
+  rationale: string
+  evidence: EvidenceReference[]
+  mappings: StructuralPrefixMapping[]
+  transitions: StructuralPathTransition[]
+}
+
 export interface ChangeEpisode {
   id: string
   commitSha: string
@@ -44,6 +95,8 @@ export interface EvidenceReference {
   paths?: string[]
 }
 
+export type LifecycleStage = 'introduced' | 'expanded' | 'hardened' | 'migrated' | 'removed'
+
 export interface FeatureCandidate {
   id: string
   label: string
@@ -52,7 +105,19 @@ export interface FeatureCandidate {
   method: string
   /** Why these commits were grouped, and what the evidence does not establish. */
   rationale?: string
-  lifecycleStage?: 'introduced' | 'expanded' | 'hardened' | 'migrated' | 'removed'
+  evidence: EvidenceReference[]
+}
+
+export interface SemanticEpisodeCandidate {
+  id: string
+  kind: 'feature-lifecycle'
+  featureId: string
+  label: string
+  lifecycleStage: LifecycleStage
+  status: 'candidate' | 'confirmed'
+  confidence: number
+  method: string
+  rationale: string
   evidence: EvidenceReference[]
 }
 
@@ -60,7 +125,13 @@ export interface Relationship {
   id: string
   sourceId: string
   targetId: string
-  kind: 'authored' | 'touched' | 'supports-feature' | 'affects-area'
+  kind:
+    | 'authored'
+    | 'touched'
+    | 'supports-feature'
+    | 'affects-area'
+    | 'supports-lifecycle'
+    | 'evolves-feature'
   interpretationStatus: InterpretationStatus
   confidence: number
   evidence: EvidenceReference[]
@@ -84,6 +155,9 @@ export interface AtlasDataset {
     lastAuthoredAt: string | null
   }
   contributors: Contributor[]
+  identityMatches?: IdentityMatchCandidate[]
+  structuralEpisodes?: StructuralEpisodeCandidate[]
+  semanticEpisodes?: SemanticEpisodeCandidate[]
   episodes: ChangeEpisode[]
   codeAreas: CodeArea[]
   featureCandidates: FeatureCandidate[]
