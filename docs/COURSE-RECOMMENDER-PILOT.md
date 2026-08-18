@@ -57,9 +57,9 @@ This review set is calibration material, not unquestionable ground truth.
 ### 4. Evaluate the visual story
 
 Ask the repository owner to explore without a guided tour. Observe whether the
-calendar chapters, feature story, code-area matrix, and evidence inspector
-answer the pilot questions. Capture incorrect or misleading interpretations
-before polishing the design.
+calendar chapters, repository time machine, feature story, and evidence
+inspector answer the pilot questions. Capture incorrect or misleading
+interpretations before polishing the design.
 
 ## Acceptance criteria
 

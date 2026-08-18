@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { AtlasDataset } from '../src/model'
+import { buildRepositoryTimeMachine } from '../src/repositorySnapshots'
 import {
   buildAreaMatrix,
   buildContributorTrail,
@@ -168,6 +169,25 @@ test('buildStoryModel makes calendar chapters and de-duplicates cited events', (
   )
   assert.equal(model.structuralEvents.length, 1)
   assert.equal(model.structuralEvents[0].episode.commitSha, 'bbb')
+})
+
+test('buildRepositoryTimeMachine reconstructs evidence-linked path snapshots', () => {
+  const model = buildRepositoryTimeMachine(dataset, buildStoryModel(dataset))
+
+  assert.equal(model.checkpoints.length, 3)
+  assert.equal(model.checkpoints[0].label, 'Initial repository state')
+  assert.equal(model.checkpoints[0].totalFiles, 1)
+  assert.deepEqual(
+    model.checkpoints[1].nodes.map((node) => [node.label, node.fileCount]),
+    [
+      ['src', 1],
+      ['test', 1],
+    ],
+  )
+  assert.equal(model.checkpoints[1].structuralEpisodes[0].id, 'structural:layout')
+  assert.equal(model.checkpoints[2].label, 'Current repository state')
+  assert.equal(model.checkpoints[2].totalFiles, 3)
+  assert.equal(model.checkpoints[2].changes.added, 1)
 })
 
 test('buildAreaMatrix counts distinct cited commits per observed path area', () => {

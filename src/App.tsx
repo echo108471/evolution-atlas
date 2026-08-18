@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { ContributorTrail } from './ContributorTrail'
-import { FeatureExplorer, type ExploreView } from './FeatureExplorer'
-import { FeatureNeighborhood } from './FeatureNeighborhood'
+import { FeatureExplorer } from './FeatureExplorer'
 import { IdentityReview } from './IdentityReview'
 import { RepositoryOverview } from './RepositoryOverview'
+import { RepositoryTimeMachine } from './RepositoryTimeMachine'
 import { LIFECYCLE_STAGES, normalizeSemanticEpisodes } from './lifecycle'
 import { buildStructuralEpisodes } from './structure.mjs'
 import {
@@ -28,7 +28,6 @@ import type {
   StructuralEpisodeCandidate,
 } from './model'
 import {
-  buildAreaMatrix,
   buildContributorTrail,
   buildStoryModel,
   deriveFeatureAssociations,
@@ -45,7 +44,7 @@ type SelectedEntity =
   | { kind: 'semantic'; value: SemanticEpisodeCandidate }
   | { kind: 'structural'; value: StructuralEpisodeCandidate }
 
-type ProductSection = 'overview' | 'explore' | 'people' | 'identity'
+type ProductSection = 'overview' | 'repository' | 'features' | 'people' | 'identity'
 type EvidencePreset = 'conservative' | 'balanced' | 'all'
 
 const EVIDENCE_PRESETS: Record<EvidencePreset, { label: string; threshold: number }> = {
@@ -71,6 +70,50 @@ function formatYearSpan(contributor: Contributor) {
   const firstYear = new Date(contributor.firstSeenAt).getUTCFullYear()
   const lastYear = new Date(contributor.lastSeenAt).getUTCFullYear()
   return firstYear === lastYear ? String(firstYear) : `${firstYear}–${lastYear}`
+}
+
+function EvidenceCommitList({
+  episodes,
+  onSelect,
+  includePathPreview = false,
+}: {
+  episodes: ChangeEpisode[]
+  onSelect: (id: string) => void
+  includePathPreview?: boolean
+}) {
+  return (
+    <ol className="evidence-list">
+      {episodes.map((episode) => {
+        const previewChanges = episode.changes.slice(0, 2)
+        const remainingPathCount = Math.max(episode.changes.length - previewChanges.length, 0)
+        return (
+          <li key={episode.id}>
+            <button type="button" onClick={() => onSelect(episode.id)}>
+              <span>{formatDate(episode.authoredAt)}</span>
+              <strong>{episode.subject}</strong>
+              <code>{episode.shortSha}</code>
+              {includePathPreview && (
+                <small className="evidence-list__paths">
+                  {previewChanges.length > 0
+                    ? previewChanges
+                        .map((change) =>
+                          change.previousPath
+                            ? `${change.status} ${change.previousPath} → ${change.path}`
+                            : `${change.status} ${change.path}`,
+                        )
+                        .join(' · ')
+                    : 'No first-parent path changes recorded'}
+                  {remainingPathCount > 0
+                    ? ` · +${remainingPathCount} more path${remainingPathCount === 1 ? '' : 's'}`
+                    : ''}
+                </small>
+              )}
+            </button>
+          </li>
+        )
+      })}
+    </ol>
+  )
 }
 
 function findEntity(
@@ -109,8 +152,8 @@ function EvidencePanel({
     return (
       <div className="inspector-placeholder">
         <span className="eyebrow">Evidence inspector</span>
-        <h2>Select a feature or evidence event.</h2>
-        <p>The repository story stays readable until you ask for supporting detail.</p>
+        <h2>Select a claim or commit mark.</h2>
+        <p>The current view stays readable until you ask for supporting detail.</p>
       </div>
     )
   }
@@ -118,13 +161,10 @@ function EvidencePanel({
   if (entity.kind === 'feature') {
     const feature = entity.value
     const associations = deriveFeatureAssociations(dataset, feature)
-    const lifecycleEpisodes = (dataset.semanticEpisodes ?? []).filter(
-      (episode) => episode.featureId === feature.id,
-    )
     return (
       <div className="inspector-content">
         <div className="inspector-heading">
-          <span className="eyebrow">Candidate interpretation</span>
+          <span className="eyebrow">Aggregate feature evidence</span>
           <h2>{feature.label}</h2>
           <div className="status-line">
             <span>candidate feature</span>
@@ -132,50 +172,23 @@ function EvidencePanel({
           </div>
         </div>
 
-        {feature.rationale && (
-          <section className="inspector-section">
-            <h3>Why it was proposed</h3>
-            <p>{feature.rationale}</p>
-          </section>
-        )}
-
         <section className="inspector-section">
-          <h3>Lifecycle episodes</h3>
-          {lifecycleEpisodes.length > 0 ? (
-            <ol className="lifecycle-list">
-              {lifecycleEpisodes.map((episode) => (
-                <li key={episode.id}>
-                  <button type="button" onClick={() => onSelect(episode.id)}>
-                    <span className={`lifecycle-badge lifecycle-badge--${episode.lifecycleStage}`}>
-                      {episode.lifecycleStage}
-                    </span>
-                    <strong>{episode.label}</strong>
-                    <small>{Math.round(episode.confidence * 100)}%</small>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p>No evidence-supported lifecycle episodes were proposed for this feature.</p>
-          )}
+          <h3>Evidence scope</h3>
+          <p>
+            {associations.episodes.length} observed commit{associations.episodes.length === 1 ? '' : 's'}
+            {' '}across {associations.areas.length} top-level code area
+            {associations.areas.length === 1 ? '' : 's'} support this candidate grouping.
+          </p>
         </section>
 
         <section className="inspector-section">
-          <h3>Combined evidence trail</h3>
-          <ol className="evidence-list">
-            {associations.episodes.map((episode) => (
-              <li key={episode.id}>
-                <button type="button" onClick={() => onSelect(episode.id)}>
-                  <span>{formatDate(episode.authoredAt)}</span>
-                  <strong>{episode.subject}</strong>
-                  <code>{episode.shortSha}</code>
-                </button>
-              </li>
-            ))}
-          </ol>
+          <h3>Supporting commits</h3>
+          <EvidenceCommitList
+            episodes={associations.episodes}
+            onSelect={onSelect}
+            includePathPreview
+          />
         </section>
-
-        <FeatureNeighborhood dataset={dataset} feature={feature} onSelect={onSelect} />
 
         <p className="boundary-note">
           This grouping was proposed from commit subjects and touched paths. It does not establish
@@ -187,9 +200,6 @@ function EvidencePanel({
 
   if (entity.kind === 'semantic') {
     const semantic = entity.value
-    const feature = dataset.featureCandidates.find(
-      (candidate) => candidate.id === semantic.featureId,
-    )
     const evidenceEpisodes = semantic.evidence
       .map((reference) =>
         dataset.episodes.find((episode) => episode.commitSha === reference.commitSha),
@@ -208,19 +218,6 @@ function EvidencePanel({
           </div>
         </div>
 
-        {feature && (
-          <section className="inspector-section">
-            <h3>Feature trail</h3>
-            <button
-              className="inspector-link-button"
-              type="button"
-              onClick={() => onSelect(feature.id)}
-            >
-              {feature.label}
-            </button>
-          </section>
-        )}
-
         <section className="inspector-section">
           <h3>Why this stage was proposed</h3>
           <p>{semantic.rationale}</p>
@@ -228,17 +225,11 @@ function EvidencePanel({
 
         <section className="inspector-section">
           <h3>Supporting commits</h3>
-          <ol className="evidence-list">
-            {evidenceEpisodes.map((episode) => (
-              <li key={episode.id}>
-                <button type="button" onClick={() => onSelect(episode.id)}>
-                  <span>{formatDate(episode.authoredAt)}</span>
-                  <strong>{episode.subject}</strong>
-                  <code>{episode.shortSha}</code>
-                </button>
-              </li>
-            ))}
-          </ol>
+          <EvidenceCommitList
+            episodes={evidenceEpisodes}
+            onSelect={onSelect}
+            includePathPreview
+          />
         </section>
 
         <p className="boundary-note">
@@ -259,7 +250,7 @@ function EvidencePanel({
     return (
       <div className="inspector-content">
         <div className="inspector-heading">
-          <span className="eyebrow">Candidate structural episode</span>
+          <span className="eyebrow">Candidate repository reorganization</span>
           <h2>{structural.label}</h2>
           <div className="status-line">
             <span>repository reorganization</span>
@@ -475,6 +466,7 @@ function ScopeControls({
   evidencePreset,
   onEvidencePreset,
   resultLabel,
+  showLifecycle = true,
 }: {
   chapters: Array<{ id: string; label: string }>
   selectedChapterId: string | null
@@ -484,6 +476,7 @@ function ScopeControls({
   evidencePreset: EvidencePreset
   onEvidencePreset: (preset: EvidencePreset) => void
   resultLabel: string
+  showLifecycle?: boolean
 }) {
   return (
     <section className="scope-bar" aria-label="History scope">
@@ -512,16 +505,18 @@ function ScopeControls({
         </div>
       </div>
 
-      <label className="scope-select">
-        <span>Lifecycle</span>
-        <select
-          value={lifecycleStage}
-          onChange={(event) => onLifecycleStage(event.target.value as LifecycleStage | 'all')}
-        >
-          <option value="all">All stages</option>
-          {LIFECYCLE_STAGES.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
-        </select>
-      </label>
+      {showLifecycle && (
+        <label className="scope-select">
+          <span>Lifecycle</span>
+          <select
+            value={lifecycleStage}
+            onChange={(event) => onLifecycleStage(event.target.value as LifecycleStage | 'all')}
+          >
+            <option value="all">All stages</option>
+            {LIFECYCLE_STAGES.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
+          </select>
+        </label>
+      )}
 
       <div className="scope-group scope-group--evidence">
         <span>Evidence</span>
@@ -555,7 +550,6 @@ export default function App() {
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null)
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
   const [section, setSection] = useState<ProductSection>('overview')
-  const [exploreView, setExploreView] = useState<ExploreView>('focus')
   const [selectedContributorId, setSelectedContributorId] = useState<string | null>(null)
   const [identityDecisions, setIdentityDecisions] =
     useState<IdentityDecisionsDocument | null>(null)
@@ -724,9 +718,29 @@ export default function App() {
         : null,
     [dataset, visibleFeatures, visibleSemanticEpisodes, visibleStructuralEpisodes],
   )
-  const matrix = useMemo(
-    () => (dataset ? buildAreaMatrix(dataset, visibleFeatures) : null),
-    [dataset, visibleFeatures],
+  const repositoryStory = useMemo(
+    () =>
+      dataset
+        ? buildStoryModel(
+            dataset,
+            [],
+            visibleStructuralEpisodes,
+            [],
+          )
+        : null,
+    [dataset, visibleStructuralEpisodes],
+  )
+  const repositoryAreaCount = useMemo(
+    () =>
+      dataset
+        ? dataset.codeAreas.filter((area) => {
+            if (!selectedChapter) return true
+            const firstSeen = new Date(area.firstSeenAt).getTime()
+            const lastSeen = new Date(area.lastSeenAt).getTime()
+            return firstSeen <= selectedChapter.endTime && lastSeen >= selectedChapter.startTime
+          }).length
+        : 0,
+    [dataset, selectedChapter],
   )
   const contributorTrail = useMemo(
     () =>
@@ -755,11 +769,11 @@ export default function App() {
   )
 
   useEffect(() => {
-    if (section !== 'explore' || visibleFeatures.length === 0) return
+    if (section !== 'features' || visibleFeatures.length === 0) return
     if (!selectedFeatureId || !visibleFeatureIds.has(selectedFeatureId)) {
       const nextFeature = visibleFeatures[0]
       setSelectedFeatureId(nextFeature.id)
-      setSelectedId(nextFeature.id)
+      setSelectedId(null)
     }
   }, [section, selectedFeatureId, visibleFeatureIds, visibleFeatures])
 
@@ -785,12 +799,12 @@ export default function App() {
 
   const handleSectionChange = (nextSection: ProductSection) => {
     setSection(nextSection)
-    if (nextSection === 'explore') {
+    if (nextSection === 'features') {
+      setSelectedId(null)
       const feature =
         visibleFeatures.find((candidate) => candidate.id === selectedFeatureId) ?? visibleFeatures[0]
       if (feature) {
         setSelectedFeatureId(feature.id)
-        setSelectedId(feature.id)
       }
     }
     if (nextSection === 'people') {
@@ -810,36 +824,38 @@ export default function App() {
 
   const handleSelectFeature = (id: string) => {
     setSelectedFeatureId(id)
+    setSelectedId(null)
+  }
+
+  const handleViewAllFeatureEvidence = (id: string) => {
+    setSelectedFeatureId(id)
     setSelectedId(id)
   }
 
   const handleExploreFeature = (id: string) => {
     setSelectedChapterId(null)
     setSelectedFeatureId(id)
-    setSelectedId(id)
-    setExploreView('focus')
-    setSection('explore')
+    setSelectedId(null)
+    setSection('features')
   }
 
   const handleExploreStage = (stage: LifecycleStage) => {
     setSelectedChapterId(null)
     setLifecycleStage(stage)
-    setExploreView('focus')
-    setSection('explore')
+    setSelectedId(null)
+    setSection('features')
     const featureId = confidenceSemanticEpisodes.find(
       (episode) => episode.lifecycleStage === stage,
     )?.featureId
     if (featureId) {
       setSelectedFeatureId(featureId)
-      setSelectedId(featureId)
     }
   }
 
   const handleInspectStructure = (id: string) => {
     setSelectedChapterId(null)
     setSelectedId(id)
-    setExploreView('lanes')
-    setSection('explore')
+    setSection('repository')
   }
 
   const handleContributorChange = (id: string) => {
@@ -886,7 +902,7 @@ export default function App() {
     }
   }, [dataset, identityDecisions])
 
-  if (!dataset || !overviewStory || !baseStory || !story || !matrix) {
+  if (!dataset || !overviewStory || !baseStory || !story || !repositoryStory) {
     return (
       <main className="load-state">
         <p className="brand-mark">EVOLUTION ATLAS</p>
@@ -924,11 +940,19 @@ export default function App() {
           </button>
           <button
             type="button"
-            className={section === 'explore' ? 'is-active' : ''}
-            aria-current={section === 'explore' ? 'page' : undefined}
-            onClick={() => handleSectionChange('explore')}
+            className={section === 'repository' ? 'is-active' : ''}
+            aria-current={section === 'repository' ? 'page' : undefined}
+            onClick={() => handleSectionChange('repository')}
           >
-            Explore
+            Repository
+          </button>
+          <button
+            type="button"
+            className={section === 'features' ? 'is-active' : ''}
+            aria-current={section === 'features' ? 'page' : undefined}
+            onClick={() => handleSectionChange('features')}
+          >
+            Features
           </button>
           <button
             type="button"
@@ -962,19 +986,54 @@ export default function App() {
           story={overviewStory}
           selectedChapterId={selectedChapterId}
           onSelectChapter={setSelectedChapterId}
-          onExplore={() => handleSectionChange('explore')}
+          onExplore={() => handleSectionChange('features')}
           onExploreFeature={handleExploreFeature}
           onExploreStage={handleExploreStage}
           onInspect={handleInspectStructure}
         />
-      ) : section === 'explore' ? (
+      ) : section === 'repository' ? (
         <>
           <header className="section-header">
             <div>
-              <span className="eyebrow">Explore repository history</span>
+              <span className="eyebrow">Repository history</span>
+              <h1>See how the codebase changed shape.</h1>
+            </div>
+            <span className="candidate-key">Observed activity with candidate structure overlays</span>
+          </header>
+          <ScopeControls
+            chapters={baseStory.chapters}
+            selectedChapterId={selectedChapterId}
+            onSelectChapter={setSelectedChapterId}
+            lifecycleStage={lifecycleStage}
+            onLifecycleStage={setLifecycleStage}
+            evidencePreset={evidencePreset}
+            onEvidencePreset={setEvidencePreset}
+            resultLabel={`${repositoryAreaCount} observed code areas · ${repositoryStory.structuralEvents.length} candidate reorganizations`}
+            showLifecycle={false}
+          />
+          <section className="repository-workspace">
+            <RepositoryTimeMachine
+              dataset={dataset}
+              story={repositoryStory}
+              selectedId={selectedId}
+              selectedChapterId={selectedChapterId}
+              onSelect={handleSelect}
+              inspector={
+                <div className="inspector-panel inspector-panel--sticky">
+                  <EvidencePanel entity={selectedEntity} dataset={dataset} onSelect={handleSelect} />
+                </div>
+              }
+            />
+          </section>
+        </>
+      ) : section === 'features' ? (
+        <>
+          <header className="section-header">
+            <div>
+              <span className="eyebrow">Feature stories</span>
               <h1>Follow one feature from claim to evidence.</h1>
             </div>
-            <span className="candidate-key">Interpretations stay visibly candidate</span>
+            <span className="candidate-key">Specific views stay visibly candidate</span>
           </header>
           <ScopeControls
             chapters={baseStory.chapters}
@@ -995,11 +1054,9 @@ export default function App() {
               selectedId={selectedId}
               selectedChapterId={selectedChapterId}
               selectedLifecycleStage={lifecycleStage}
-              matrix={matrix}
-              view={exploreView}
-              onViewChange={setExploreView}
               onSelect={handleSelect}
               onSelectFeature={handleSelectFeature}
+              onViewAllEvidence={handleViewAllFeatureEvidence}
               inspector={
                 <div className="inspector-panel inspector-panel--sticky">
                   <EvidencePanel entity={selectedEntity} dataset={dataset} onSelect={handleSelect} />

@@ -169,12 +169,15 @@ belong to semantic episodes, not features; validation resolves every proposed
 feature id and commit before serialization. Code-area and contributor
 associations are still read from observed commits rather than proposed.
 
-The interpreted viewer now leads with a repository overview and a searchable,
-selected-feature explorer. A focused lifecycle ribbon coordinates candidate
-semantic episodes, observed commits, code areas, contributor associations, and
-the evidence inspector. The complete shared-axis lane view and feature-by-area
-matrix remain available as power tools. Structural episodes open the supporting
-commit, prefix mappings, and individual path transitions. Lifecycle bars open
+The interpreted viewer now leads with a repository overview, a repository time
+machine, and a searchable selected-feature story. The time machine reconstructs
+directory snapshots from observed path operations at initial, calendar,
+structural-change, and current checkpoints. One adjacent panel explains what
+changed and keeps candidate reorganizations linked to their evidence. A focused
+lifecycle ribbon coordinates candidate semantic episodes, observed commits, code areas,
+contributor associations, and the evidence inspector. Structural transitions
+open the supporting commit, prefix mappings, and individual path transitions;
+feature signals hand off to the full story instead of duplicating it. Lifecycle bars open
 their own rationale and cited commits. Its only relationship graph is scoped to
 the selected feature so the layout stays stable and attribution boundaries
 remain visible. Identity Review is a data-management utility that makes match

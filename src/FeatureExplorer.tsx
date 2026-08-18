@@ -1,19 +1,14 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
-import { AreaMatrix } from './AreaMatrix'
-import { StoryLanes } from './StoryLanes'
 import { LIFECYCLE_STAGES } from './lifecycle'
 import type {
-  AreaMatrixModel,
   CalendarChapter,
   StoryLane,
   StoryModel,
 } from './story'
 import { deriveFeatureAssociations } from './story'
 import type { AtlasDataset, FeatureCandidate, LifecycleStage } from './model'
-
-export type ExploreView = 'focus' | 'lanes' | 'matrix'
 
 interface FeatureExplorerProps {
   dataset: AtlasDataset
@@ -23,11 +18,9 @@ interface FeatureExplorerProps {
   selectedId: string | null
   selectedChapterId: string | null
   selectedLifecycleStage: LifecycleStage | 'all'
-  matrix: AreaMatrixModel
-  view: ExploreView
-  onViewChange: (view: ExploreView) => void
   onSelect: (id: string) => void
   onSelectFeature: (id: string) => void
+  onViewAllEvidence: (id: string) => void
   inspector: ReactNode
 }
 
@@ -68,6 +61,7 @@ function FeatureFocus({
   selectedChapterId,
   selectedLifecycleStage,
   onSelect,
+  onViewAllEvidence,
 }: {
   dataset: AtlasDataset
   lane: StoryLane
@@ -76,6 +70,7 @@ function FeatureFocus({
   selectedChapterId: string | null
   selectedLifecycleStage: LifecycleStage | 'all'
   onSelect: (id: string) => void
+  onViewAllEvidence: (id: string) => void
 }) {
   const associations = useMemo(
     () => deriveFeatureAssociations(dataset, lane.feature),
@@ -93,10 +88,22 @@ function FeatureFocus({
         <div className="feature-focus__confidence">
           <strong>{Math.round(lane.feature.confidence * 100)}%</strong>
           <span>candidate confidence</span>
+          <button
+            type="button"
+            className={selectedId === lane.feature.id ? 'is-active' : ''}
+            aria-pressed={selectedId === lane.feature.id}
+            onClick={() => onViewAllEvidence(lane.feature.id)}
+          >
+            View all feature evidence
+          </button>
         </div>
       </header>
 
       <section className="feature-focus__timeline" aria-label={`${lane.feature.label} timeline`}>
+        <div className="feature-focus__timeline-heading">
+          <span className="eyebrow">Timeline orientation</span>
+          <small>Select a lifecycle bar or commit mark to inspect its evidence.</small>
+        </div>
         <div className="focus-axis" aria-hidden="true">
           {chapters.map((chapter) => (
             <span
@@ -206,13 +213,11 @@ function FeatureFocus({
                     onClick={() => onSelect(event.id)}
                   >
                     <span className={`lifecycle-badge lifecycle-badge--${stage}`}>{stage}</span>
-                    <strong>{event.semanticEpisode.label}</strong>
-                    <p>{event.semanticEpisode.rationale}</p>
-                    <small>
-                      {firstEvidence ? formatDate(firstEvidence.authoredAt) : 'Date unavailable'} ·{' '}
-                      {event.episodes.length} cited commit{event.episodes.length === 1 ? '' : 's'} ·{' '}
-                      {Math.round(event.semanticEpisode.confidence * 100)}%
-                    </small>
+                    <span className="lifecycle-card__outcome">
+                      <strong>{event.semanticEpisode.label}</strong>
+                      <small>{firstEvidence ? formatDate(firstEvidence.authoredAt) : 'Date unavailable'}</small>
+                    </span>
+                    <span className="lifecycle-card__action">Inspect evidence</span>
                   </button>
                 </li>
               )
@@ -243,11 +248,9 @@ export function FeatureExplorer({
   selectedId,
   selectedChapterId,
   selectedLifecycleStage,
-  matrix,
-  view,
-  onViewChange,
   onSelect,
   onSelectFeature,
+  onViewAllEvidence,
   inspector,
 }: FeatureExplorerProps) {
   const [query, setQuery] = useState('')
@@ -267,16 +270,10 @@ export function FeatureExplorer({
         visibleFeatureIds.has(feature.id) && feature.label.toLowerCase().includes(normalizedQuery),
   )
   const selectedLane = selectedFeature ? laneByFeatureId.get(selectedFeature.id) ?? null : null
-  const viewDescription =
-    view === 'focus'
-      ? 'A guided story for the selected candidate, with its lifecycle and cited commits in one place.'
-      : view === 'lanes'
-        ? 'A repository-wide comparison for spotting parallel feature and reorganization trails.'
-        : 'A repository-wide matrix showing where cited feature evidence appears in the codebase.'
 
   return (
     <section className="explorer-shell">
-      <div className="explorer-flow" aria-label="Explore workflow">
+      <div className="explorer-flow" aria-label="Feature story workflow">
         <div className="explorer-flow__step is-active">
           <span className="explorer-flow__number">01</span>
           <div>
@@ -295,7 +292,13 @@ export function FeatureExplorer({
           <span className="explorer-flow__number">03</span>
           <div>
             <strong>Verify the evidence</strong>
-            <small>{selectedId ? 'Evidence inspector is ready' : 'Select a mark or episode'}</small>
+            <small>
+              {selectedId === selectedFeature?.id
+                ? 'Aggregate feature evidence'
+                : selectedId
+                  ? 'Selected claim evidence'
+                  : 'Select an episode or commit mark'}
+            </small>
           </div>
         </div>
       </div>
@@ -338,79 +341,22 @@ export function FeatureExplorer({
       </aside>
 
       <div className="explorer-main">
-        <div className="explorer-view-switch" role="group" aria-label="Explore view">
-          <span className="explorer-view-switch__label">Guided view</span>
-          <button
-            type="button"
-            className={view === 'focus' ? 'is-active' : ''}
-            aria-pressed={view === 'focus'}
-            onClick={() => onViewChange('focus')}
-          >
-            Feature story
-          </button>
-          <button
-            type="button"
-            className={view === 'lanes' ? 'is-active' : ''}
-            aria-pressed={view === 'lanes'}
-            onClick={() => onViewChange('lanes')}
-          >
-            Compare timelines
-          </button>
-          <button
-            type="button"
-            className={view === 'matrix' ? 'is-active' : ''}
-            aria-pressed={view === 'matrix'}
-            onClick={() => onViewChange('matrix')}
-          >
-            Area matrix
-          </button>
-        </div>
-        <p className="explorer-view-note">{viewDescription}</p>
-
-        {view === 'focus' ? (
-          selectedLane ? (
-            <FeatureFocus
-              dataset={dataset}
-              lane={selectedLane}
-              chapters={story.chapters}
-              selectedId={selectedId}
-              selectedChapterId={selectedChapterId}
-              selectedLifecycleStage={selectedLifecycleStage}
-              onSelect={onSelect}
-            />
-          ) : (
-            <div className="explorer-empty">
-              <span className="eyebrow">Feature story</span>
-              <h2>Choose a feature to trace its evolution.</h2>
-              <p>Search the feature index or remove a filter to restore matching candidates.</p>
-            </div>
-          )
-        ) : view === 'lanes' ? (
-          <div className="power-view">
-            <div className="power-view__heading">
-              <div>
-                <span className="eyebrow">Power view</span>
-                <h2>Compare candidate timelines</h2>
-              </div>
-              <span>{story.lanes.length} feature rows</span>
-            </div>
-            <StoryLanes
-              model={story}
-              selectedId={selectedId}
-              selectedChapterId={selectedChapterId}
-              onSelect={onSelect}
-            />
-          </div>
+        {selectedLane ? (
+          <FeatureFocus
+            dataset={dataset}
+            lane={selectedLane}
+            chapters={story.chapters}
+            selectedId={selectedId}
+            selectedChapterId={selectedChapterId}
+            selectedLifecycleStage={selectedLifecycleStage}
+            onSelect={onSelect}
+            onViewAllEvidence={onViewAllEvidence}
+          />
         ) : (
-          <div className="power-view">
-            <div className="power-view__heading">
-              <div>
-                <span className="eyebrow">Evidence distribution</span>
-                <h2>Where cited feature evidence lives</h2>
-              </div>
-              <span>{matrix.columns.length} observed areas</span>
-            </div>
-            <AreaMatrix model={matrix} selectedId={selectedId} onSelect={onSelect} />
+          <div className="explorer-empty">
+            <span className="eyebrow">Feature story</span>
+            <h2>Choose a feature to trace its evolution.</h2>
+            <p>Search the feature index or remove a filter to restore matching candidates.</p>
           </div>
         )}
       </div>

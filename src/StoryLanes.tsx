@@ -10,7 +10,7 @@ interface StoryLanesProps {
 
 export function StoryLanes({ model, selectedId, selectedChapterId, onSelect }: StoryLanesProps) {
   if (model.lanes.length === 0 && model.structuralEvents.length === 0) {
-    return <div className="empty-state">No candidate features or structural episodes match the current view.</div>
+    return <div className="empty-state">No candidate features or repository reorganizations match the current view.</div>
   }
 
   return (
@@ -23,10 +23,10 @@ export function StoryLanes({ model, selectedId, selectedChapterId, onSelect }: S
           </span>
         ))}
         <span><i className="legend-mark legend-mark--commit" />cited commit</span>
-        <span><i className="legend-mark legend-mark--structure" />reorganization</span>
+        <span><i className="legend-mark legend-mark--structure" />repository reorganization</span>
       </div>
       <div className="story-axis story-grid">
-        <span>Candidate episode or feature</span>
+        <span>Feature or repository event</span>
         <div className="story-axis__track" aria-hidden="true">
           {model.chapters.map((chapter) => (
             <span
@@ -42,43 +42,52 @@ export function StoryLanes({ model, selectedId, selectedChapterId, onSelect }: S
       </div>
 
       {model.structuralEvents.length > 0 && (
-        <ol className="story-lanes__rows structural-lanes" aria-label="Candidate structural episodes">
-          {model.structuralEvents.map((event) => (
-            <li
-              key={event.id}
-              className={`story-grid story-lane structural-lane${selectedId === event.id ? ' is-selected' : ''}`}
-            >
-              <button
-                type="button"
-                className="story-lane__label"
-                onClick={() => onSelect(event.id)}
-              >
-                <span>{event.structuralEpisode.label}</span>
-                <small>
-                  structural reorganization · {Math.round(event.structuralEpisode.confidence * 100)}% confidence
-                </small>
-              </button>
-              <div className="story-lane__track">
-                {model.chapters.map((chapter) => (
-                  <span
-                    key={chapter.id}
-                    className={`story-lane__chapter${selectedChapterId === chapter.id ? ' is-selected' : ''}`}
-                    style={{ left: `${chapter.startPercent}%`, width: `${chapter.widthPercent}%` }}
-                  />
-                ))}
+        <div
+          className={`story-grid structural-rail${
+            model.structuralEvents.some((event) => selectedId === event.id) ? ' is-selected' : ''
+          }`}
+          role="group"
+          aria-label="Candidate repository reorganizations"
+        >
+          <div className="structural-rail__label">
+            <span>Repository structure</span>
+            <small>
+              {model.structuralEvents.length} candidate reorganization{model.structuralEvents.length === 1 ? '' : 's'}
+            </small>
+          </div>
+          <div className="story-lane__track structural-rail__track">
+            {model.chapters.map((chapter) => (
+              <span
+                key={chapter.id}
+                className={`story-lane__chapter${selectedChapterId === chapter.id ? ' is-selected' : ''}`}
+                style={{ left: `${chapter.startPercent}%`, width: `${chapter.widthPercent}%` }}
+              />
+            ))}
+            {model.structuralEvents.map((event) => {
+              const mappingSummary = event.structuralEpisode.mappings
+                .map(
+                  (mapping) =>
+                    `${mapping.fromPrefix || 'repository root'} → ${mapping.toPrefix || 'repository root'}`,
+                )
+                .join(', ')
+              const fileCount = event.structuralEpisode.transitions.length
+              const summary = `${event.structuralEpisode.label} · ${mappingSummary} · ${fileCount} file${fileCount === 1 ? '' : 's'}`
+
+              return (
                 <button
+                  key={event.id}
                   type="button"
                   className={`structural-event${selectedId === event.id ? ' is-selected' : ''}`}
                   style={{ left: `${event.percent}%` }}
-                  aria-label={`${event.structuralEpisode.label}: ${event.episode.shortSha}`}
-                  title={`${event.structuralEpisode.label} · ${event.episode.shortSha}`}
+                  aria-label={`${summary} · ${Math.round(event.structuralEpisode.confidence * 100)}% confidence · commit ${event.episode.shortSha}`}
+                  title={summary}
                   onClick={() => onSelect(event.id)}
                 />
-              </div>
-              <span className="story-lane__count">{event.structuralEpisode.transitions.length}</span>
-            </li>
-          ))}
-        </ol>
+              )
+            })}
+          </div>
+          <span className="story-lane__count">{model.structuralEvents.length}</span>
+        </div>
       )}
 
       <ol className={`story-lanes__rows${model.structuralEvents.length > 0 ? ' feature-lanes-after-structure' : ''}`}>
@@ -161,10 +170,10 @@ export function StoryLanes({ model, selectedId, selectedChapterId, onSelect }: S
       <details className="method-disclosure">
         <summary>How to read all timelines</summary>
         <p>
-          Diamonds are candidate repository reorganizations grounded in path transitions. Dots are
-          cited commits. Colored bars are candidate semantic lifecycle episodes and span only their
-          cited evidence. Dashed lines are a visual index, not a claim of continuous development or
-          a complete feature lifetime.
+          The Repository structure rail places candidate reorganizations on the shared chronology;
+          its diamonds are grounded in path transitions. Dots are cited commits. Colored bars are
+          candidate semantic lifecycle episodes and span only their cited evidence. Dashed lines are
+          a visual index, not a claim of continuous development or a complete feature lifetime.
         </p>
       </details>
     </div>

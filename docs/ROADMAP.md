@@ -46,11 +46,12 @@ traceability.
 
 ## Milestone 3 — visual language
 
-- Lead with a progressive Overview / Explore / People hierarchy. Make one
-  selected feature story the default detailed view, with complete evidence lanes
-  and the feature-by-area matrix retained as power tools.
-- Show candidate structural reorganizations as a separate timeline layer with
-  path-prefix mappings and commit-level drill-down.
+- Lead with a progressive Overview / Repository / Features / People hierarchy.
+  Make Repository a checkpoint-based time machine; keep the full feature
+  lifecycle exclusively in the selected-feature view in Features.
+- Reconstruct observed directory snapshots from serialized path operations and
+  explain candidate reorganizations between checkpoints with commit-level
+  drill-down.
 - Keep contributor associations in selected-feature detail rather than making
   contributor color the organizing principle of the entire history.
 - Provide a contributor-trail mode as a repository-centric projection: retain

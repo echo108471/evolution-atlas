@@ -65,11 +65,14 @@ and model output never alters observed Git records.
 ### Viewer
 
 The browser loads `public/atlas.json` and derives a repository overview, a
-searchable feature index, selected-feature lifecycle ribbons, stable calendar
-chapters, complete feature and structural lanes, and a feature-by-code-area
-matrix. Each exploratory view shares an evidence inspector. It does not read a
-repository directly. React owns selection and filtering; D3 supplies the time
-scale used to place observed commit dates. For older local datasets, the same deterministic
+directory lifespan chart with checkpoint drill-down, a searchable feature index,
+and selected-feature lifecycle ribbons. Both repository views replay serialized
+add, delete, copy, and rename operations in commit order: the lifespan chart
+samples each directory's observed file count across the range, and the
+checkpoint panel reconstructs one directory snapshot and the change summary for
+its interval. Both are scoped by the same selected path, and neither reads the
+repository directly or adds inferred state to the JSON contract. React owns selection and filtering; D3 supplies the time scale used
+to place observed commit dates. For older local datasets, the same deterministic
 structural detector runs over already serialized path changes in the browser.
 Older feature-level lifecycle claims are shown only as explicit compatibility
 projections until the interpretation is regenerated.

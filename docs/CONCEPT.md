@@ -47,23 +47,27 @@ graph or an all-data-at-once dashboard:
 
 1. **Overview** summarizes calendar activity, lifecycle totals, recently
    evidenced feature stories, and candidate structural reorganizations.
-2. **Explore** starts with a searchable feature index and one selected feature
-   story. Its lifecycle ribbon, observed commits, code areas, contributor
-   associations, and evidence inspector remain coordinated.
-3. **All timelines** retains the complete shared-axis lane view as a power tool.
-   Dashed spans connect cited evidence without claiming continuous work or a
-   complete feature lifetime.
-4. **The code-area matrix** remains a secondary comparison of which top-level
-   paths each candidate feature's supporting commits touched.
-5. **A selected-feature neighborhood** shows only the contributors and code
+2. **Repository** reads the codebase as continuity rather than as one instant.
+   Every directory in the selected scope becomes a band whose thickness follows
+   its observed file count across the whole range, so directories visibly
+   appear, grow, get renamed, and retire. Candidate prefix transitions link the
+   bands they connect and stay dashed against the solid observed bands. A
+   selected checkpoint drills into one interval: the directory snapshot after
+   that commit, its path operations, and any candidate reorganization. Drilling
+   into a directory rescopes the bands, the snapshot, and the change summary
+   together. Feature lifecycles do not appear here.
+3. **Features** starts with a searchable candidate index and one selected
+   feature story. Its lifecycle ribbon, observed commits, code areas,
+   contributor associations, and evidence inspector remain coordinated.
+4. **A selected-feature neighborhood** shows only the contributors and code
    areas associated with one feature. The graph is scoped and deterministic,
    not a global constellation whose position changes arbitrarily.
-6. **People** projects one confirmed contributor profile over
+5. **People** projects one confirmed contributor profile over
    the same chronology. A profile contains one exact Git identity until
    repository evidence or a human decision confirms more. Authored evidence is
    highlighted, other commits remain visible as feature context, and observed
    code-area rows include work outside candidate evidence.
-7. **Identity Review** is a data-management utility rather than a primary story
+6. **Identity Review** is a data-management utility rather than a primary story
    mode. It presents explainable, conservative match suggestions.
    Confirming a match changes only the contributor projection. Raw identities
    and authored relationships stay intact, and every decision can be reversed

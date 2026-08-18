@@ -165,7 +165,7 @@ export function RepositoryOverview({
       <section className="overview-metrics" aria-label="Repository evidence summary">
         <div><strong>{dataset.featureCandidates.length}</strong><span>candidate features</span></div>
         <div><strong>{dataset.semanticEpisodes?.length ?? 0}</strong><span>lifecycle episodes</span></div>
-        <div><strong>{dataset.structuralEpisodes?.length ?? 0}</strong><span>structural episodes</span></div>
+        <div><strong>{dataset.structuralEpisodes?.length ?? 0}</strong><span>repository reorganizations</span></div>
         <div><strong>{dataset.episodes.length.toLocaleString()}</strong><span>observed commits</span></div>
       </section>
 
