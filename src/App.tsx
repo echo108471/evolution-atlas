@@ -34,6 +34,8 @@ import {
   featureTouchesChapter,
   structuralEpisodeTouchesChapter,
 } from './story'
+import { useAtlasUrl } from './useAtlasUrl'
+import type { AtlasSection, EvidencePreset } from './urlState'
 
 type SelectedEntity =
   | { kind: 'episode'; value: ChangeEpisode }
@@ -43,9 +45,6 @@ type SelectedEntity =
   | { kind: 'feature'; value: FeatureCandidate }
   | { kind: 'semantic'; value: SemanticEpisodeCandidate }
   | { kind: 'structural'; value: StructuralEpisodeCandidate }
-
-type ProductSection = 'overview' | 'repository' | 'features' | 'people' | 'identity'
-type EvidencePreset = 'conservative' | 'balanced' | 'all'
 
 const EVIDENCE_PRESETS: Record<EvidencePreset, { label: string; threshold: number }> = {
   conservative: { label: 'Conservative', threshold: 0.85 },
@@ -546,15 +545,20 @@ function ScopeControls({
 export default function App() {
   const [dataset, setDataset] = useState<AtlasDataset | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null)
-  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
-  const [section, setSection] = useState<ProductSection>('overview')
-  const [selectedContributorId, setSelectedContributorId] = useState<string | null>(null)
   const [identityDecisions, setIdentityDecisions] =
     useState<IdentityDecisionsDocument | null>(null)
-  const [evidencePreset, setEvidencePreset] = useState<EvidencePreset>('balanced')
-  const [lifecycleStage, setLifecycleStage] = useState<LifecycleStage | 'all'>('all')
+
+  // Every navigation coordinate lives in the query string. Selections that the user never
+  // made stay absent from the URL and are resolved to a default at render time instead.
+  const [url, setUrl] = useAtlasUrl()
+  const {
+    section,
+    selectedId,
+    chapterId: selectedChapterId,
+    contributorId: selectedContributorId,
+    evidencePreset,
+    lifecycleStage,
+  } = url
 
   useEffect(() => {
     const controller = new AbortController()
@@ -582,19 +586,6 @@ export default function App() {
         } catch {
           setIdentityDecisions(emptyDecisions)
         }
-        const firstFeature = normalizedDataset.featureCandidates[0]
-        setSelectedFeatureId(firstFeature?.id ?? null)
-        const firstContributor = [...normalizedDataset.contributors].sort(
-          (left, right) =>
-            Number(left.isBot) - Number(right.isBot) ||
-            left.displayName.localeCompare(right.displayName),
-        )[0]
-        const contextualContributor = firstFeature
-          ? deriveFeatureAssociations(normalizedDataset, firstFeature).contributors.find(
-              (contributor) => !contributor.isBot,
-            )
-          : null
-        setSelectedContributorId(contextualContributor?.id ?? firstContributor?.id ?? null)
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return
@@ -761,106 +752,110 @@ export default function App() {
       visibleFeatures,
     ],
   )
+  // The URL records the feature the user asked for; what it resolves to depends on the
+  // filters in force, so a link that no longer matches degrades to the first result.
   const selectedFeature =
-    dataset?.featureCandidates.find((feature) => feature.id === selectedFeatureId) ?? null
+    visibleFeatures.find((feature) => feature.id === url.featureId) ?? visibleFeatures[0] ?? null
   const selectedEntity = useMemo(
     () => (dataset ? findEntity(dataset, selectedId, identityResolution) : null),
     [dataset, identityResolution, selectedId],
   )
 
-  useEffect(() => {
-    if (section !== 'features' || visibleFeatures.length === 0) return
-    if (!selectedFeatureId || !visibleFeatureIds.has(selectedFeatureId)) {
-      const nextFeature = visibleFeatures[0]
-      setSelectedFeatureId(nextFeature.id)
-      setSelectedId(null)
-    }
-  }, [section, selectedFeatureId, visibleFeatureIds, visibleFeatures])
-
   const handleSelect = (id: string) => {
-    setSelectedId(id)
     const feature = dataset?.featureCandidates.find((candidate) => candidate.id === id)
-    if (feature) setSelectedFeatureId(feature.id)
     const semantic = dataset?.semanticEpisodes?.find((candidate) => candidate.id === id)
-    if (semantic) setSelectedFeatureId(semantic.featureId)
     const contributor = dataset?.contributors.find((candidate) => candidate.id === id)
     const profile = identityResolution.profiles.find((candidate) => candidate.id === id)
+
     if (contributor || profile) {
       const resolvedProfile = contributor
         ? identityResolution.profileByIdentityId.get(contributor.id)
         : profile
       const contributorId = resolvedProfile?.id ?? contributor?.id
       if (!contributorId) return
-      setSelectedContributorId(contributorId)
-      setSelectedId(contributorId)
-      setSection('people')
+      setUrl({ section: 'people', contributorId, selectedId: contributorId })
+      return
     }
+
+    setUrl({
+      selectedId: id,
+      ...(feature ? { featureId: feature.id } : {}),
+      ...(semantic ? { featureId: semantic.featureId } : {}),
+    })
   }
 
-  const handleSectionChange = (nextSection: ProductSection) => {
-    setSection(nextSection)
+  const handleSectionChange = (nextSection: AtlasSection) => {
     if (nextSection === 'features') {
-      setSelectedId(null)
-      const feature =
-        visibleFeatures.find((candidate) => candidate.id === selectedFeatureId) ?? visibleFeatures[0]
-      if (feature) {
-        setSelectedFeatureId(feature.id)
-      }
+      // No feature is written here: an unset `feature` already resolves to the first
+      // visible one, and pinning it would put a choice in the link nobody made.
+      setUrl({ section: nextSection, selectedId: null })
+      return
     }
     if (nextSection === 'people') {
+      // Carry the current feature's context across, so People opens on someone relevant.
       const contextualContributor = selectedFeature
         ? deriveFeatureAssociations(dataset!, selectedFeature).contributors.find(
             (contributor) => !contributor.isBot,
           )
         : null
       const contributor = contextualContributor ?? selectedContributor
-      if (contributor) {
-        const resolved = identityResolution.profileByIdentityId.get(contributor.id) ?? contributor
-        setSelectedContributorId(resolved.id)
-        setSelectedId(resolved.id)
-      }
+      const resolved = contributor
+        ? identityResolution.profileByIdentityId.get(contributor.id) ?? contributor
+        : null
+      setUrl({
+        section: nextSection,
+        ...(resolved ? { contributorId: resolved.id, selectedId: resolved.id } : {}),
+      })
+      return
     }
+    setUrl({ section: nextSection })
   }
 
   const handleSelectFeature = (id: string) => {
-    setSelectedFeatureId(id)
-    setSelectedId(null)
+    setUrl({ featureId: id, selectedId: null })
   }
 
   const handleViewAllFeatureEvidence = (id: string) => {
-    setSelectedFeatureId(id)
-    setSelectedId(id)
+    setUrl({ featureId: id, selectedId: id })
   }
 
   const handleExploreFeature = (id: string) => {
-    setSelectedChapterId(null)
-    setSelectedFeatureId(id)
-    setSelectedId(null)
-    setSection('features')
+    setUrl({ section: 'features', chapterId: null, featureId: id, selectedId: null })
   }
 
   const handleExploreStage = (stage: LifecycleStage) => {
-    setSelectedChapterId(null)
-    setLifecycleStage(stage)
-    setSelectedId(null)
-    setSection('features')
     const featureId = confidenceSemanticEpisodes.find(
       (episode) => episode.lifecycleStage === stage,
     )?.featureId
-    if (featureId) {
-      setSelectedFeatureId(featureId)
-    }
+    setUrl({
+      section: 'features',
+      chapterId: null,
+      lifecycleStage: stage,
+      selectedId: null,
+      ...(featureId ? { featureId } : {}),
+    })
   }
 
   const handleInspectStructure = (id: string) => {
-    setSelectedChapterId(null)
-    setSelectedId(id)
-    setSection('repository')
+    setUrl({ section: 'repository', chapterId: null, selectedId: id })
   }
 
   const handleContributorChange = (id: string) => {
-    setSelectedContributorId(id)
-    setSelectedId(id)
+    setUrl({ contributorId: id, selectedId: id })
+  }
+
+  // Filters replace the current entry: toggling through presets should not bury the view
+  // the user arrived from under a dozen history steps.
+  const handleSelectChapter = (id: string | null) => {
+    setUrl({ chapterId: id }, { replace: true })
+  }
+
+  const handleLifecycleStage = (stage: LifecycleStage | 'all') => {
+    setUrl({ lifecycleStage: stage }, { replace: true })
+  }
+
+  const handleEvidencePreset = (preset: EvidencePreset) => {
+    setUrl({ evidencePreset: preset }, { replace: true })
   }
 
   const handleIdentityDecision = (
@@ -885,9 +880,7 @@ export default function App() {
   const handleOpenContributor = (identityId: string) => {
     const profile = identityResolution.profileByIdentityId.get(identityId)
     if (!profile) return
-    setSelectedContributorId(profile.id)
-    setSelectedId(profile.id)
-    setSection('people')
+    setUrl({ section: 'people', contributorId: profile.id, selectedId: profile.id })
   }
 
   useEffect(() => {
@@ -922,7 +915,7 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell app-shell--product">
+    <main className={`app-shell app-shell--product${section === 'features' ? ' app-shell--contained' : ''}`}>
       <header className="product-header">
         <button type="button" className="product-brand" onClick={() => handleSectionChange('overview')}>
           <span className="brand-mark">EVOLUTION ATLAS</span>
@@ -985,7 +978,7 @@ export default function App() {
           dataset={dataset}
           story={overviewStory}
           selectedChapterId={selectedChapterId}
-          onSelectChapter={setSelectedChapterId}
+          onSelectChapter={handleSelectChapter}
           onExplore={() => handleSectionChange('features')}
           onExploreFeature={handleExploreFeature}
           onExploreStage={handleExploreStage}
@@ -1003,11 +996,11 @@ export default function App() {
           <ScopeControls
             chapters={baseStory.chapters}
             selectedChapterId={selectedChapterId}
-            onSelectChapter={setSelectedChapterId}
+            onSelectChapter={handleSelectChapter}
             lifecycleStage={lifecycleStage}
-            onLifecycleStage={setLifecycleStage}
+            onLifecycleStage={handleLifecycleStage}
             evidencePreset={evidencePreset}
-            onEvidencePreset={setEvidencePreset}
+            onEvidencePreset={handleEvidencePreset}
             resultLabel={`${repositoryAreaCount} observed code areas · ${repositoryStory.structuralEvents.length} candidate reorganizations`}
             showLifecycle={false}
           />
@@ -1038,11 +1031,11 @@ export default function App() {
           <ScopeControls
             chapters={baseStory.chapters}
             selectedChapterId={selectedChapterId}
-            onSelectChapter={setSelectedChapterId}
+            onSelectChapter={handleSelectChapter}
             lifecycleStage={lifecycleStage}
-            onLifecycleStage={setLifecycleStage}
+            onLifecycleStage={handleLifecycleStage}
             evidencePreset={evidencePreset}
-            onEvidencePreset={setEvidencePreset}
+            onEvidencePreset={handleEvidencePreset}
             resultLabel={`${visibleFeatures.length} matching features`}
           />
           <section className="explore-workspace">
@@ -1090,11 +1083,11 @@ export default function App() {
           <ScopeControls
             chapters={baseStory.chapters}
             selectedChapterId={selectedChapterId}
-            onSelectChapter={setSelectedChapterId}
+            onSelectChapter={handleSelectChapter}
             lifecycleStage={lifecycleStage}
-            onLifecycleStage={setLifecycleStage}
+            onLifecycleStage={handleLifecycleStage}
             evidencePreset={evidencePreset}
-            onEvidencePreset={setEvidencePreset}
+            onEvidencePreset={handleEvidencePreset}
             resultLabel={`${contributorTrail?.authoredEpisodes.length ?? 0} authored commits in scope`}
           />
           <section className="people-workspace">

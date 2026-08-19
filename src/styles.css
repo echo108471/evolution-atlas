@@ -3238,22 +3238,45 @@ p {
 
 /* Scroll ownership and guided Explore flow */
 
-/* Keep the document as the only vertical scroll surface. The matrix and lane
-   views retain their intentional horizontal overflow where needed. */
+/* On desktop, Feature Stories is a contained three-page workspace. The stage
+   labels stay aligned while each page keeps an independent reading position. */
 .scope-bar {
   position: static;
 }
 
+/* The section owns the viewport and the workspace takes whatever the header and
+   scope bar leave behind, so pane heights are never measured against a guessed
+   chrome height. Below the floor this shell scrolls instead of crushing them. */
+.app-shell--contained {
+  display: flex;
+  height: 100dvh;
+  flex-direction: column;
+  padding-bottom: 0;
+  overflow-y: auto;
+}
+
 .explore-workspace {
-  display: block;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  align-items: stretch;
   margin-top: 22px;
+}
+
+.app-shell--contained .explore-workspace {
+  min-height: 480px;
+  flex: 1 0 auto;
+  margin-bottom: 22px;
 }
 
 .explorer-shell {
   display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
   grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) minmax(300px, 360px);
-  align-items: start;
-  overflow: visible;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: stretch;
+  overflow: hidden;
 }
 
 .explorer-flow {
@@ -3321,10 +3344,54 @@ p {
 
 .feature-index {
   position: static;
+  min-height: 0;
   max-height: none;
   min-width: 0;
-  overflow: visible;
+  padding-top: 0;
   border-right: 1px solid var(--line);
+}
+
+.explorer-pane {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.explorer-pane:focus-visible {
+  outline: 1px solid rgba(120, 204, 184, 0.62);
+  outline-offset: -1px;
+}
+
+/* The story page clips its own overflow, so marks near either end anchor their
+   tooltip inward rather than centring it over the edge of the page. */
+.focus-track [data-tooltip-anchor='start']::before {
+  left: 0;
+  transform: translateX(0) translateY(3px);
+}
+
+.focus-track [data-tooltip-anchor='end']::before {
+  right: 0;
+  left: auto;
+  transform: translateX(0) translateY(3px);
+}
+
+.focus-track [data-tooltip-anchor]:hover::before,
+.focus-track [data-tooltip-anchor]:focus-visible::before {
+  transform: translateX(0);
+}
+
+.feature-index__controls {
+  position: sticky;
+  z-index: 4;
+  top: 0;
+  padding-top: 18px;
+  border-bottom: 1px solid rgba(233, 238, 234, 0.055);
+  background: rgba(18, 29, 29, 0.98);
+  backdrop-filter: blur(12px);
 }
 
 .feature-index__list {
@@ -3333,11 +3400,13 @@ p {
 }
 
 .explorer-main {
+  min-height: 0;
   min-width: 0;
   border-right: 1px solid var(--line);
 }
 
 .explorer-inspector {
+  min-height: 0;
   min-width: 0;
   background: rgba(21, 33, 32, 0.48);
 }
@@ -3380,8 +3449,24 @@ p {
 }
 
 @media (max-width: 1120px) {
+  .app-shell--contained {
+    display: block;
+    height: auto;
+    padding-bottom: 72px;
+    overflow: visible;
+  }
+
+  .explore-workspace,
+  .app-shell--contained .explore-workspace {
+    display: block;
+    min-height: 0;
+    margin-bottom: 0;
+  }
+
   .explorer-shell {
     grid-template-columns: minmax(205px, 220px) minmax(0, 1fr);
+    grid-template-rows: auto;
+    overflow: visible;
   }
 
   .explorer-flow {
@@ -3397,6 +3482,16 @@ p {
   .explorer-inspector {
     grid-column: 1 / -1;
     border-top: 1px solid var(--line);
+  }
+
+  .explorer-pane {
+    min-height: 0;
+    overflow: visible;
+    scrollbar-gutter: auto;
+  }
+
+  .feature-index__controls {
+    position: static;
   }
 }
 

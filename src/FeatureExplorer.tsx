@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { LIFECYCLE_STAGES } from './lifecycle'
@@ -37,6 +37,16 @@ function formatSpan(lane: StoryLane) {
   const start = formatDate(new Date(lane.startTime).toISOString())
   const end = formatDate(new Date(lane.endTime).toISOString())
   return start === end ? start : `${start} – ${end}`
+}
+
+/**
+ * Marks at either end of the track would have their centred tooltip clipped by the
+ * story page, which owns its overflow. Anchor those inward instead.
+ */
+function tooltipAnchor(percent: number) {
+  if (percent < 14) return 'start'
+  if (percent > 86) return 'end'
+  return undefined
 }
 
 function LifecycleLegend() {
@@ -141,6 +151,7 @@ function FeatureFocus({
               style={{ left: `${event.percent}%` }}
               aria-label={`${event.episode.shortSha}: ${event.episode.subject}`}
               data-tooltip={`${formatDate(event.episode.authoredAt)} · ${event.episode.subject}`}
+              data-tooltip-anchor={tooltipAnchor(event.percent)}
               onClick={() => onSelect(event.id)}
             />
           ))}
@@ -159,6 +170,7 @@ function FeatureFocus({
                 }}
                 aria-label={`${stage}: ${event.semanticEpisode.label}`}
                 data-tooltip={`${stage} · ${event.semanticEpisode.label}`}
+                data-tooltip-anchor={tooltipAnchor(event.startPercent)}
                 onClick={() => onSelect(event.id)}
               />
             )
@@ -254,6 +266,8 @@ export function FeatureExplorer({
   inspector,
 }: FeatureExplorerProps) {
   const [query, setQuery] = useState('')
+  const storyPaneRef = useRef<HTMLDivElement>(null)
+  const evidencePaneRef = useRef<HTMLElement>(null)
   const normalizedQuery = query.trim().toLowerCase()
   const laneByFeatureId = useMemo(
     () => new Map(story.lanes.map((lane) => [lane.feature.id, lane])),
@@ -270,6 +284,14 @@ export function FeatureExplorer({
         visibleFeatureIds.has(feature.id) && feature.label.toLowerCase().includes(normalizedQuery),
   )
   const selectedLane = selectedFeature ? laneByFeatureId.get(selectedFeature.id) ?? null : null
+
+  useEffect(() => {
+    if (storyPaneRef.current) storyPaneRef.current.scrollTop = 0
+  }, [selectedFeature?.id])
+
+  useEffect(() => {
+    if (evidencePaneRef.current) evidencePaneRef.current.scrollTop = 0
+  }, [selectedId])
 
   return (
     <section className="explorer-shell">
@@ -303,20 +325,22 @@ export function FeatureExplorer({
         </div>
       </div>
 
-      <aside className="feature-index" aria-label="Feature index">
-        <div className="feature-index__heading">
-          <span className="eyebrow">Feature index</span>
-          <strong>{matchingFeatures.length}</strong>
+      <aside className="feature-index explorer-pane" aria-label="Feature index" tabIndex={0}>
+        <div className="feature-index__controls">
+          <div className="feature-index__heading">
+            <span className="eyebrow">Feature index</span>
+            <strong>{matchingFeatures.length}</strong>
+          </div>
+          <label className="feature-search">
+            <span className="sr-only">Find a candidate feature</span>
+            <input
+              type="search"
+              value={query}
+              placeholder="Find a feature…"
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
         </div>
-        <label className="feature-search">
-          <span className="sr-only">Find a candidate feature</span>
-          <input
-            type="search"
-            value={query}
-            placeholder="Find a feature…"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
         <div className="feature-index__list">
           {matchingFeatures.map((feature) => {
             const lane = laneByFeatureId.get(feature.id)
@@ -340,7 +364,13 @@ export function FeatureExplorer({
         </div>
       </aside>
 
-      <div className="explorer-main">
+      <div
+        ref={storyPaneRef}
+        className="explorer-main explorer-pane"
+        role="region"
+        aria-label="Selected feature story"
+        tabIndex={0}
+      >
         {selectedLane ? (
           <FeatureFocus
             dataset={dataset}
@@ -361,7 +391,12 @@ export function FeatureExplorer({
         )}
       </div>
 
-      <aside className="explorer-inspector" aria-label="Evidence inspector">
+      <aside
+        ref={evidencePaneRef}
+        className="explorer-inspector explorer-pane"
+        aria-label="Evidence inspector"
+        tabIndex={0}
+      >
         {inspector}
       </aside>
     </section>

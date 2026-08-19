@@ -8,6 +8,7 @@ import {
 } from './repositorySnapshots'
 import { buildRepositoryShape, scopeBreadcrumb, scopeLabel } from './directoryLifespans'
 import { RepositoryShape } from './RepositoryShape'
+import { useAtlasUrl } from './useAtlasUrl'
 
 interface RepositoryTimeMachineProps {
   dataset: AtlasDataset
@@ -45,7 +46,10 @@ export function RepositoryTimeMachine({
   onSelect,
   inspector,
 }: RepositoryTimeMachineProps) {
-  const [scopePath, setScopePath] = useState('')
+  // Scope and playhead are navigation, so they live in the URL alongside the section.
+  // Panel mode and path expansion are ephemeral view state and stay local.
+  const [url, setUrl] = useAtlasUrl()
+  const scopePath = url.scopePath
 
   const model = useMemo(
     () => buildRepositoryTimeMachine(dataset, story, scopePath),
@@ -56,29 +60,31 @@ export function RepositoryTimeMachine({
     [dataset, story, scopePath],
   )
 
-  const [selectedIndex, setSelectedIndex] = useState(() =>
-    Math.max(model.checkpoints.length - 1, 0),
-  )
   const [panelMode, setPanelMode] = useState<'summary' | 'evidence'>('summary')
   const [showAllPaths, setShowAllPaths] = useState(false)
 
-  const boundedSelectedIndex = Math.min(
-    selectedIndex,
-    Math.max(model.checkpoints.length - 1, 0),
-  )
-  const checkpoint = model.checkpoints[boundedSelectedIndex] ?? model.checkpoints[0]
+  // Keyed by commit, not position: the checkpoint list is rebuilt per scope, so an index
+  // in the link would silently land somewhere else. An unresolvable id shows the latest.
+  const namedIndex = url.checkpointSha
+    ? model.checkpoints.findIndex((entry) => entry.episode.shortSha === url.checkpointSha)
+    : -1
+  const selectedIndex = namedIndex >= 0 ? namedIndex : Math.max(model.checkpoints.length - 1, 0)
+  const checkpoint = model.checkpoints[selectedIndex] ?? model.checkpoints[0]
 
-  useEffect(() => {
-    setSelectedIndex((current) =>
-      Math.min(current, Math.max(model.checkpoints.length - 1, 0)),
-    )
-  }, [model.checkpoints.length])
+  const selectCheckpointAt = (index: number) => {
+    const bounded = Math.max(0, Math.min(model.checkpoints.length - 1, index))
+    const sha = model.checkpoints[bounded]?.episode.shortSha ?? null
+    setUrl({ checkpointSha: sha }, { replace: true })
+  }
 
+  // A selection made in another view (an overview reorganization, say) moves the playhead
+  // to the checkpoint that carries it. Both effects react to the arriving selection only,
+  // so scrubbing afterwards is never pulled back.
   useEffect(() => {
     const matchingIndex = model.checkpoints.findIndex((entry) =>
       checkpointContainsId(entry, selectedId),
     )
-    if (matchingIndex >= 0) setSelectedIndex(matchingIndex)
+    if (matchingIndex >= 0) selectCheckpointAt(matchingIndex)
   }, [model.checkpoints, selectedId])
 
   useEffect(() => {
@@ -90,14 +96,14 @@ export function RepositoryTimeMachine({
       return time >= chapter.startTime && time <= chapter.endTime
     })
     if (matchingIndex >= 0) {
-      setSelectedIndex(matchingIndex)
+      selectCheckpointAt(matchingIndex)
       setPanelMode('summary')
     }
   }, [model.checkpoints, selectedChapterId, story.chapters])
 
   useEffect(() => {
     setShowAllPaths(false)
-  }, [boundedSelectedIndex, scopePath])
+  }, [selectedIndex, scopePath])
 
   // The chart snaps hover and clicks to these positions, so it needs the same list.
   const shapeCheckpoints = useMemo(
@@ -114,8 +120,9 @@ export function RepositoryTimeMachine({
   }
 
   const selectCheckpoint = (index: number) => {
-    const nextIndex = Math.max(0, Math.min(model.checkpoints.length - 1, index))
-    setSelectedIndex(nextIndex)
+    // Stepping and scrubbing rewrite the current entry, so Back leaves the Repository tab
+    // instead of walking the playhead one checkpoint at a time.
+    selectCheckpointAt(index)
     setPanelMode('summary')
   }
   const selectNearestCheckpoint = (percent: number) => {
@@ -135,7 +142,9 @@ export function RepositoryTimeMachine({
     setPanelMode('evidence')
   }
   const changeScope = (nextScope: string) => {
-    setScopePath(nextScope)
+    // Drilling in is navigation worth a history entry. The checkpoint is cleared because
+    // a different scope has a different checkpoint list; the view lands on the latest.
+    setUrl({ scopePath: nextScope, checkpointSha: null })
     setPanelMode('summary')
   }
 
@@ -276,18 +285,18 @@ export function RepositoryTimeMachine({
               <div className="time-machine__navigation" aria-label="Checkpoint navigation">
                 <button
                   type="button"
-                  disabled={boundedSelectedIndex === 0}
-                  onClick={() => selectCheckpoint(boundedSelectedIndex - 1)}
+                  disabled={selectedIndex === 0}
+                  onClick={() => selectCheckpoint(selectedIndex - 1)}
                 >
                   ← Previous
                 </button>
                 <span>
-                  {boundedSelectedIndex + 1} / {model.checkpoints.length}
+                  {selectedIndex + 1} / {model.checkpoints.length}
                 </span>
                 <button
                   type="button"
-                  disabled={boundedSelectedIndex === model.checkpoints.length - 1}
-                  onClick={() => selectCheckpoint(boundedSelectedIndex + 1)}
+                  disabled={selectedIndex === model.checkpoints.length - 1}
+                  onClick={() => selectCheckpoint(selectedIndex + 1)}
                 >
                   Next →
                 </button>
@@ -295,7 +304,7 @@ export function RepositoryTimeMachine({
 
               <div className="checkpoint-panel__heading">
                 <span className="eyebrow">
-                  {boundedSelectedIndex === 0
+                  {selectedIndex === 0
                     ? 'At initial checkpoint'
                     : 'Since previous checkpoint'}
                 </span>
