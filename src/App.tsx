@@ -35,6 +35,7 @@ import {
   structuralEpisodeTouchesChapter,
 } from './story'
 import { useAtlasUrl } from './useAtlasUrl'
+import { useMeasuredHeight } from './useMeasuredHeight'
 import type { AtlasSection, EvidencePreset } from './urlState'
 
 type SelectedEntity =
@@ -466,6 +467,7 @@ function ScopeControls({
   onEvidencePreset,
   resultLabel,
   showLifecycle = true,
+  title,
 }: {
   chapters: Array<{ id: string; label: string }>
   selectedChapterId: string | null
@@ -476,9 +478,17 @@ function ScopeControls({
   onEvidencePreset: (preset: EvidencePreset) => void
   resultLabel: string
   showLifecycle?: boolean
+  title?: string
 }) {
+  const scopeBarRef = useMeasuredHeight('--scope-bar-height')
+
   return (
-    <section className="scope-bar" aria-label="History scope">
+    <section ref={scopeBarRef} className="scope-bar" aria-label="History scope">
+      {title && (
+        <div className="scope-title">
+          <strong>{title}</strong>
+        </div>
+      )}
       <div className="scope-group scope-group--time">
         <span>Time</span>
         <div role="group" aria-label="Calendar range">
@@ -551,6 +561,7 @@ export default function App() {
   // Every navigation coordinate lives in the query string. Selections that the user never
   // made stay absent from the URL and are resolved to a default at render time instead.
   const [url, setUrl] = useAtlasUrl()
+  const productHeaderRef = useMeasuredHeight('--product-header-height')
   const {
     section,
     selectedId,
@@ -915,8 +926,8 @@ export default function App() {
   }
 
   return (
-    <main className={`app-shell app-shell--product${section === 'features' ? ' app-shell--contained' : ''}`}>
-      <header className="product-header">
+    <main className={`app-shell app-shell--product${section === 'features' ? ' app-shell--features' : ''}`}>
+      <header ref={productHeaderRef} className="product-header">
         <button type="button" className="product-brand" onClick={() => handleSectionChange('overview')}>
           <span className="brand-mark">EVOLUTION ATLAS</span>
           <strong>{dataset.repository.name}</strong>
@@ -1021,14 +1032,8 @@ export default function App() {
         </>
       ) : section === 'features' ? (
         <>
-          <header className="section-header">
-            <div>
-              <span className="eyebrow">Feature stories</span>
-              <h1>Follow one feature from claim to evidence.</h1>
-            </div>
-            <span className="candidate-key">Specific views stay visibly candidate</span>
-          </header>
           <ScopeControls
+            title="Feature stories"
             chapters={baseStory.chapters}
             selectedChapterId={selectedChapterId}
             onSelectChapter={handleSelectChapter}

@@ -17,6 +17,12 @@
   --blue: #8db6df;
   --violet: #b7a0e8;
   --danger: #e58c7c;
+  /* Published by useMeasuredHeight. The values here are pre-paint fallbacks, not
+     the source of truth: .product-header is min-height 76px plus its border, and a
+     view with no scope bar contributes nothing. */
+  --product-header-height: 77px;
+  --scope-bar-height: 62px;
+  --rail-top: calc(var(--product-header-height) + var(--scope-bar-height));
 }
 
 * {
@@ -2090,23 +2096,19 @@ p {
   background: var(--teal);
 }
 
-.activity-segment--expanded,
-.legend-mark--expanded {
+.activity-segment--expanded {
   background: var(--gold);
 }
 
-.activity-segment--hardened,
-.legend-mark--hardened {
+.activity-segment--hardened {
   background: var(--blue);
 }
 
-.activity-segment--migrated,
-.legend-mark--migrated {
+.activity-segment--migrated {
   background: var(--violet);
 }
 
-.activity-segment--removed,
-.legend-mark--removed {
+.activity-segment--removed {
   background: var(--danger);
 }
 
@@ -2155,12 +2157,45 @@ p {
   background: var(--teal);
 }
 
+/* Declared after .legend-mark, not alongside .activity-segment--*. Sharing a rule with
+   the segments put these before the base, and at equal specificity the base won: every
+   stage in every key painted teal while the timeline itself painted five distinct hues.
+   Same tokens as .focus-lifecycle--* so the key cannot drift from the track again. */
+.legend-mark--introduced {
+  background: var(--teal);
+}
+
+.legend-mark--expanded {
+  background: var(--gold);
+}
+
+.legend-mark--hardened {
+  background: var(--blue);
+}
+
+.legend-mark--migrated {
+  background: var(--violet);
+}
+
+.legend-mark--removed {
+  background: var(--danger);
+}
+
 .legend-mark--commit {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--orange);
   box-shadow: 0 0 0 1px rgba(238, 140, 98, 0.45);
+}
+
+/* Matches .focus-track__span exactly: the dashed connector is the mark most likely
+   to be read as continuous development, so the key has to show it. */
+.legend-mark--connector {
+  height: 0;
+  border-top: 1px dashed rgba(233, 238, 234, 0.36);
+  border-radius: 0;
+  background: transparent;
 }
 
 .legend-mark--structure {
@@ -2710,6 +2745,11 @@ p {
   align-items: center;
 }
 
+/* The same opacity the track uses, so the key reads as the track reads. */
+.visual-legend span.is-dimmed {
+  opacity: 0.28;
+}
+
 .visual-legend--lanes {
   margin: 12px 0 3px;
   padding: 10px;
@@ -3236,138 +3276,160 @@ p {
   }
 }
 
-/* Scroll ownership and guided Explore flow */
+/* Feature Stories: one document, two rails */
 
-/* On desktop, Feature Stories is a contained three-page workspace. The stage
-   labels stay aligned while each page keeps an independent reading position. */
+/* The story column sets the page length. The index and the evidence inspector pin
+   beside it and scroll on their own only once they actually outrun the viewport,
+   so a column with little in it simply ends rather than being stretched to a
+   height it has no content for. */
+
+/* Sections that scroll as plain documents leave the bar in the flow. */
 .scope-bar {
   position: static;
 }
 
-/* The section owns the viewport and the workspace takes whatever the header and
-   scope bar leave behind, so pane heights are never measured against a guessed
-   chrome height. Below the floor this shell scrolls instead of crushing them. */
-.app-shell--contained {
-  display: flex;
-  height: 100dvh;
-  flex-direction: column;
-  padding-bottom: 0;
-  overflow-y: auto;
+.app-shell--features {
+  /* The page ends where the story ends: 72px of shell gutter was scrollable space
+     with nothing in it. The rail's height subtracts this same gutter plus the shell's
+     border, so at full scroll the pinned rail and its column end on the same line. */
+  --features-gutter: 24px;
+
+  padding-bottom: var(--features-gutter);
+}
+
+/* Filters, title and result count stay reachable from anywhere in a long story.
+   The rails clear this bar because --rail-top is measured, not assumed. */
+.app-shell--features .scope-bar {
+  position: sticky;
+  z-index: 12;
+  top: var(--product-header-height);
+}
+
+/* No gap between the pinned bar and the shell. A gap is distance the rail overhangs
+   the viewport before it pins, and since a sticky box stays in normal flow that
+   overhang inflates the grid row and adds scroll with nothing in it. */
+.app-shell--features .explore-workspace {
+  margin-top: 0;
+}
+
+.app-shell--features .explorer-shell {
+  border-top: 0;
+}
+
+/* The section title folds in here. At this density a display header cost more
+   vertical room than it earned, and the note carries the candidate framing that
+   used to sit beside it. */
+.scope-title {
+  display: grid;
+  gap: 2px;
+  padding-right: 26px;
+  border-right: 1px solid var(--line);
+}
+
+.scope-title strong {
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* Orientation that scrolls away. Above the sticky bar it costs reading room only
+   once, which is what the viewport-locked layout could not afford. */
+.section-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 260px);
+  gap: 34px;
+  align-items: end;
+  padding: 26px 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.section-intro h1 {
+  max-width: 620px;
+  margin: 0;
+  font-size: clamp(1.6rem, 2.6vw, 2.4rem);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.section-intro > div > p {
+  max-width: 580px;
+  margin: 15px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.section-intro__note {
+  margin: 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--line);
+  color: var(--faint);
+  font-size: 0.66rem;
+  line-height: 1.55;
 }
 
 .explore-workspace {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  align-items: stretch;
+  display: block;
   margin-top: 22px;
-}
-
-.app-shell--contained .explore-workspace {
-  min-height: 480px;
-  flex: 1 0 auto;
-  margin-bottom: 22px;
 }
 
 .explorer-shell {
   display: grid;
-  min-height: 0;
-  flex: 1 1 auto;
   grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) minmax(300px, 360px);
-  grid-template-rows: auto minmax(0, 1fr);
   align-items: stretch;
-  overflow: hidden;
-}
-
-.explorer-flow {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) minmax(300px, 360px);
-  border-bottom: 1px solid var(--line-strong);
-  background: rgba(18, 29, 29, 0.58);
-}
-
-.explorer-flow__step {
-  display: flex;
-  min-width: 0;
-  gap: 11px;
-  align-items: flex-start;
-  padding: 15px 16px 14px;
-  border-right: 1px solid var(--line);
-  color: var(--faint);
-}
-
-.explorer-flow__step:last-child {
-  border-right: 0;
-}
-
-.explorer-flow__step.is-active {
-  color: var(--ink);
-}
-
-.explorer-flow__number {
-  display: grid;
-  flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border: 1px solid var(--line-strong);
-  color: var(--muted);
-  font-family: 'SFMono-Regular', Consolas, ui-monospace, monospace;
-  font-size: 0.58rem;
-}
-
-.explorer-flow__step.is-active .explorer-flow__number {
-  border-color: rgba(120, 204, 184, 0.58);
-  color: var(--teal);
-}
-
-.explorer-flow__step div {
-  display: grid;
-  min-width: 0;
-  gap: 4px;
-}
-
-.explorer-flow__step strong {
-  font-size: 0.69rem;
-  font-weight: 500;
-}
-
-.explorer-flow__step small {
-  overflow: hidden;
-  color: var(--faint);
-  font-size: 0.59rem;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .feature-index {
   position: static;
-  min-height: 0;
   max-height: none;
   min-width: 0;
+  /* The column paints the whole row so its border and background meet the story.
+     The rail inside it is the part that pins and scrolls. */
+  align-self: stretch;
   padding-top: 0;
+  overflow: visible;
   border-right: 1px solid var(--line);
 }
 
-.explorer-pane {
-  min-height: 0;
+.explorer-main {
+  min-width: 0;
+  border-right: 1px solid var(--line);
+}
+
+/* Switching features scrolls to the story, which starts below the intro. */
+.explorer-story {
+  scroll-margin-top: var(--rail-top);
+}
+
+.explorer-inspector {
+  min-width: 0;
+  background: rgba(21, 33, 32, 0.48);
+}
+
+.explorer-rail {
+  position: sticky;
+  top: var(--rail-top);
+  /* Fill the column, then stop at the viewport slot. The percentage resolves against
+     the stretched grid item, so a rail with little in it is bounded by its own column
+     rather than by the viewport, and a rail with a lot in it never leaves a stripe of
+     empty column sliding along underneath it while the story scrolls. */
+  height: 100%;
+  max-height: calc(100dvh - var(--rail-top) - var(--features-gutter, 24px) - 1px);
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior: contain;
   scrollbar-color: var(--line-strong) transparent;
-  scrollbar-gutter: stable;
   scrollbar-width: thin;
 }
 
-.explorer-pane:focus-visible {
+.explorer-rail:focus-visible {
   outline: 1px solid rgba(120, 204, 184, 0.62);
   outline-offset: -1px;
 }
 
-/* The story page clips its own overflow, so marks near either end anchor their
-   tooltip inward rather than centring it over the edge of the page. */
+/* Anchored inward at either end of the track, so a tooltip reads inside the story
+   column instead of spilling across the divider into a rail. */
 .focus-track [data-tooltip-anchor='start']::before {
   left: 0;
   transform: translateX(0) translateY(3px);
@@ -3384,14 +3446,33 @@ p {
   transform: translateX(0);
 }
 
+/* A long story keeps its bearings: whichever part you are reading names itself
+   while its content scrolls under. Above .focus-commit's z-index, below tooltips. */
+.feature-focus__timeline-heading,
+.feature-focus .subsection-heading {
+  position: sticky;
+  z-index: 5;
+  top: var(--rail-top);
+  padding: 10px 0;
+  /* Opaque match for the story column: the shell tint composited over the page. */
+  background: #0c1313;
+}
+
+.feature-focus__timeline-heading {
+  margin-bottom: 2px;
+}
+
+.feature-focus .subsection-heading {
+  margin-bottom: 13px;
+}
+
 .feature-index__controls {
   position: sticky;
   z-index: 4;
   top: 0;
   padding-top: 18px;
   border-bottom: 1px solid rgba(233, 238, 234, 0.055);
-  background: rgba(18, 29, 29, 0.98);
-  backdrop-filter: blur(12px);
+  background: var(--surface);
 }
 
 .feature-index__list {
@@ -3399,19 +3480,7 @@ p {
   overflow: visible;
 }
 
-.explorer-main {
-  min-height: 0;
-  min-width: 0;
-  border-right: 1px solid var(--line);
-}
-
-.explorer-inspector {
-  min-height: 0;
-  min-width: 0;
-  background: rgba(21, 33, 32, 0.48);
-}
-
-.explorer-inspector > .inspector-panel--sticky,
+/* The rail owns pinning and overflow now, so the panel inside it is plain content. */
 .explorer-inspector .inspector-panel--sticky {
   position: static;
   max-height: none;
@@ -3421,8 +3490,11 @@ p {
   background: transparent;
 }
 
+/* Centre in the rail rather than sit at the top of it. The 480px base floor would
+   force scroll the empty state does not need; 100% resolves against the rail when the
+   rail has a definite height and collapses to the content in the stacked fallbacks. */
 .explorer-inspector .inspector-placeholder {
-  min-height: 420px;
+  min-height: 100%;
 }
 
 .explorer-inspector .evidence-list {
@@ -3442,41 +3514,14 @@ p {
 }
 
 @media (max-width: 1340px) {
-  .explorer-shell,
-  .explorer-flow {
+  .explorer-shell {
     grid-template-columns: minmax(200px, 220px) minmax(0, 1fr) minmax(280px, 330px);
   }
 }
 
 @media (max-width: 1120px) {
-  .app-shell--contained {
-    display: block;
-    height: auto;
-    padding-bottom: 72px;
-    overflow: visible;
-  }
-
-  .explore-workspace,
-  .app-shell--contained .explore-workspace {
-    display: block;
-    min-height: 0;
-    margin-bottom: 0;
-  }
-
   .explorer-shell {
     grid-template-columns: minmax(205px, 220px) minmax(0, 1fr);
-    grid-template-rows: auto;
-    overflow: visible;
-  }
-
-  .explorer-flow {
-    grid-template-columns: minmax(205px, 220px) minmax(0, 1fr);
-  }
-
-  .explorer-flow__step:last-child {
-    grid-column: 1 / -1;
-    border-top: 1px solid var(--line);
-    border-right: 0;
   }
 
   .explorer-inspector {
@@ -3484,31 +3529,42 @@ p {
     border-top: 1px solid var(--line);
   }
 
-  .explorer-pane {
-    min-height: 0;
-    overflow: visible;
-    scrollbar-gutter: auto;
-  }
-
-  .feature-index__controls {
+  /* Stacked under the story, the inspector has nothing left to pin beside. */
+  .explorer-inspector .explorer-rail {
     position: static;
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 }
 
 @media (max-width: 880px) {
-  .explorer-shell,
-  .explorer-flow {
+  .section-intro {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+  }
+
+  .section-intro__note {
+    padding-left: 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
+  .explorer-shell {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .explorer-flow__step,
-  .explorer-flow__step:last-child {
-    border-right: 0;
-    border-top: 1px solid var(--line);
+  .explorer-rail {
+    position: static;
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
-  .explorer-flow__step:first-child {
-    border-top: 0;
+  .feature-index__controls {
+    position: static;
   }
 
   .feature-index {
