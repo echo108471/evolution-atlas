@@ -17,8 +17,8 @@ interface FeatureStoryProps {
 }
 
 /**
- * Middle column: the only one that scrolls with the page. The index and the evidence
- * rails pin beside it, so this column's height is what the page's height is.
+ * Middle column: one independently scrollable reading pane beside the feature index
+ * and evidence inspector. At narrower widths CSS returns all three to document flow.
  */
 export function FeatureStory({
   dataset,
@@ -33,39 +33,22 @@ export function FeatureStory({
 }: FeatureStoryProps) {
   const storyRef = useRef<HTMLDivElement>(null)
 
-  // A new story should start at its own beginning, but only for a reader who has
-  // already scrolled into the previous one. Pulling the page up under someone who
-  // is still above the story would be a jump they never asked for.
+  // A new selection starts at the beginning of its own pane without moving the
+  // surrounding page or either neighboring pane.
   useEffect(() => {
     const pane = storyRef.current
-    if (!pane || pane.getBoundingClientRect().top >= 0) return
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    pane.scrollIntoView({ block: 'start', behavior: prefersReducedMotion ? 'auto' : 'smooth' })
+    if (pane) pane.scrollTop = 0
   }, [selectedFeatureId])
 
   return (
-    <div className="explorer-main">
-      {/* Orientation rides in the story column rather than above the shell. Above it,
-          every reader had to scroll the intro's full height before the rails reached
-          their pinned position, so the opening third of the page moved all three
-          columns at once. Here the rails are pinned from the first pixel. */}
-      <section className="section-intro">
-        <div>
-          <span className="eyebrow">Feature stories</span>
-          <h1>Follow one feature from claim to evidence.</h1>
-          <p>
-            Each candidate groups commits that appear to serve a single capability. Pick one
-            from the index, follow its lifecycle across the timeline, then open any episode or
-            commit mark to read what the claim rests on.
-          </p>
-        </div>
-        <p className="section-intro__note">
-          Feature groupings and lifecycle labels are candidate interpretations, not established
-          facts. Contributor counts describe Git authorship, not ownership or performance.
-        </p>
-      </section>
-
-      <div ref={storyRef} className="explorer-story">
+    <div
+      ref={storyRef}
+      className="explorer-main"
+      role="region"
+      aria-label="Selected feature story"
+      tabIndex={0}
+    >
+      <div className="explorer-story">
         {lane ? (
           <FeatureFocus
             dataset={dataset}

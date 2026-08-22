@@ -468,6 +468,7 @@ function ScopeControls({
   resultLabel,
   showLifecycle = true,
   title,
+  help,
 }: {
   chapters: Array<{ id: string; label: string }>
   selectedChapterId: string | null
@@ -479,13 +480,22 @@ function ScopeControls({
   resultLabel: string
   showLifecycle?: boolean
   title?: string
+  help?: {
+    lede: string
+    boundary: string
+  }
 }) {
   const scopeBarRef = useMeasuredHeight('--scope-bar-height')
 
   return (
-    <section ref={scopeBarRef} className="scope-bar" aria-label="History scope">
+    <section
+      ref={scopeBarRef}
+      className="scope-bar"
+      aria-label={title ? `${title} controls` : 'History scope'}
+    >
       {title && (
         <div className="scope-title">
+          <span>Explore</span>
           <strong>{title}</strong>
         </div>
       )}
@@ -548,6 +558,15 @@ function ScopeControls({
       </div>
 
       <span className="scope-result">{resultLabel}</span>
+      {help && (
+        <details className="scope-help">
+          <summary>How this works</summary>
+          <div className="scope-help__panel">
+            <p>{help.lede}</p>
+            <p className="scope-help__boundary">{help.boundary}</p>
+          </div>
+        </details>
+      )}
     </section>
   )
 }
@@ -1034,6 +1053,10 @@ export default function App() {
         <>
           <ScopeControls
             title="Feature stories"
+            help={{
+              lede: 'Pick a candidate, follow its lifecycle, then inspect the commits behind each claim.',
+              boundary: 'Feature groupings and lifecycle labels are candidate interpretations, not established facts. Contributor counts describe Git authorship, not ownership or performance.',
+            }}
             chapters={baseStory.chapters}
             selectedChapterId={selectedChapterId}
             onSelectChapter={handleSelectChapter}

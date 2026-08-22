@@ -38,7 +38,7 @@ export function FeatureIndex({
 
   return (
     <div className="feature-index">
-      <div className="explorer-rail" role="region" aria-label="Feature index" tabIndex={0}>
+      <div className="explorer-rail">
         <div className="feature-index__controls">
           <div className="feature-index__heading">
             <span className="eyebrow">Feature index</span>
@@ -54,7 +54,12 @@ export function FeatureIndex({
             />
           </label>
         </div>
-        <div className="feature-index__list">
+        <div
+          className="feature-index__list"
+          role="region"
+          aria-label="Feature index results"
+          tabIndex={0}
+        >
           {matchingLanes.map((lane) => {
             const stages = lane.lifecycleEvents.map(
               (event) => event.semanticEpisode.lifecycleStage,
