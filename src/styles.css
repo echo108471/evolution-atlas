@@ -1859,6 +1859,27 @@ p {
   white-space: nowrap;
 }
 
+.product-subject select {
+  max-width: 14rem;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .product-nav {
   display: flex;
   align-self: stretch;

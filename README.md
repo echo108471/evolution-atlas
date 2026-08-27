@@ -144,6 +144,7 @@ npm run build
 - [Evidence model](docs/EVIDENCE-MODEL.md)
 - [Course Recommender pilot](docs/COURSE-RECOMMENDER-PILOT.md)
 - [Roadmap](docs/ROADMAP.md)
+- [Productization](docs/PRODUCT.md)
 
 ## Current implementation boundary
 

@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "subjects": [
+    {
+      "slug": "zod",
+      "title": "zod",
+      "url": "https://github.com/colinhacks/zod",
+      "license": "MIT",
+      "description": "TypeScript-first schema validation with static type inference.",
+      "why": "Mixed commit conventions and a v3-to-v4 monorepo rewrite that exercises the migrated-versus-structural boundary."
+    },
+    {
+      "slug": "esbuild",
+      "title": "esbuild",
+      "url": "https://github.com/evanw/esbuild",
+      "license": "MIT",
+      "description": "An extremely fast bundler for the web.",
+      "why": "Disciplined commit subjects, a linear history with no merge commits, and a small identity set. The opposite corpus-quality case."
+    },
+    {
+      "slug": "flask",
+      "title": "Flask",
+      "url": "https://github.com/pallets/flask",
+      "license": "BSD-3-Clause",
+      "description": "A lightweight WSGI web application framework.",
+      "why": "Highest merge share, bot share, and identity count in the surveyed set. The deliberate stress case."
+    }
+  ]
+}

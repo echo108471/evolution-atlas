@@ -36,7 +36,7 @@ import {
 } from './story'
 import { useAtlasUrl } from './useAtlasUrl'
 import { useMeasuredHeight } from './useMeasuredHeight'
-import type { AtlasSection, EvidencePreset } from './urlState'
+import { DEFAULT_URL_STATE, type AtlasSection, type EvidencePreset } from './urlState'
 
 type SelectedEntity =
   | { kind: 'episode'; value: ChangeEpisode }
@@ -52,6 +52,29 @@ const EVIDENCE_PRESETS: Record<EvidencePreset, { label: string; threshold: numbe
   balanced: { label: 'Balanced', threshold: 0.7 },
   all: { label: 'All candidates', threshold: 0 },
 }
+
+/**
+ * A published gallery describes its subjects in a manifest beside the datasets. When the
+ * manifest is absent the viewer falls back to the single local `/atlas.json`, so a
+ * maintainer analyzing their own repository needs no gallery at all.
+ */
+interface GallerySubject {
+  slug: string
+  title: string
+  description: string | null
+  url: string
+  dataset: string
+  commitCount: number
+  interpreted: boolean
+}
+
+interface GalleryManifest {
+  version: number
+  subjects: GallerySubject[]
+}
+
+const GALLERY_MANIFEST_URL = '/gallery/manifest.json'
+const LOCAL_DATASET_URL = '/atlas.json'
 
 function identityStorageKey(repository: string) {
   return `evolution-atlas:identity-decisions:${repository}`
@@ -576,12 +599,15 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [identityDecisions, setIdentityDecisions] =
     useState<IdentityDecisionsDocument | null>(null)
+  const [manifest, setManifest] = useState<GalleryManifest | null>(null)
+  const [manifestSettled, setManifestSettled] = useState(false)
 
   // Every navigation coordinate lives in the query string. Selections that the user never
   // made stay absent from the URL and are resolved to a default at render time instead.
   const [url, setUrl] = useAtlasUrl()
   const productHeaderRef = useMeasuredHeight('--product-header-height')
   const {
+    subject: urlSubject,
     section,
     selectedId,
     chapterId: selectedChapterId,
@@ -592,9 +618,38 @@ export default function App() {
 
   useEffect(() => {
     const controller = new AbortController()
-    fetch('/atlas.json', { signal: controller.signal })
+    fetch(GALLERY_MANIFEST_URL, { signal: controller.signal })
+      .then((response) => (response.ok ? (response.json() as Promise<GalleryManifest>) : null))
+      .then((loaded) => {
+        if (loaded && Array.isArray(loaded.subjects) && loaded.subjects.length > 0) {
+          setManifest(loaded)
+        }
+      })
+      .catch(() => {
+        // No manifest means this is a local single-dataset install, not a failure.
+      })
+      .finally(() => setManifestSettled(true))
+
+    return () => controller.abort()
+  }, [])
+
+  // An unknown or absent slug resolves to the first subject rather than an error, so a
+  // stale link still lands somewhere real.
+  const activeSubject = useMemo(() => {
+    if (!manifest) return null
+    return manifest.subjects.find((entry) => entry.slug === urlSubject) ?? manifest.subjects[0]
+  }, [manifest, urlSubject])
+
+  const datasetUrl = activeSubject ? `/gallery/${activeSubject.dataset}` : LOCAL_DATASET_URL
+
+  useEffect(() => {
+    if (!manifestSettled) return
+    const controller = new AbortController()
+    setDataset(null)
+    setLoadError(null)
+    fetch(datasetUrl, { signal: controller.signal })
       .then((response) => {
-        if (!response.ok) throw new Error(`atlas.json returned ${response.status}`)
+        if (!response.ok) throw new Error(`${datasetUrl} returned ${response.status}`)
         return response.json() as Promise<AtlasDataset>
       })
       .then((loadedDataset) => {
@@ -623,7 +678,7 @@ export default function App() {
       })
 
     return () => controller.abort()
-  }, [])
+  }, [manifestSettled, datasetUrl])
 
   const minConfidence = EVIDENCE_PRESETS[evidencePreset].threshold
   const confidenceFeatures = useMemo(() => {
@@ -931,10 +986,19 @@ export default function App() {
         <p className="brand-mark">EVOLUTION ATLAS</p>
         {loadError ? (
           <div className="load-card">
-            <span className="eyebrow">Local dataset needed</span>
+            <span className="eyebrow">{manifest ? 'Gallery dataset missing' : 'Local dataset needed'}</span>
             <h1>Map a committed history.</h1>
-            <p>Generate the ignored local dataset, then reload the page.</p>
-            <code>npm run analyze -- --repo . --out public/atlas.json</code>
+            {manifest ? (
+              <>
+                <p>This gallery subject has no dataset yet. Rebuild it, then reload.</p>
+                <code>npm run gallery -- --only {activeSubject?.slug ?? '&lt;slug&gt;'}</code>
+              </>
+            ) : (
+              <>
+                <p>Generate the ignored local dataset, then reload the page.</p>
+                <code>npm run analyze -- --repo . --out public/atlas.json</code>
+              </>
+            )}
             <small>{loadError}</small>
           </div>
         ) : (
@@ -951,6 +1015,30 @@ export default function App() {
           <span className="brand-mark">EVOLUTION ATLAS</span>
           <strong>{dataset.repository.name}</strong>
         </button>
+
+        {manifest && manifest.subjects.length > 1 && activeSubject && (
+          <label className="product-subject">
+            <span className="visually-hidden">Repository</span>
+            <select
+              value={activeSubject.slug}
+              onChange={(event) =>
+                // Navigation coordinates belong to the previous subject; drop them.
+                setUrl({
+                  ...DEFAULT_URL_STATE,
+                  subject: event.target.value,
+                  section,
+                })
+              }
+            >
+              {manifest.subjects.map((entry) => (
+                <option key={entry.slug} value={entry.slug}>
+                  {entry.title}
+                  {entry.interpreted ? '' : ' (observed only)'}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <nav className="product-nav" aria-label="Primary navigation">
           <button

@@ -2,12 +2,15 @@
   "name": "evolution-atlas",
   "private": true,
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
     "analyze": "node scripts/analyze.mjs",
+    "survey": "node scripts/survey.mjs",
+    "gallery": "node scripts/gallery.mjs",
     "interpret": "node scripts/interpret.mjs",
     "dev": "vite",
     "test": "node --import tsx --test",

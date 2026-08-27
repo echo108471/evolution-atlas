@@ -11,3 +11,7 @@ coverage/
 # Covers observed, interpreted, and per-model comparison datasets alike.
 /public/atlas*.json
 /public/sweep/
+
+# Gallery datasets and repository cache are build artifacts.
+/public/gallery/
+/.gallery-cache/

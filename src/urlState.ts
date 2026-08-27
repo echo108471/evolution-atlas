@@ -22,6 +22,8 @@ export const ATLAS_SECTIONS: AtlasSection[] = [
 export const EVIDENCE_PRESET_KEYS: EvidencePreset[] = ['conservative', 'balanced', 'all']
 
 export interface AtlasUrlState {
+  /** Gallery subject slug. Null means the single local dataset at `/atlas.json`. */
+  subject: string | null
   section: AtlasSection
   /** Calendar range from the scope bar, e.g. `year:2024`. */
   chapterId: string | null
@@ -38,6 +40,7 @@ export interface AtlasUrlState {
 }
 
 export const DEFAULT_URL_STATE: AtlasUrlState = {
+  subject: null,
   section: 'overview',
   chapterId: null,
   lifecycleStage: 'all',
@@ -51,6 +54,7 @@ export const DEFAULT_URL_STATE: AtlasUrlState = {
 
 /** Serialization order, so two equal states always produce byte-identical query strings. */
 const PARAM_ORDER = [
+  'repo',
   'view',
   'chapter',
   'stage',
@@ -78,6 +82,7 @@ function readText(value: string | null) {
 export function parseAtlasUrl(search: string): AtlasUrlState {
   const params = new URLSearchParams(search)
   return {
+    subject: readText(params.get('repo')),
     section: readEnum(params.get('view'), ATLAS_SECTIONS, DEFAULT_URL_STATE.section),
     chapterId: readText(params.get('chapter')),
     lifecycleStage: readEnum(
@@ -112,6 +117,7 @@ function relaxQueryEncoding(search: string) {
  */
 export function serializeAtlasUrl(state: AtlasUrlState): string {
   const values: Record<(typeof PARAM_ORDER)[number], string | null> = {
+    repo: state.subject,
     view: state.section === DEFAULT_URL_STATE.section ? null : state.section,
     chapter: state.chapterId,
     stage: state.lifecycleStage === DEFAULT_URL_STATE.lifecycleStage ? null : state.lifecycleStage,

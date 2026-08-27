@@ -35,6 +35,7 @@ test('paths and namespaced ids stay readable in the query string', () => {
 test('parsing and serializing round-trip a fully populated state', () => {
   const state: AtlasUrlState = {
     section: 'people',
+    subject: 'zod',
     chapterId: 'year:2023',
     lifecycleStage: 'hardened',
     evidencePreset: 'conservative',
@@ -81,4 +82,19 @@ test('percent-encoded input is accepted and normalized on the way out', () => {
   assert.equal(parsed.scopePath, 'src/lib')
   assert.equal(parsed.chapterId, 'year:2024')
   assert.equal(serializeAtlasUrl(parsed), '?chapter=year:2024&scope=src/lib')
+})
+
+test('a gallery subject survives a round trip and leads the query string', () => {
+  assert.equal(parseAtlasUrl('?repo=zod').subject, 'zod')
+  assert.equal(
+    serializeAtlasUrl({ ...DEFAULT_URL_STATE, subject: 'zod', section: 'features' }),
+    '?repo=zod&view=features',
+  )
+})
+
+test('an absent subject means the single local dataset', () => {
+  assert.equal(parseAtlasUrl('').subject, null)
+  assert.equal(parseAtlasUrl('?repo=').subject, null)
+  assert.equal(parseAtlasUrl('?repo=%20%20').subject, null)
+  assert.equal(serializeAtlasUrl({ ...DEFAULT_URL_STATE, subject: null }), '')
 })
