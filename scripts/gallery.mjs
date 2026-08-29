@@ -24,6 +24,7 @@ function usage() {
   return `Usage: npm run gallery -- [options]
 
 Builds one atlas per catalog subject and writes a manifest describing the set.
+A catalog subject may carry a "commit" to pin its history to one revision.
 Repositories are fetched into a local cache; only public repositories belong in
 a catalog, because generated datasets are published.
 
@@ -34,9 +35,10 @@ Options:
   --only <slug>      Build one subject; repeatable
   --skip-interpret   Produce observed datasets only; no model credential needed
   --reuse-interpretation <path>
-                     Promote an already-interpreted dataset instead of calling a
-                     model. Requires a single subject, and the dataset must match
-                     that subject's name and head commit. No credential needed.
+                     Graft an existing interpretation onto a freshly analyzed
+                     atlas instead of calling a model. The dataset must describe
+                     the same head commit. Lets an analyzer fix reach a published
+                     subject without paying for interpretation again.
   --provider <name>  Interpretation provider (default: auto-detected)
   --model <id>       Override the provider's default model
   --retries <n>      Attempts per interpretation before giving up (default: ${DEFAULT_RETRIES})
@@ -135,7 +137,32 @@ function splitInterpretationMethod(method) {
  * the reused dataset describes the same repository at the same commit, so mismatches are
  * refused rather than recorded.
  */
-function loadReusedInterpretation(path, subject, headSha) {
+/**
+ * Relationship kinds an interpretation produces; the rest are observed from Git. An
+ * observed-only dataset carries `authored` and `touched` and nothing else, which is what
+ * makes this list checkable rather than a guess.
+ */
+const INTERPRETED_RELATIONSHIP_KINDS = new Set([
+  'supports-feature',
+  'supports-lifecycle',
+  'evolves-feature',
+  'affects-area',
+])
+
+/**
+ * Grafts a previously paid-for interpretation onto a freshly analyzed observed layer.
+ *
+ * Replacing the fresh dataset outright would be simpler, but it would also freeze the
+ * observed layer at whatever the analyzer produced on the day the model ran — so a fix to
+ * identity matching, code areas, or rename handling could never reach a published subject
+ * without paying for interpretation again. Both layers describe the same commit, which the
+ * head check below enforces, so the interpretation is portable across analyzer versions.
+ *
+ * Every cited commit is re-checked against the fresh atlas rather than trusted. The head
+ * check makes a miss unlikely, but "every claim resolves to a real commit" is the property
+ * the whole evidence model rests on, and it is cheap to verify.
+ */
+function loadReusedInterpretation(path, subject, headSha, dataset) {
   const reused = JSON.parse(readFileSync(path, 'utf8'))
   if (reused.analysis?.mode !== 'interpreted') {
     throw new Error(`${path} is not an interpreted dataset`)
@@ -145,7 +172,58 @@ function loadReusedInterpretation(path, subject, headSha) {
       `${path} describes ${reused.repository?.headSha?.slice(0, 8)} but ${subject.slug} is at ${headSha.slice(0, 8)}`,
     )
   }
-  return reused
+
+  const knownShas = new Set(dataset.episodes.map((episode) => episode.commitSha))
+  const claims = [...(reused.featureCandidates ?? []), ...(reused.semanticEpisodes ?? [])]
+  const unresolved = claims.flatMap((claim) =>
+    (claim.evidence ?? [])
+      .map((entry) => entry.commitSha)
+      .filter((sha) => !knownShas.has(sha)),
+  )
+  if (unresolved.length > 0) {
+    throw new Error(
+      `${path} cites ${unresolved.length} commit(s) absent from the re-analyzed history, ` +
+        `starting with ${unresolved[0].slice(0, 8)}`,
+    )
+  }
+
+  const observedRelationships = dataset.relationships.filter(
+    (relationship) => !INTERPRETED_RELATIONSHIP_KINDS.has(relationship.kind),
+  )
+  const interpretedRelationships = (reused.relationships ?? []).filter((relationship) =>
+    INTERPRETED_RELATIONSHIP_KINDS.has(relationship.kind),
+  )
+
+  const grafted = {
+    ...dataset,
+    analysis: { ...dataset.analysis, mode: 'interpreted' },
+    featureCandidates: reused.featureCandidates ?? [],
+    semanticEpisodes: reused.semanticEpisodes ?? [],
+    relationships: [...observedRelationships, ...interpretedRelationships],
+  }
+
+  // Interpretation-derived relationships point at code areas and episodes the previous
+  // analyzer produced. A change to how either is identified would leave them dangling, and
+  // a dangling edge is worse than a missing one because the viewer renders it as evidence.
+  const knownIds = new Set([
+    ...grafted.episodes.map((episode) => episode.id),
+    ...grafted.contributors.map((contributor) => contributor.id),
+    ...grafted.codeAreas.map((area) => area.id),
+    ...grafted.featureCandidates.map((feature) => feature.id),
+    ...grafted.semanticEpisodes.map((episode) => episode.id),
+  ])
+  const dangling = grafted.relationships.filter(
+    (relationship) => !knownIds.has(relationship.sourceId) || !knownIds.has(relationship.targetId),
+  )
+  if (dangling.length > 0) {
+    throw new Error(
+      `${path} produced ${dangling.length} relationship(s) that do not resolve against the ` +
+        `re-analyzed atlas, starting with ${dangling[0].kind} ${dangling[0].sourceId} -> ${dangling[0].targetId}. ` +
+        'Re-run interpretation instead of reusing it.',
+    )
+  }
+
+  return grafted
 }
 
 function readCatalog(catalogPath) {
@@ -161,6 +239,9 @@ function readCatalog(catalogPath) {
     if (!/^[a-z0-9][a-z0-9-]*$/.test(subject.slug)) {
       throw new Error(`Slug must be lowercase kebab-case: ${subject.slug}`)
     }
+    if (subject.commit && !/^[0-9a-f]{7,40}$/.test(subject.commit)) {
+      throw new Error(`Pinned commit must be a hex SHA: ${subject.slug} -> ${subject.commit}`)
+    }
     if (seen.has(subject.slug)) throw new Error(`Duplicate slug: ${subject.slug}`)
     seen.add(subject.slug)
   }
@@ -168,7 +249,13 @@ function readCatalog(catalogPath) {
   return subjects
 }
 
-/** Clones a subject on first use and fast-forwards it afterwards. */
+/**
+ * Clones a subject on first use and fast-forwards it afterwards. A subject carrying a
+ * `commit` is pinned there instead: an interpretation costs money and is not reproducible,
+ * so a published atlas is an artifact bound to one commit rather than something rebuilt
+ * against whatever upstream happens to be that day. Pinning is also what lets the observed
+ * layer be regenerated — after an analyzer fix, say — while the interpretation is reused.
+ */
 function syncRepository(subject, cacheDir) {
   const target = resolve(cacheDir, subject.slug)
   if (!existsSync(target)) {
@@ -178,6 +265,12 @@ function syncRepository(subject, cacheDir) {
   } else {
     process.stderr.write('  fetching updates\n')
     git(['fetch', '--quiet', '--filter=blob:none', 'origin'], target)
+  }
+
+  if (subject.commit) {
+    process.stderr.write(`  pinned to ${subject.commit.slice(0, 8)}\n`)
+    git(['checkout', '--quiet', '--detach', subject.commit], target)
+  } else {
     const branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], target).trim()
     git(['reset', '--hard', '--quiet', `origin/${branch}`], target)
   }
@@ -217,7 +310,7 @@ async function buildSubject(subject, options, context) {
   let interpretation = null
   if (options.reuseInterpretation) {
     process.stderr.write(`  reusing interpretation from ${options.reuseInterpretation}\n`)
-    dataset = loadReusedInterpretation(options.reuseInterpretation, subject, headSha)
+    dataset = loadReusedInterpretation(options.reuseInterpretation, subject, headSha, dataset)
     const { provider, model } = splitInterpretationMethod(dataset.featureCandidates?.[0]?.method)
     interpretation = {
       provider,
