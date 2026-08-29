@@ -25,10 +25,10 @@ interface IdentityReviewProps {
  */
 const THRESHOLD_STOPS = [
   { value: 1, label: 'Never', detail: 'Every suggested match waits for you.' },
-  { value: 0.96, label: '96%', detail: 'Only a shared GitHub account handle.' },
-  { value: 0.92, label: '92%', detail: 'A matching name and a matching email handle.' },
-  { value: 0.82, label: '82%', detail: 'A matching name that also aligns with an account handle.' },
-  { value: 0.72, label: '72%', detail: 'Any identical normalized author name.' },
+  { value: 0.97, label: '97%', detail: 'Only one email address used under two names.' },
+  { value: 0.94, label: '94%', detail: 'A matching full name and a matching account handle.' },
+  { value: 0.92, label: '92%', detail: 'A matching full name plus one supporting signal.' },
+  { value: 0.86, label: '86%', detail: 'A matching full name on its own.' },
 ]
 
 function formatDate(value: string) {
@@ -121,6 +121,21 @@ function MatchCard({
           ))}
         </ul>
       </section>
+
+      {match.conflicts.length > 0 && (
+        <section className="identity-evidence identity-evidence--against" aria-label="Evidence against">
+          <span>Evidence against</span>
+          <ul>
+            {match.conflicts.map((signal) => (
+              <li key={`${match.id}:conflict:${signal.kind}`}>
+                <i className="identity-signal identity-signal--conflict" />
+                <span>{signal.label}</span>
+                <small>{signal.basis.replace('-', ' ')}</small>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {match.effectiveState === 'blocked' && (
         <p className="identity-conflict">

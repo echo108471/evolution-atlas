@@ -22,9 +22,11 @@ export interface IdentityMatchSignal {
   kind:
     | 'mailmap'
     | 'github-account'
+    | 'same-address'
     | 'email-handle'
     | 'exact-name'
     | 'name-handle-alignment'
+    | 'conflicting-name'
   label: string
   basis: 'observed' | 'repository-config' | 'heuristic'
   weight: number

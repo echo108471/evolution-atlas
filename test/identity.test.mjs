@@ -71,7 +71,8 @@ test('identity matcher emits explainable candidates without exposing email addre
 
   assert.equal(matches.length, 1)
   assert.equal(matches[0].status, 'candidate')
-  assert.equal(matches[0].confidence, 0.92)
+  // A distinctive shared handle and a matching full name are two independent signals.
+  assert.equal(matches[0].confidence, 0.94)
   assert.deepEqual(
     matches[0].signals.map((signal) => signal.kind),
     ['email-handle', 'exact-name'],
@@ -237,4 +238,81 @@ test('a decisions file written before the threshold existed still loads', () => 
   assert.equal(parsed.schemaVersion, '0.2.0')
   assert.equal(parsed.autoMergeThreshold, DEFAULT_AUTO_MERGE_THRESHOLD)
   assert.deepEqual(parsed.decisions, legacy.decisions)
+})
+
+test('a shared given-name handle across two domains does not join two people', () => {
+  // Observed in zod: andreas@deininger.net and andreas@amsenius.se are different people,
+  // and the old scoring merged them at 0.82 on the handle alone.
+  const matches = buildIdentityMatches([
+    record('contributor:a', ['Andreas Deininger'], 'andreas@deininger.test'),
+    record('contributor:b', ['Andreas Amsenius'], 'andreas@amsenius.test'),
+  ])
+
+  assert.deepEqual(matches, [])
+})
+
+test('a shared given-name handle at one domain is still evidence', () => {
+  const matches = buildIdentityMatches([
+    record('contributor:a', ['Scott Trinh'], 'scott@scotttrinh.test'),
+    record('contributor:b', ['Scott Trinh'], 'scott@scotttrinh.test'),
+  ])
+
+  assert.equal(matches.length, 1)
+  assert.ok(matches[0].confidence >= 0.94)
+})
+
+test('a role handle shared across domains is never identity evidence', () => {
+  const matches = buildIdentityMatches([
+    record('contributor:a', ['Barnaby Keene'], 'accounts@southcla.test'),
+    record('contributor:b', ['Alexandre Gaubil'], 'accounts@gaubil.test'),
+  ])
+
+  assert.deepEqual(matches, [])
+})
+
+test('one address used under two names is the strongest observed signal', () => {
+  const matches = buildIdentityMatches([
+    record('contributor:a', ['Sid'], 'sid@example.test'),
+    record('contributor:b', ['Sidharth Rathi'], 'sid@example.test'),
+  ])
+
+  assert.equal(matches.length, 1)
+  assert.equal(matches[0].confidence, 0.97)
+  assert.ok(matches[0].signals.some((signal) => signal.kind === 'same-address'))
+})
+
+test('a repeated single-token given name is too weak to propose', () => {
+  const matches = buildIdentityMatches([
+    record('contributor:a', ['Ernest'], 'ernest@one.test'),
+    record('contributor:b', ['Ernest'], 'ernest2@two.test'),
+  ])
+
+  assert.deepEqual(matches, [])
+})
+
+test('a long single-token name is treated as a full name', () => {
+  const matches = buildIdentityMatches([
+    record('contributor:a', ['EthanBehrends'], 'ethan@lindy.test'),
+    record('contributor:b', ['EthanBehrends'], 'epbehrends@gmail.test'),
+  ])
+
+  assert.equal(matches.length, 1)
+  assert.equal(matches[0].confidence, 0.86)
+})
+
+test('disagreeing full names are recorded as evidence against the match', () => {
+  // Reached directly so that the conflict is observable; scoring drops it below the floor.
+  const matches = buildIdentityMatches([
+    record('contributor:a', ['Ivan Greene'], 'ivan@ivan.test', { mailmapKeys: ['email:shared'] }),
+    record('contributor:b', ['Ivan Kleshnin'], 'ivan@paqmind.test', { mailmapKeys: ['email:shared'] }),
+  ])
+
+  assert.equal(matches.length, 1)
+  assert.equal(matches[0].status, 'confirmed')
+  // The repository's own mapping outranks the heuristic, so the score stands.
+  assert.equal(matches[0].confidence, 1)
+  assert.deepEqual(
+    matches[0].conflicts.map((signal) => signal.kind),
+    ['conflicting-name'],
+  )
 })

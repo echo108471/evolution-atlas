@@ -773,6 +773,14 @@ p {
   padding-top: 4px;
 }
 
+.identity-evidence--against li span {
+  color: var(--muted);
+}
+
+.identity-signal--conflict {
+  background: var(--danger);
+}
+
 .identity-automerge {
   display: flex;
   flex-wrap: wrap;

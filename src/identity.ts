@@ -81,19 +81,32 @@ function fallbackNameMatches(contributors: Contributor[]): IdentityMatchCandidat
       if (left.isBot !== right.isBot) continue
       const leftNames = new Set(left.aliases.map(normalizeName).filter((name) => name.length >= 3))
       const rightNames = new Set(right.aliases.map(normalizeName).filter((name) => name.length >= 3))
-      if (![...leftNames].some((name) => rightNames.has(name))) continue
+      const shared = [...leftNames].find((name) => rightNames.has(name))
+      if (!shared) continue
+      // Mirrors the analyzer's rule: a full name identifies a person, a lone given name
+      // does not. A dataset without stored matches gets the same scale as one with them.
+      const isFullName =
+        shared.length >= 10 ||
+        [left, right].some((contributor) =>
+          contributor.aliases.some(
+            (alias) =>
+              normalizeName(alias) === shared &&
+              alias.split(/[\s,]+/).filter((token) => normalizeName(token).length >= 2).length >= 2,
+          ),
+        )
+      if (!isFullName) continue
       const signal: IdentityMatchSignal = {
         kind: 'exact-name',
-        label: 'A normalized author name is identical across the two Git identities.',
+        label: 'A normalized full author name is identical across the two Git identities.',
         basis: 'observed',
-        weight: 0.72,
+        weight: 0.86,
       }
       matches.push({
         id: identityMatchId(left.id, right.id),
         identityIds: [left.id, right.id].sort() as [string, string],
         status: 'candidate',
-        confidence: 0.72,
-        method: 'viewer-name-fallback-v1',
+        confidence: 0.86,
+        method: 'viewer-name-fallback-v2',
         signals: [signal],
         conflicts: [],
       })
@@ -193,8 +206,9 @@ export function emptyIdentityDecisions(
 }
 
 /**
- * A threshold of 0 would merge every pair the analyzer proposed, including single-signal
- * name collisions, so the floor sits just above the weakest signal the analyzer emits.
+ * The floor sits at the analyzer's own emission floor, so no setting can merge a pair the
+ * matcher declined to propose. The ceiling of 1 means "never": a candidate tops out at
+ * 0.97, and a mailmap-confirmed pair is merged by the repository rather than by score.
  */
 export function clampThreshold(value: number) {
   if (!Number.isFinite(value)) return DEFAULT_AUTO_MERGE_THRESHOLD
