@@ -15,9 +15,11 @@ import {
 import { buildStructuralEpisodes } from './structure.mjs'
 import {
   applyIdentityDecision,
+  DEFAULT_AUTO_MERGE_THRESHOLD,
   emptyIdentityDecisions,
   parseIdentityDecisions,
   resolveIdentities,
+  setAutoMergeThreshold,
   type ContributorProfile,
   type IdentityDecisionChoice,
   type IdentityDecisionsDocument,
@@ -742,6 +744,8 @@ export default function App() {
             suggestedCount: 0,
             mergedIdentityCount: 0,
             reviewedCount: 0,
+            autoMergedCount: 0,
+            autoMergeThreshold: DEFAULT_AUTO_MERGE_THRESHOLD,
           },
     [activeIdentityDecisions, dataset],
   )
@@ -954,6 +958,12 @@ export default function App() {
   const handleIdentityImport = (value: unknown) => {
     if (!dataset) return
     setIdentityDecisions(parseIdentityDecisions(value, dataset.repository.name))
+  }
+
+  const handleIdentityThreshold = (threshold: number) => {
+    setIdentityDecisions((current) =>
+      current ? setAutoMergeThreshold(current, threshold) : current,
+    )
   }
 
   const handleOpenContributor = (identityId: string) => {
@@ -1254,6 +1264,7 @@ export default function App() {
             resolution={identityResolution}
             decisions={activeIdentityDecisions}
             onDecision={handleIdentityDecision}
+            onThresholdChange={handleIdentityThreshold}
             onImport={handleIdentityImport}
             onOpenContributor={handleOpenContributor}
           />

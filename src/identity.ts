@@ -13,10 +13,25 @@ export interface IdentityDecision {
 }
 
 export interface IdentityDecisionsDocument {
-  schemaVersion: '0.1.0'
+  schemaVersion: '0.2.0'
   repository: string
+  /**
+   * Matches at or above this confidence merge without being asked about. Everything below
+   * it is left alone and surfaced for review. Stored with the decisions so that exporting
+   * a resolution carries the rule that produced it, not just its outcomes.
+   */
+  autoMergeThreshold: number
   decisions: IdentityDecision[]
 }
+
+/**
+ * Two independent signals have to agree to clear this. The analyzer scores a shared
+ * normalized name at 0.72 and a shared non-generic email handle at 0.82, and promotes a
+ * pair carrying both to 0.92 — so this is the lowest bar that no single signal reaches on
+ * its own. A shared name alone is common enough in a large history to be weak evidence,
+ * which is exactly the case that should still reach a human.
+ */
+export const DEFAULT_AUTO_MERGE_THRESHOLD = 0.92
 
 export interface ContributorProfile extends Contributor {
   identityIds: string[]
@@ -25,10 +40,12 @@ export interface ContributorProfile extends Contributor {
 
 export type EffectiveIdentityMatchState = 'suggested' | 'merged' | 'separate' | 'blocked'
 
+export type IdentityDecisionSource = 'user' | 'repository' | 'auto' | 'linked'
+
 export interface ResolvedIdentityMatch extends IdentityMatchCandidate {
   identities: [Contributor, Contributor]
   effectiveState: EffectiveIdentityMatchState
-  decisionSource: 'user' | 'repository' | 'linked' | null
+  decisionSource: IdentityDecisionSource | null
 }
 
 export interface IdentityResolution {
@@ -38,6 +55,8 @@ export interface IdentityResolution {
   suggestedCount: number
   mergedIdentityCount: number
   reviewedCount: number
+  autoMergedCount: number
+  autoMergeThreshold: number
 }
 
 function normalizeName(value: string) {
@@ -161,8 +180,32 @@ function buildProfile(
   }
 }
 
-export function emptyIdentityDecisions(repository: string): IdentityDecisionsDocument {
-  return { schemaVersion: '0.1.0', repository, decisions: [] }
+export function emptyIdentityDecisions(
+  repository: string,
+  autoMergeThreshold: number = DEFAULT_AUTO_MERGE_THRESHOLD,
+): IdentityDecisionsDocument {
+  return {
+    schemaVersion: '0.2.0',
+    repository,
+    autoMergeThreshold: clampThreshold(autoMergeThreshold),
+    decisions: [],
+  }
+}
+
+/**
+ * A threshold of 0 would merge every pair the analyzer proposed, including single-signal
+ * name collisions, so the floor sits just above the weakest signal the analyzer emits.
+ */
+export function clampThreshold(value: number) {
+  if (!Number.isFinite(value)) return DEFAULT_AUTO_MERGE_THRESHOLD
+  return Math.min(1, Math.max(0.7, value))
+}
+
+export function setAutoMergeThreshold(
+  document: IdentityDecisionsDocument,
+  autoMergeThreshold: number,
+): IdentityDecisionsDocument {
+  return { ...document, autoMergeThreshold: clampThreshold(autoMergeThreshold) }
 }
 
 export function applyIdentityDecision(
@@ -180,8 +223,16 @@ export function parseIdentityDecisions(
   repository: string,
 ): IdentityDecisionsDocument {
   if (!value || typeof value !== 'object') throw new Error('The identity decisions file is not an object.')
-  const candidate = value as Partial<IdentityDecisionsDocument>
-  if (candidate.schemaVersion !== '0.1.0' || candidate.repository !== repository) {
+  // The stored schema version is whatever is on disk, which may predate this type.
+  const candidate = value as Omit<Partial<IdentityDecisionsDocument>, 'schemaVersion'> & {
+    schemaVersion?: string
+  }
+  // 0.1.0 predates the auto-merge threshold. Such a file is still a valid set of explicit
+  // decisions, so it is read rather than rejected and takes the default threshold.
+  if (
+    (candidate.schemaVersion !== '0.1.0' && candidate.schemaVersion !== '0.2.0') ||
+    candidate.repository !== repository
+  ) {
     throw new Error('The identity decisions file belongs to a different repository or schema.')
   }
   if (!Array.isArray(candidate.decisions)) throw new Error('The decisions list is missing.')
@@ -195,7 +246,15 @@ export function parseIdentityDecisions(
     }
     return { matchId: decision.matchId, choice: decision.choice }
   })
-  return { schemaVersion: '0.1.0', repository, decisions }
+  return {
+    schemaVersion: '0.2.0',
+    repository,
+    autoMergeThreshold:
+      typeof candidate.autoMergeThreshold === 'number'
+        ? clampThreshold(candidate.autoMergeThreshold)
+        : DEFAULT_AUTO_MERGE_THRESHOLD,
+    decisions,
+  }
 }
 
 export function resolveIdentities(
@@ -215,9 +274,18 @@ export function resolveIdentities(
   )
   const blockedMatches = new Set<string>()
 
-  const mergeMatches = matches.filter(
-    (match) => decisions.get(match.id) === 'merged' || (match.status === 'confirmed' && !decisions.has(match.id)),
-  )
+  const autoMergeThreshold = clampThreshold(document.autoMergeThreshold)
+
+  // Three ways a pair merges: the user said so, the repository's own .mailmap says so, or
+  // the analyzer's confidence clears the threshold. An explicit 'separate' outranks the
+  // last two, so raising confidence never silently overrides a decision already made.
+  const isAutoMerged = (match: IdentityMatchCandidate) =>
+    match.status !== 'confirmed' && match.confidence >= autoMergeThreshold
+  const mergeMatches = matches.filter((match) => {
+    const decision = decisions.get(match.id)
+    if (decision) return decision === 'merged'
+    return match.status === 'confirmed' || isAutoMerged(match)
+  })
   for (const match of mergeMatches) {
     const [left, right] = match.identityIds
     const leftMembers = groups.members(groups.find(left))
@@ -260,16 +328,18 @@ export function resolveIdentities(
       ? 'blocked'
       : userDecision === 'separate'
         ? 'separate'
-        : userDecision === 'merged' || match.status === 'confirmed' || isLinked
+        : userDecision === 'merged' || match.status === 'confirmed' || isAutoMerged(match) || isLinked
           ? 'merged'
           : 'suggested'
-    const decisionSource = userDecision
+    const decisionSource: IdentityDecisionSource | null = userDecision
       ? 'user'
       : match.status === 'confirmed'
         ? 'repository'
-        : isLinked
-          ? 'linked'
-          : null
+        : isAutoMerged(match)
+          ? 'auto'
+          : isLinked
+            ? 'linked'
+            : null
     return {
       ...match,
       identities: [contributorById.get(match.identityIds[0])!, contributorById.get(match.identityIds[1])!],
@@ -290,5 +360,7 @@ export function resolveIdentities(
     reviewedCount: resolvedMatches.filter(
       (match) => match.effectiveState === 'merged' || match.effectiveState === 'separate',
     ).length,
+    autoMergedCount: resolvedMatches.filter((match) => match.decisionSource === 'auto').length,
+    autoMergeThreshold,
   }
 }

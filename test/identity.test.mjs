@@ -4,8 +4,11 @@ import test from 'node:test'
 import { buildIdentityMatches } from '../scripts/lib/identity.mjs'
 import {
   applyIdentityDecision,
+  DEFAULT_AUTO_MERGE_THRESHOLD,
   emptyIdentityDecisions,
+  parseIdentityDecisions,
   resolveIdentities,
+  setAutoMergeThreshold,
 } from '../src/identity.ts'
 
 function record(id, names, email, options = {}) {
@@ -30,8 +33,9 @@ function contributor(id, displayName) {
   }
 }
 
-function datasetWith(contributors) {
+function datasetWith(contributors, identityMatches) {
   return {
+    ...(identityMatches ? { identityMatches } : {}),
     schemaVersion: '0.1.0',
     analysis: { mode: 'observed-only', historyRange: 'HEAD', mergeDiffStrategy: 'first-parent' },
     repository: { name: 'identity-test', ref: 'main', headSha: 'bbb', commitCount: contributors.length },
@@ -130,4 +134,107 @@ test('keep-separate decisions block a contradictory transitive merge', () => {
     ).effectiveState,
     'blocked',
   )
+})
+
+function strongMatch(leftId, rightId, confidence) {
+  return {
+    id: `identity-match:${leftId}|${rightId}`,
+    identityIds: [leftId, rightId],
+    status: 'candidate',
+    confidence,
+    method: 'deterministic-identity-v1',
+    signals: [
+      {
+        kind: 'email-handle',
+        label: 'The private email identifiers have the same non-generic account handle.',
+        basis: 'observed',
+        weight: 0.82,
+      },
+    ],
+    conflicts: [],
+  }
+}
+
+test('matches at or above the threshold merge without being asked about', () => {
+  const dataset = datasetWith(
+    [contributor('contributor:a', 'Eugene Cho'), contributor('contributor:b', 'E Cho')],
+    [strongMatch('contributor:a', 'contributor:b', 0.92)],
+  )
+
+  const resolution = resolveIdentities(dataset)
+
+  assert.equal(resolution.autoMergeThreshold, DEFAULT_AUTO_MERGE_THRESHOLD)
+  assert.equal(resolution.autoMergedCount, 1)
+  assert.equal(resolution.suggestedCount, 0)
+  assert.equal(resolution.profiles.length, 1)
+  assert.equal(resolution.matches[0].effectiveState, 'merged')
+  assert.equal(resolution.matches[0].decisionSource, 'auto')
+  // The underlying identities are a projection, never a rewrite.
+  assert.equal(dataset.contributors.length, 2)
+})
+
+test('matches below the threshold are left alone for review', () => {
+  const dataset = datasetWith(
+    [contributor('contributor:a', 'Eugene Cho'), contributor('contributor:b', 'E Cho')],
+    [strongMatch('contributor:a', 'contributor:b', 0.82)],
+  )
+
+  const resolution = resolveIdentities(dataset)
+
+  assert.equal(resolution.autoMergedCount, 0)
+  assert.equal(resolution.suggestedCount, 1)
+  assert.equal(resolution.profiles.length, 2)
+  assert.equal(resolution.matches[0].effectiveState, 'suggested')
+})
+
+test('lowering the threshold merges a pair that was previously left for review', () => {
+  const dataset = datasetWith(
+    [contributor('contributor:a', 'Eugene Cho'), contributor('contributor:b', 'E Cho')],
+    [strongMatch('contributor:a', 'contributor:b', 0.82)],
+  )
+  const lowered = setAutoMergeThreshold(emptyIdentityDecisions(dataset.repository.name), 0.82)
+
+  const resolution = resolveIdentities(dataset, lowered)
+
+  assert.equal(resolution.autoMergedCount, 1)
+  assert.equal(resolution.profiles.length, 1)
+})
+
+test('an explicit keep-separate outranks the threshold', () => {
+  const dataset = datasetWith(
+    [contributor('contributor:a', 'Eugene Cho'), contributor('contributor:b', 'E Cho')],
+    [strongMatch('contributor:a', 'contributor:b', 0.96)],
+  )
+  const decisions = applyIdentityDecision(
+    emptyIdentityDecisions(dataset.repository.name),
+    'identity-match:contributor:a|contributor:b',
+    'separate',
+  )
+
+  const resolution = resolveIdentities(dataset, decisions)
+
+  assert.equal(resolution.profiles.length, 2)
+  assert.equal(resolution.matches[0].effectiveState, 'separate')
+  assert.equal(resolution.matches[0].decisionSource, 'user')
+})
+
+test('the threshold is clamped so that no setting can merge every proposed pair', () => {
+  const document = setAutoMergeThreshold(emptyIdentityDecisions('repo'), 0)
+  assert.equal(document.autoMergeThreshold, 0.7)
+  assert.equal(setAutoMergeThreshold(document, 5).autoMergeThreshold, 1)
+  assert.equal(setAutoMergeThreshold(document, Number.NaN).autoMergeThreshold, 0.92)
+})
+
+test('a decisions file written before the threshold existed still loads', () => {
+  const legacy = {
+    schemaVersion: '0.1.0',
+    repository: 'repo',
+    decisions: [{ matchId: 'identity-match:a|b', choice: 'merged' }],
+  }
+
+  const parsed = parseIdentityDecisions(legacy, 'repo')
+
+  assert.equal(parsed.schemaVersion, '0.2.0')
+  assert.equal(parsed.autoMergeThreshold, DEFAULT_AUTO_MERGE_THRESHOLD)
+  assert.deepEqual(parsed.decisions, legacy.decisions)
 })

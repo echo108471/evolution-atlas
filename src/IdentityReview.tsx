@@ -13,9 +13,23 @@ interface IdentityReviewProps {
   resolution: IdentityResolution
   decisions: IdentityDecisionsDocument
   onDecision: (matchId: string, choice: IdentityDecisionChoice | null) => void
+  onThresholdChange: (threshold: number) => void
   onImport: (value: unknown) => void
   onOpenContributor: (identityId: string) => void
 }
+
+/**
+ * The analyzer only ever emits these confidences, so the control offers them as stops
+ * rather than a continuous slider — every intermediate value behaves identically to the
+ * stop below it, and a slider would imply precision the scoring does not have.
+ */
+const THRESHOLD_STOPS = [
+  { value: 1, label: 'Never', detail: 'Every suggested match waits for you.' },
+  { value: 0.96, label: '96%', detail: 'Only a shared GitHub account handle.' },
+  { value: 0.92, label: '92%', detail: 'A matching name and a matching email handle.' },
+  { value: 0.82, label: '82%', detail: 'A matching name that also aligns with an account handle.' },
+  { value: 0.72, label: '72%', detail: 'Any identical normalized author name.' },
+]
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString(undefined, {
@@ -28,6 +42,9 @@ function formatDate(value: string) {
 function matchStateLabel(match: ResolvedIdentityMatch) {
   if (match.effectiveState === 'blocked') return 'Conflicting decisions'
   if (match.effectiveState === 'separate') return 'Kept separate'
+  if (match.effectiveState === 'merged' && match.decisionSource === 'auto') {
+    return 'Merged automatically'
+  }
   if (match.effectiveState === 'merged' && match.decisionSource === 'repository') {
     return 'Repository-confirmed'
   }
@@ -150,6 +167,7 @@ export function IdentityReview({
   resolution,
   decisions,
   onDecision,
+  onThresholdChange,
   onImport,
   onOpenContributor,
 }: IdentityReviewProps) {
@@ -200,6 +218,39 @@ export function IdentityReview({
             />
           </label>
           {importError && <small role="alert">{importError}</small>}
+        </div>
+      </section>
+
+      <section className="identity-automerge" aria-labelledby="identity-automerge-heading">
+        <div className="identity-automerge__copy">
+          <span className="eyebrow">Automatic merging</span>
+          <h3 id="identity-automerge-heading">Merge above this confidence</h3>
+          <p>
+            {resolution.autoMergedCount > 0
+              ? `${resolution.autoMergedCount} of ${resolution.matches.length} matches merged on their own. `
+              : 'No match currently clears this bar. '}
+            Lowering the bar merges weaker evidence without asking; raising it sends more
+            pairs to review. Anything you decide by hand outranks this setting and survives
+            a change to it.
+          </p>
+        </div>
+        <div className="identity-automerge__stops" role="group" aria-label="Automatic merge threshold">
+          {THRESHOLD_STOPS.map((stop) => (
+            <button
+              key={stop.label}
+              type="button"
+              aria-pressed={resolution.autoMergeThreshold === stop.value}
+              className={
+                resolution.autoMergeThreshold === stop.value
+                  ? 'identity-stop identity-stop--active'
+                  : 'identity-stop'
+              }
+              title={stop.detail}
+              onClick={() => onThresholdChange(stop.value)}
+            >
+              {stop.label}
+            </button>
+          ))}
         </div>
       </section>
 
@@ -257,9 +308,11 @@ export function IdentityReview({
       )}
 
       <p className="boundary-note identity-review__boundary">
-        Name and account similarity can suggest that two Git records describe one person, but only
-        explicit repository mappings or your confirmation combine them. Code-area overlap, timing,
-        and commit volume are not identity proof and are never used for ranking.
+        Name and account similarity can suggest that two Git records describe one person. Explicit
+        repository mappings, your confirmation, and matches above the automatic threshold combine
+        them into one profile; the underlying Git identities are never rewritten, and every merge
+        above can be split. Code-area overlap, timing, and commit volume are not identity proof and
+        are never used for ranking.
       </p>
     </div>
   )
