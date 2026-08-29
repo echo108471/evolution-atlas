@@ -58,16 +58,33 @@ function runGit(repositoryPath, args) {
   })
 }
 
-function readCommits(repositoryPath) {
-  // --diff-merges=first-parent matches how the analyzer represents merges.
-  const raw = runGit(repositoryPath, [
-    'log',
-    '--no-color',
-    '--name-status',
-    '--diff-merges=first-parent',
-    '--format=%x01%H%x00%aI%x00%aE%x00%aN%x00%P%x00%s',
-  ])
+const LOG_ARGUMENTS = [
+  'log',
+  '--no-color',
+  '--name-status',
+  // Matches how the analyzer represents merges.
+  '--diff-merges=first-parent',
+  '--format=%x01%H%x00%aI%x00%aE%x00%aN%x00%P%x00%s',
+]
 
+/**
+ * Reads the history once. Rename detection compares blob content, which a blobless clone
+ * must fetch from its promisor remote, so it can fail on a large repository or a flaky
+ * network. Falling back to a rename-free walk keeps every other dimension usable, and the
+ * caller is told renames are unavailable rather than being handed a misleading zero.
+ */
+function readCommits(repositoryPath) {
+  try {
+    return { commits: parseLog(runGit(repositoryPath, LOG_ARGUMENTS)), renamesDetected: true }
+  } catch {
+    return {
+      commits: parseLog(runGit(repositoryPath, [...LOG_ARGUMENTS, '--no-renames'])),
+      renamesDetected: false,
+    }
+  }
+}
+
+function parseLog(raw) {
   const commits = []
   for (const record of raw.split('\x01').slice(1)) {
     const breakIndex = record.indexOf('\n')
@@ -135,7 +152,7 @@ function isBot(commit) {
 
 function surveyRepository(repositoryPath) {
   const resolved = resolve(repositoryPath)
-  const commits = readCommits(resolved)
+  const { commits, renamesDetected } = readCommits(resolved)
   if (commits.length === 0) throw new Error(`No commits found in ${resolved}`)
 
   const emails = new Set(commits.map((commit) => commit.email))
@@ -175,7 +192,9 @@ function surveyRepository(repositoryPath) {
       commits.filter((commit) => commit.subject.trim().length < TERSE_SUBJECT_LENGTH).length,
     ),
     medianSubjectLength: median(commits.map((commit) => commit.subject.length)),
-    renameRecordCount: commits.reduce((total, commit) => total + commit.renameCount, 0),
+    renameRecordCount: renamesDetected
+      ? commits.reduce((total, commit) => total + commit.renameCount, 0)
+      : null,
     topLevelDirectories,
     estimatedCorpusTokens: estimateCorpusTokens(commits),
   }
@@ -197,15 +216,16 @@ const COLUMNS = [
 ]
 
 function renderTable(rows) {
+  const cell = (row, key) => (row[key] === null ? '-' : String(row[key]))
   const widths = COLUMNS.map(([heading, key]) =>
-    Math.max(heading.length, ...rows.map((row) => String(row[key]).length)),
+    Math.max(heading.length, ...rows.map((row) => cell(row, key).length)),
   )
   const lines = [
     COLUMNS.map(([heading], index) => heading.padStart(widths[index])).join('  '),
     widths.map((width) => '-'.repeat(width)).join('  '),
   ]
   for (const row of rows) {
-    lines.push(COLUMNS.map(([, key], index) => String(row[key]).padStart(widths[index])).join('  '))
+    lines.push(COLUMNS.map(([, key], index) => cell(row, key).padStart(widths[index])).join('  '))
   }
   return lines.join('\n')
 }

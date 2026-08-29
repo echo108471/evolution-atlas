@@ -2,10 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { ContributorTrail } from './ContributorTrail'
 import { FeatureExplorer } from './FeatureExplorer'
+import { GalleryIndex } from './GalleryIndex'
 import { IdentityReview } from './IdentityReview'
 import { RepositoryOverview } from './RepositoryOverview'
 import { RepositoryTimeMachine } from './RepositoryTimeMachine'
 import { LIFECYCLE_STAGES, normalizeSemanticEpisodes } from './lifecycle'
+import {
+  GALLERY_MANIFEST_URL,
+  LOCAL_DATASET_URL,
+  type GalleryManifest,
+} from './gallery'
 import { buildStructuralEpisodes } from './structure.mjs'
 import {
   applyIdentityDecision,
@@ -53,28 +59,7 @@ const EVIDENCE_PRESETS: Record<EvidencePreset, { label: string; threshold: numbe
   all: { label: 'All candidates', threshold: 0 },
 }
 
-/**
- * A published gallery describes its subjects in a manifest beside the datasets. When the
- * manifest is absent the viewer falls back to the single local `/atlas.json`, so a
- * maintainer analyzing their own repository needs no gallery at all.
- */
-interface GallerySubject {
-  slug: string
-  title: string
-  description: string | null
-  url: string
-  dataset: string
-  commitCount: number
-  interpreted: boolean
-}
 
-interface GalleryManifest {
-  version: number
-  subjects: GallerySubject[]
-}
-
-const GALLERY_MANIFEST_URL = '/gallery/manifest.json'
-const LOCAL_DATASET_URL = '/atlas.json'
 
 function identityStorageKey(repository: string) {
   return `evolution-atlas:identity-decisions:${repository}`
@@ -633,17 +618,26 @@ export default function App() {
     return () => controller.abort()
   }, [])
 
-  // An unknown or absent slug resolves to the first subject rather than an error, so a
-  // stale link still lands somewhere real.
+  // A gallery with no slug in the URL is an arrival, not an error, so it opens the index
+  // rather than guessing a subject. An unknown slug still resolves to the first subject so
+  // that a stale link lands somewhere real instead of on a dead end.
   const activeSubject = useMemo(() => {
-    if (!manifest) return null
+    if (!manifest || urlSubject === null) return null
     return manifest.subjects.find((entry) => entry.slug === urlSubject) ?? manifest.subjects[0]
   }, [manifest, urlSubject])
 
-  const datasetUrl = activeSubject ? `/gallery/${activeSubject.dataset}` : LOCAL_DATASET_URL
+  const showGalleryIndex = manifest !== null && activeSubject === null
+
+  // Null suppresses the fetch entirely. The index needs no dataset, and a gallery dataset
+  // is measured in megabytes, so arriving at the front door should not download one.
+  const datasetUrl = showGalleryIndex
+    ? null
+    : activeSubject
+      ? `/gallery/${activeSubject.dataset}`
+      : LOCAL_DATASET_URL
 
   useEffect(() => {
-    if (!manifestSettled) return
+    if (!manifestSettled || datasetUrl === null) return
     const controller = new AbortController()
     setDataset(null)
     setLoadError(null)
@@ -980,6 +974,17 @@ export default function App() {
     }
   }, [dataset, identityDecisions])
 
+  // The index is the gallery's entry point, so it renders before the dataset guard below —
+  // there is no dataset to wait for.
+  if (showGalleryIndex && manifest) {
+    return (
+      <GalleryIndex
+        subjects={manifest.subjects}
+        onSelectSubject={(slug) => setUrl({ ...DEFAULT_URL_STATE, subject: slug })}
+      />
+    )
+  }
+
   if (!dataset || !overviewStory || !baseStory || !story || !repositoryStory) {
     return (
       <main className="load-state">
@@ -1011,7 +1016,16 @@ export default function App() {
   return (
     <main className={`app-shell app-shell--product${section === 'features' ? ' app-shell--features' : ''}`}>
       <header ref={productHeaderRef} className="product-header">
-        <button type="button" className="product-brand" onClick={() => handleSectionChange('overview')}>
+        <button
+          type="button"
+          className="product-brand"
+          onClick={() =>
+            manifest
+              ? setUrl({ ...DEFAULT_URL_STATE, subject: null })
+              : handleSectionChange('overview')
+          }
+          title={manifest ? 'Back to the gallery' : 'Repository overview'}
+        >
           <span className="brand-mark">EVOLUTION ATLAS</span>
           <strong>{dataset.repository.name}</strong>
         </button>
