@@ -4,6 +4,7 @@ import test from 'node:test'
 import { buildIdentityMatches } from '../scripts/lib/identity.mjs'
 import {
   applyIdentityDecision,
+  clampThreshold,
   DEFAULT_AUTO_MERGE_THRESHOLD,
   emptyIdentityDecisions,
   parseIdentityDecisions,
@@ -97,15 +98,13 @@ test('confirmed identity decisions aggregate profiles while preserving raw contr
     contributor('contributor:a', 'Eugene Cho'),
     contributor('contributor:b', 'Eugene Cho'),
   ])
-  const initial = resolveIdentities(dataset)
+  // Held above the name-only tier so this exercises the manual path rather than auto-merge.
+  const manual = emptyIdentityDecisions(dataset.repository.name, 0.92)
+  const initial = resolveIdentities(dataset, manual)
   assert.equal(initial.suggestedCount, 1)
   assert.equal(initial.profiles.length, 2)
 
-  const decisions = applyIdentityDecision(
-    emptyIdentityDecisions(dataset.repository.name),
-    initial.matches[0].id,
-    'merged',
-  )
+  const decisions = applyIdentityDecision(manual, initial.matches[0].id, 'merged')
   const merged = resolveIdentities(dataset, decisions)
 
   assert.equal(merged.profiles.length, 1)
@@ -223,7 +222,43 @@ test('the threshold is clamped so that no setting can merge every proposed pair'
   const document = setAutoMergeThreshold(emptyIdentityDecisions('repo'), 0)
   assert.equal(document.autoMergeThreshold, 0.7)
   assert.equal(setAutoMergeThreshold(document, 5).autoMergeThreshold, 1)
-  assert.equal(setAutoMergeThreshold(document, Number.NaN).autoMergeThreshold, 0.92)
+  assert.equal(
+    setAutoMergeThreshold(document, Number.NaN).autoMergeThreshold,
+    DEFAULT_AUTO_MERGE_THRESHOLD,
+  )
+})
+
+test('a threshold the reader never chose follows the current default', () => {
+  // Stored as absent rather than as a copy, so improving the default reaches a reader who
+  // never opened the control instead of being shadowed by browser storage.
+  const untouched = emptyIdentityDecisions('repo')
+  assert.equal(untouched.autoMergeThreshold, null)
+
+  const dataset = datasetWith(
+    [contributor('contributor:a', 'Colin McDonnell'), contributor('contributor:b', 'Colin McDonnell')],
+    [strongMatch('contributor:a', 'contributor:b', DEFAULT_AUTO_MERGE_THRESHOLD)],
+  )
+  const resolution = resolveIdentities(dataset, untouched)
+
+  assert.equal(resolution.autoMergeThreshold, DEFAULT_AUTO_MERGE_THRESHOLD)
+  assert.equal(resolution.autoMergedCount, 1)
+})
+
+test('an identical full name merges on its own but a lone given name does not', () => {
+  const full = datasetWith([
+    contributor('contributor:a', 'Colin McDonnell'),
+    contributor('contributor:b', 'Colin McDonnell'),
+  ])
+  assert.equal(resolveIdentities(full).autoMergedCount, 1)
+
+  const given = datasetWith([
+    contributor('contributor:a', 'Ernest'),
+    contributor('contributor:b', 'Ernest'),
+  ])
+  // Below the analyzer's emission floor, so it is never even proposed.
+  assert.equal(given.identityMatches, undefined)
+  assert.equal(resolveIdentities(given).matches.length, 0)
+  assert.equal(resolveIdentities(given).profiles.length, 2)
 })
 
 test('a decisions file written before the threshold existed still loads', () => {
@@ -236,7 +271,9 @@ test('a decisions file written before the threshold existed still loads', () => 
   const parsed = parseIdentityDecisions(legacy, 'repo')
 
   assert.equal(parsed.schemaVersion, '0.2.0')
-  assert.equal(parsed.autoMergeThreshold, DEFAULT_AUTO_MERGE_THRESHOLD)
+  // Absent rather than back-filled, so the file follows whatever default is current.
+  assert.equal(parsed.autoMergeThreshold, null)
+  assert.equal(clampThreshold(parsed.autoMergeThreshold), DEFAULT_AUTO_MERGE_THRESHOLD)
   assert.deepEqual(parsed.decisions, legacy.decisions)
 })
 

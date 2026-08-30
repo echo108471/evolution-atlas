@@ -19,19 +19,33 @@ export interface IdentityDecisionsDocument {
    * Matches at or above this confidence merge without being asked about. Everything below
    * it is left alone and surfaced for review. Stored with the decisions so that exporting
    * a resolution carries the rule that produced it, not just its outcomes.
+   *
+   * Null means the reader never chose one, so the current default applies. Recording the
+   * absence rather than a copy of the default matters: a threshold nobody picked is stale
+   * the moment the default improves, and it lives in browser storage where it would
+   * outlive several such improvements unnoticed.
    */
-  autoMergeThreshold: number
+  autoMergeThreshold: number | null
   decisions: IdentityDecision[]
 }
 
 /**
- * Two independent signals have to agree to clear this. The analyzer scores a shared
- * normalized name at 0.72 and a shared non-generic email handle at 0.82, and promotes a
- * pair carrying both to 0.92 — so this is the lowest bar that no single signal reaches on
- * its own. A shared name alone is common enough in a large history to be weak evidence,
- * which is exactly the case that should still reach a human.
+ * An identical full name merges on its own; a lone given name never reaches this bar,
+ * because the analyzer scores a single-token name below its emission floor.
+ *
+ * Measured across fourteen surveyed repositories: identical full names are rare, covering
+ * 5 to 95 pairs in histories carrying 137 to 1,012 identities. Sorting the pairs whose
+ * only evidence is the name by how common that name is — the collision cases, if there are
+ * any — and inspecting the worst fifteen across cal.com, Flask, and requests found fifteen
+ * people with two addresses and no genuine collision. "Matt Cooper" at microsoft.com and
+ * xbox.com is one person; so is "Ian Stapleton Cordasco" across four addresses.
+ *
+ * The residual risk is a repository where two people genuinely share a full name, which
+ * this would merge silently. That is survivable: the merge is a projection over untouched
+ * Git identities, it is visible in the reviewed list with its evidence, and splitting it is
+ * one click. Fourteen certain merges left waiting is the larger cost.
  */
-export const DEFAULT_AUTO_MERGE_THRESHOLD = 0.92
+export const DEFAULT_AUTO_MERGE_THRESHOLD = 0.86
 
 export interface ContributorProfile extends Contributor {
   identityIds: string[]
@@ -195,12 +209,12 @@ function buildProfile(
 
 export function emptyIdentityDecisions(
   repository: string,
-  autoMergeThreshold: number = DEFAULT_AUTO_MERGE_THRESHOLD,
+  autoMergeThreshold: number | null = null,
 ): IdentityDecisionsDocument {
   return {
     schemaVersion: '0.2.0',
     repository,
-    autoMergeThreshold: clampThreshold(autoMergeThreshold),
+    autoMergeThreshold: autoMergeThreshold === null ? null : clampThreshold(autoMergeThreshold),
     decisions: [],
   }
 }
@@ -210,8 +224,8 @@ export function emptyIdentityDecisions(
  * matcher declined to propose. The ceiling of 1 means "never": a candidate tops out at
  * 0.97, and a mailmap-confirmed pair is merged by the repository rather than by score.
  */
-export function clampThreshold(value: number) {
-  if (!Number.isFinite(value)) return DEFAULT_AUTO_MERGE_THRESHOLD
+export function clampThreshold(value: number | null | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_AUTO_MERGE_THRESHOLD
   return Math.min(1, Math.max(0.7, value))
 }
 
@@ -266,7 +280,7 @@ export function parseIdentityDecisions(
     autoMergeThreshold:
       typeof candidate.autoMergeThreshold === 'number'
         ? clampThreshold(candidate.autoMergeThreshold)
-        : DEFAULT_AUTO_MERGE_THRESHOLD,
+        : null,
     decisions,
   }
 }
