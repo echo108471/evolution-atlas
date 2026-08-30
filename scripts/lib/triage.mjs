@@ -14,6 +14,12 @@
  *                convention the author may not follow, and a wrong guess here silently
  *                removes a commit from the entire atlas.
  *
+ * The classes here are deliberately only the ones a path list can prove. An
+ * open-vocabulary pass over 247 pilot commits, shown subjects and paths and offered no
+ * taxonomy, reported itself uncertain on 46% of them - so a richer taxonomy is not
+ * something this stage can support on the evidence it has. Naming what a change is
+ * belongs at tier 1, where the diff is visible.
+ *
  * The distinction is not decoration. Structural findings can be trusted to skip a
  * commit; pattern findings are held to a higher bar (see `classify`) precisely because
  * a commit dropped at tier 0 is never seen again.
@@ -29,6 +35,23 @@ const LOCKFILE = /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lock
 
 /** Build output and vendored code: present in the tree, not written by hand. */
 const GENERATED = /(^|\/)(dist|build|out|vendor|node_modules|\.next|coverage|__snapshots__)(\/|$)|\.(min\.js|min\.css|map|snap)$/i
+
+/**
+ * Datasets rather than source. A regenerated scrape is not a capability, however many
+ * lines it changes. `.json` counts only inside a data directory, because `.json` is also
+ * how half the ecosystem writes configuration.
+ */
+const DATA_PATH = /\.(csv|tsv|parquet|ndjson|jsonl|sql|dump|sqlite3?|db|xlsx?)$/i
+const DATA_DIRECTORY = /(^|\/)(data|datasets?|fixtures?|seeds?|scraped|dumps?)(\/|$)/i
+
+/** Binary and media assets: a logo swap changes the product without changing what it does. */
+const ASSET_PATH = /\.(png|jpe?g|gif|svg|webp|ico|avif|mp4|webm|mp3|wav|woff2?|ttf|eot|otf|pdf)$/i
+
+/** Test files. Real work, but a different kind of work from the thing under test. */
+const TEST_PATH = /(^|\/)(tests?|__tests__|spec|specs|e2e|cypress|playwright)(\/|$)|\.(test|spec)\.[\w]+$|_test\.[\w]+$|(^|\/)test_[^/]+$/i
+
+/** Deployment, orchestration, and observability configuration. */
+const INFRA_PATH = /(^|\/)(deploy|deployment|infra|infrastructure|terraform|k8s|kubernetes|helm|charts|ansible|grafana|prometheus)(\/|$)|(^|\/)(dockerfile|docker-compose[\w.-]*\.ya?ml|\.dockerignore|procfile|fly\.toml|vercel\.json|netlify\.toml|railway\.json)$/i
 
 /** Formatting, linting, and pipeline configuration. */
 const CHORE_PATH = /(^|\/)(\.github\/workflows|\.circleci|\.husky|\.vscode|\.idea)(\/|$)|(^|\/)(\.eslintrc|\.prettierrc|\.editorconfig|\.gitignore|\.gitattributes|\.npmrc|\.nvmrc|\.dockerignore)/i
@@ -82,6 +105,30 @@ export function classify(episode) {
   if (matchesEvery(changes, LOCKFILE)) {
     add('structural', 'every path is a dependency manifest or lockfile')
     return { class: 'dependencies', substantive: false, signals }
+  }
+
+  if (every(changes, (change) => pathsOf(change).every((path) => DATA_PATH.test(path) || DATA_DIRECTORY.test(path)))) {
+    add('structural', 'every path is a dataset rather than source')
+    return { class: 'data', substantive: false, signals }
+  }
+
+  if (matchesEvery(changes, ASSET_PATH)) {
+    add('structural', 'every path is a binary or media asset')
+    return { class: 'assets', substantive: false, signals }
+  }
+
+  // Kept, not filtered. Tests are authored work and the lifecycle vocabulary has a stage
+  // for them; the class exists so a run can report how much of a history is test work.
+  if (matchesEvery(changes, TEST_PATH)) {
+    add('structural', 'every path is a test file')
+    return { class: 'tests', substantive: true, signals }
+  }
+
+  // Also kept. A Grafana dashboard or a Redis service is a capability the product gained,
+  // even though nothing under `src/` changed.
+  if (matchesEvery(changes, INFRA_PATH)) {
+    add('structural', 'every path is deployment or observability configuration')
+    return { class: 'infrastructure', substantive: true, signals }
   }
 
   if (matchesEvery(changes, CHORE_PATH)) {

@@ -289,3 +289,35 @@ test('a timed-out request is retryable, not a permanently dropped commit', async
   assert.equal(error.status, 408)
   assert.equal(isRetryable(error), true)
 })
+
+test('datasets and media are filtered; tests and infrastructure are kept', () => {
+  // An open-vocabulary pass over 247 pilot commits produced labels for datasets, media,
+  // tests, and deployment work that tier 0 was calling ordinary source. Only the first
+  // two are noise: a regenerated scrape is not a capability, but a Grafana dashboard is
+  // something the product gained.
+  assert.equal(classify(episode(19, { changes: [change('data/reviews.csv')] })).class, 'data')
+  assert.equal(classify(episode(20, { changes: [change('scraped/professors.json')] })).class, 'data')
+  assert.equal(classify(episode(21, { changes: [change('web/logo.svg')] })).class, 'assets')
+  assert.equal(classify(episode(22, { changes: [change('data/x.csv')] })).substantive, false)
+
+  const tests = classify(episode(23, { changes: [change('src/parser.test.ts')] }))
+  assert.equal(tests.class, 'tests')
+  assert.equal(tests.substantive, true)
+
+  const infra = classify(episode(24, { changes: [change('deploy/grafana/dashboard.json')] }))
+  assert.equal(infra.class, 'infrastructure')
+  assert.equal(infra.substantive, true)
+  assert.equal(classify(episode(25, { changes: [change('Dockerfile')] })).class, 'infrastructure')
+})
+
+test('a bare .json outside a data directory is not a dataset', () => {
+  // `.json` is also how half the ecosystem writes configuration, so the extension alone
+  // cannot carry the classification.
+  assert.notEqual(classify(episode(26, { changes: [change('src/config.json')] })).class, 'data')
+})
+
+test('a commit mixing a dataset with source is source', () => {
+  const result = classify(episode(27, { changes: [change('data/x.csv'), change('src/loader.ts')] }))
+  assert.equal(result.class, 'code')
+  assert.equal(result.substantive, true)
+})
