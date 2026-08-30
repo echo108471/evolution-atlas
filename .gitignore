@@ -16,3 +16,5 @@ coverage/
 # Gallery datasets and repository cache are build artifacts.
 /public/gallery/
 /.gallery-cache/
+/public/readings*.json
+*.cache.jsonl
