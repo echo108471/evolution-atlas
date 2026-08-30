@@ -19,8 +19,9 @@ observed atlas ─> tier 0 deterministic filter ─> tier 1 volume read ─┬�
 ```
 
 **Tier 0** (`scripts/lib/triage.mjs`) is deterministic, needs no key, and costs nothing.
-It removed 34.0% of the pilot history: merges carrying no first-parent diff, documentation
-commits, lockfile bumps, generated output, and tooling configuration.
+It removes 35.3% of the pilot history: merges with nothing of their own, documentation,
+lockfile bumps, generated output, tooling configuration, regenerated datasets, and media
+assets.
 
 Every classification records a basis, and the distinction is load-bearing because a
 commit dropped at tier 0 is never seen again:
@@ -60,6 +61,84 @@ self-reported confidence is known to be unreliable here — one interpreted repo
 returned three distinct confidence values, none below 0.7 — and agreement between two
 models that never saw each other's answer is a better estimate of whether a reading can
 be trusted than either model's opinion of itself.
+
+## The unit is the first-parent chain, not the commit
+
+`git diff-tree --first-parent` emits nothing at all for a merge commit. Every merge in
+every generated atlas therefore recorded zero changes and no code area — 691 of the
+pilot's 2,693 commits — while `analysis.mergeDiffStrategy` claimed first-parent handling
+was in effect. The flag that does what that name promises is
+`--diff-merges=first-parent`. Adding `-m` is not the fix: it emits one section per parent,
+and with `--no-commit-id` suppressing the separators the second parent's diff arrives
+indistinguishable from the first's.
+
+With merges carrying their own diff, the analysis unit has to change too, because a merge
+and the branch commits behind it now describe the same changes. The first-parent chain is
+the natural unit: it is the history of the branch itself, and commits off it are states
+main never had.
+
+```
+                        commits   first-parent units   reduction
+course-recommender        2,693          739             3.6x     (469 PRs + 270 direct)
+zod                       3,094        2,138             1.4x     (143 PRs + 1,995 direct)
+```
+
+The gain is workflow-dependent. zod squash-merges, so each pull request is already one
+commit on main and first-parent walking finds little to collapse; course-recommender
+merges branches, so three quarters of its history is intermediate. First-parent
+normalizes both to one unit per landed change. Combined with tier 0 the pilot needs about
+**638 requests against 1,777**.
+
+Two supporting measurements: 64.5% of the commits the chain collapses touch a single file,
+median one — the "wip" and "address review" increments. And a pull request's net diff is
+smaller than the sum of its commits, because intra-PR churn cancels: a line added and then
+revised in review lands once.
+
+The observed atlas still covers every commit. Only the analysis unit changes, and
+constituent commits remain available as evidence, so the viewer and epoch detection are
+unaffected. `--all-commits` opts out.
+
+## What kinds of commit exist
+
+Tier 0's classes were written from inspection, so they were checked against an
+open-vocabulary pass: 247 pilot commits, each shown to a model with its subject and paths
+and asked to name the kind of work, with no taxonomy offered and no mention of the classes
+already in use. Showing it those classes would have measured agreement with them.
+
+It returned **173 distinct labels for 247 commits** — mostly commit-specific descriptions
+rather than categories, the same failure to converge on shared wording that two models
+show when naming capabilities. The signal is in what recurred, cross-tabulated against
+what tier 0 decided for the same commits:
+
+```
+theme            count   of those, tier 0 called it "code"
+formatting          14        13
+content             14        12
+data                14        14
+infrastructure       7         7
+tests                5         5
+security             2         2
+```
+
+Four became path-provable classes. **Datasets and media assets are filtered** — a
+regenerated scrape or a swapped logo is not a capability however many lines it changes.
+**Tests and infrastructure are kept and classified**, because a Grafana dashboard is
+something the product gained even though nothing under `src/` changed.
+
+Three findings were deliberately not turned into classes:
+
+- **Formatting** is provable from a diff, not from a path list. `git diff -w --numstat`
+  against the plain counts would identify a whitespace-only commit exactly, at one extra
+  git call. Not built.
+- **Security** should raise a commit's priority, not lower it. It is the wrong shape for a
+  filter.
+- **Content** splits. Media is filtered; copy — an about page, a sitemap — is product work
+  and stays.
+
+The most useful result is the one that argues against doing more here. The pass reported
+itself **uncertain on 46% of commits**. Subject and path evidence cannot support a richer
+taxonomy than the one tier 0 now has, so naming what a change is belongs at tier 1, where
+the diff is visible. Tier 0's job is removing the provably worthless, not classifying.
 
 ## Situating context is derived, not carried
 
@@ -118,9 +197,9 @@ large and documentation-heavy — and the pilot repository's working tree is out
 workspace access policy, so the numbers below have not been reproduced on it.
 
 ```
-tier 0   filtered 34.0% of the pilot history (course-recommender, 2,693 commits)
-         merge 682   docs 128   chore 57   dependencies 38   empty 9   release 2
-         merge + empty = 691, exactly the count of commits with no code area
+tier 0   filtered 35.3% of the pilot history (course-recommender, 2,693 commits)
+         merge 682  docs 128  chore 55  dependencies 38  revert 25  data 23
+         infrastructure 18  assets 14  tests 12  empty 9  release 2
 
 coverage 19/19 substantive commits read, 95% of history
          against 10.1% (zod) and 12.6% (course-recommender) for whole-corpus interpretation

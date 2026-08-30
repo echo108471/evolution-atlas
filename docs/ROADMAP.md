@@ -152,6 +152,8 @@ stage actually produces. Three results change what the roadmap should prioritize
    simple script is unknown.
 5. Act on `depthCause`: a commit promoted because its diff was partial wants a larger
    tier-1 budget, not a more expensive model. Nine of eleven promotions were of that kind.
+   Detect whitespace-only commits with `git diff -w --numstat` against the plain counts —
+   the one commit class an open-vocabulary pass found that paths alone cannot prove.
 6. Capture commit bodies in the analyzer — still the cheapest unexploited evidence in the
    corpus, and now read per commit where a body would actually be seen.
 
