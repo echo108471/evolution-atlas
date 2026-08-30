@@ -7,11 +7,15 @@ import {
   buildBoundaryIntervals,
   buildEpochs,
   buildFocusSignals,
+  buildPeriodLevels,
   clusterProposals,
   detectFocusPeaks,
   EPOCH_METHOD_PREFIX,
+  levelName,
+  planHierarchy,
 } from './lib/epochs.mjs'
 import { API_KEY_ENV, DEFAULT_MODEL, proposePhaseBoundaries } from './lib/phase-model.mjs'
+import { labelPeriodLevels } from './lib/period-labels.mjs'
 
 function usage() {
   return `Usage: npm run epochs -- [options]
@@ -31,10 +35,17 @@ Options:
   --window <n>           Commits per request window (default: 200)
   --stride <n>           Commits between window starts (default: 100)
   --peaks <n>            Focus peaks to retain per detector (default: 14)
+  --depth <n>            Force a hierarchy depth instead of deriving one
+  --no-labels            Skip naming the periods (no extra model requests)
   --proposals <path>     Reuse saved model proposals instead of calling the model
   --save-proposals <p>   Write raw model proposals here for later reuse
   --compact              Emit compact JSON instead of indented JSON
   --help                 Show this help
+
+Depth is derived from the history rather than fixed. A repository small enough to
+analyze whole is left unsegmented; one whose period summaries fit a single request
+gets epochs; only a history with too many periods to describe together gets eras
+above them. Depth is capped at 3 because each level of summarizing is lossy.
 
 Requires ${API_KEY_ENV} unless --proposals supplies an earlier run's output.
 Expect roughly 40-180 seconds per window: the model reasons at length over each slice.
@@ -49,12 +60,14 @@ function parseArguments(argv) {
     window: 200,
     stride: 100,
     peaks: 14,
+    depth: null,
+    labels: true,
     proposalsPath: null,
     saveProposalsPath: null,
     pretty: true,
   }
 
-  const numeric = new Set(['--window', '--stride', '--peaks'])
+  const numeric = new Set(['--window', '--stride', '--peaks', '--depth'])
   const paths = {
     '--in': 'inputPath',
     '--out': 'outputPath',
@@ -67,6 +80,10 @@ function parseArguments(argv) {
     if (argument === '--help') return { ...options, help: true }
     if (argument === '--compact') {
       options.pretty = false
+      continue
+    }
+    if (argument === '--no-labels') {
+      options.labels = false
       continue
     }
     const value = argv[++index]
@@ -92,21 +109,26 @@ function parseArguments(argv) {
 }
 
 function summarize(document, stream) {
-  const { boundaries, epochs, unpairedFocusPeaks } = document
+  const { boundaries, levels, unpairedFocusPeaks, hierarchy } = document
   const corroborated = boundaries.filter((boundary) => boundary.corroborated).length
 
-  stream.write(`\n${boundaries.length} candidate boundaries, ${epochs.length} epochs\n`)
+  stream.write(`\n${hierarchy.rationale}\n`)
+  stream.write(`\n${boundaries.length} candidate boundaries\n`)
   stream.write(`  corroborated by a focus shift : ${corroborated}/${boundaries.length}\n`)
   stream.write(`  proposal only                 : ${boundaries.length - corroborated}\n`)
-  stream.write(`  focus peaks with no proposal  : ${unpairedFocusPeaks.length}\n\n`)
+  stream.write(`  focus peaks with no proposal  : ${unpairedFocusPeaks.length}\n`)
 
-  stream.write('  span  date        conf  votes  commits  epoch\n')
-  for (const epoch of epochs) {
-    stream.write(
-      `  ${String(epoch.startIndex).padStart(5)}-${String(epoch.endIndex).padEnd(5)} ` +
-        `${epoch.firstAuthoredAt.slice(0, 10)} -> ${epoch.lastAuthoredAt.slice(0, 10)} ` +
-        `${String(epoch.commitCount).padStart(5)} commits\n`,
-    )
+  for (const [level, periods] of levels.entries()) {
+    const incoherent = periods.filter((period) => period.coherent === false).length
+    stream.write(`\n${periods.length} ${levelName(level)}(s)`)
+    stream.write(incoherent > 0 ? `, ${incoherent} the model could not name coherently\n` : '\n')
+    for (const period of periods) {
+      const span = `${period.firstAuthoredAt.slice(0, 10)}..${period.lastAuthoredAt.slice(0, 10)}`
+      const name = period.label ?? '(unnamed)'
+      stream.write(
+        `  ${String(period.commitCount).padStart(5)}c  ${span}  ${period.coherent === false ? '~' : ' '}${name}\n`,
+      )
+    }
   }
 }
 
@@ -178,17 +200,46 @@ try {
   ]
   const clusters = clusterProposals(proposals)
   const { boundaries, unpairedFocusPeaks } = buildBoundaryIntervals(clusters, peaks, dataset.episodes)
-  const epochs = buildEpochs(boundaries, dataset.episodes)
+  const epochs = buildEpochs(boundaries, dataset.episodes, { focusRows: signals })
+
+  const derived = planHierarchy(dataset.episodes.length)
+  const hierarchy = options.depth === null
+    ? derived
+    : { ...derived, depth: options.depth, rationale: `Depth ${options.depth} was requested explicitly. Derived depth was ${derived.depth}: ${derived.rationale}` }
+
+  let levels = hierarchy.depth === 0 ? [epochs] : buildPeriodLevels(epochs, boundaries, hierarchy)
+  let labelReport = null
+
+  if (options.labels) {
+    const apiKey = process.env[API_KEY_ENV]
+    if (!apiKey) throw new Error(`${API_KEY_ENV} is not set (pass --no-labels to skip naming)`)
+    const total = levels.reduce((sum, periods) => sum + periods.length, 0)
+    process.stderr.write(`Naming ${total} period(s) across ${levels.length} level(s)\n`)
+    const result = await labelPeriodLevels(dataset, levels, {
+      model: options.model,
+      apiKey,
+      onProgress: ({ level, period, error }) =>
+        process.stderr.write(
+          error
+            ? `  ${levelName(level)} ${period.order}: FAILED ${error}\n`
+            : `  ${levelName(level)} ${period.order}: ${period.label ?? '(unnamed)'}\n`,
+        ),
+    })
+    levels = result.levels
+    labelReport = { method: result.method, failures: result.failures.length, usage: result.usage }
+  }
 
   const document = {
-    schemaVersion: '0.1.0',
+    schemaVersion: '0.2.0',
     repository: dataset.repository.name,
     headSha: dataset.repository.headSha,
     method: `${EPOCH_METHOD_PREFIX}:openrouter:${modelReport.model}`,
     commitCount: dataset.episodes.length,
     model: modelReport,
+    labels: labelReport,
+    hierarchy: { depth: hierarchy.depth, levelNames: levels.map((_, level) => levelName(level)), rationale: hierarchy.rationale },
     boundaries,
-    epochs,
+    levels,
     unpairedFocusPeaks,
   }
 
@@ -197,7 +248,7 @@ try {
     const outputPath = resolve(options.outputPath)
     mkdirSync(dirname(outputPath), { recursive: true })
     writeFileSync(outputPath, serialized, 'utf8')
-    process.stderr.write(`Wrote ${boundaries.length} boundaries and ${epochs.length} epochs to ${outputPath}\n`)
+    process.stderr.write(`Wrote ${boundaries.length} boundaries and ${levels.reduce((sum, periods) => sum + periods.length, 0)} period(s) to ${outputPath}\n`)
   } else {
     process.stdout.write(serialized)
   }

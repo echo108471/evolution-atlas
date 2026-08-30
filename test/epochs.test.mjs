@@ -5,9 +5,14 @@ import {
   buildBoundaryIntervals,
   buildEpochs,
   buildFocusSignals,
+  buildPeriodLevels,
   clusterProposals,
   detectFocusPeaks,
+  groupPeriods,
+  levelName,
+  planHierarchy,
 } from '../scripts/lib/epochs.mjs'
+import { labelPeriodLevels, sampleCommits } from '../scripts/lib/period-labels.mjs'
 import {
   extractJson,
   parseWindowResponse,
@@ -37,6 +42,9 @@ function episode(index, { prefix = 'frontend', subject = `work on ${prefix}` } =
     interpretationStatus: 'observed',
   }
 }
+
+/** Size capping is exercised on its own; other tests opt out so cuts stay where placed. */
+const UNCAPPED = { maxCommits: Number.POSITIVE_INFINITY, maxDays: Number.POSITIVE_INFINITY }
 
 /** Two halves that touch disjoint paths and use disjoint vocabulary. */
 function splitHistory(size = 200) {
@@ -182,10 +190,7 @@ test('focus peaks that no proposal reaches are reported rather than discarded', 
 
 test('epochs run between boundary intervals, leaving the ambiguous commits in neither', () => {
   const episodes = splitHistory(400)
-  const epochs = buildEpochs(
-    [{ id: 'epoch-boundary:x', startIndex: 180, endIndex: 200 }],
-    episodes,
-  )
+  const epochs = buildEpochs([{ id: 'epoch-boundary:x', startIndex: 180, endIndex: 200 }], episodes, UNCAPPED)
 
   assert.equal(epochs.length, 2)
   assert.deepEqual([epochs[0].startIndex, epochs[0].endIndex], [0, 180])
@@ -203,7 +208,7 @@ test('a boundary too close to the previous cut does not create a runt epoch', ()
       { id: 'epoch-boundary:b', startIndex: 200, endIndex: 210 },
     ],
     episodes,
-    { minCommits: 40 },
+    { ...UNCAPPED, minCommits: 40 },
   )
 
   assert.equal(epochs.length, 2)
@@ -284,4 +289,239 @@ test('one failing window does not abandon the rest of the history', async () => 
   assert.equal(result.failures.length, 1)
   assert.equal(result.failures[0].message, 'HTTP 503')
   assert.ok(result.proposals.length >= 1, 'later windows still contribute')
+})
+
+test('a history small enough to analyze whole is left unsegmented', () => {
+  const plan = planHierarchy(300)
+
+  assert.equal(plan.depth, 0)
+  assert.deepEqual(plan.levels, [])
+  assert.match(plan.rationale, /single analysis pass/)
+})
+
+test('a mid-sized history gets epochs and nothing above them', () => {
+  const plan = planHierarchy(2693)
+
+  assert.equal(plan.depth, 1)
+  assert.ok(plan.levels[0] <= 30, 'one level only when its periods fit a single request')
+})
+
+test('a history with too many periods to describe together grows a level', () => {
+  const plan = planHierarchy(200000)
+
+  assert.ok(plan.depth >= 2, `expected grouping above epochs, got depth ${plan.depth}`)
+  assert.ok(plan.levels[plan.levels.length - 1] < plan.levels[0], 'each level must be coarser')
+})
+
+test('depth is capped so an early commit is never read through many summaries', () => {
+  const plan = planHierarchy(50_000_000, { maxDepth: 3 })
+
+  assert.equal(plan.depth, 3)
+  assert.match(plan.rationale, /capped/)
+})
+
+test('grouping cuts at the strongest boundaries rather than at even intervals', () => {
+  const episodes = splitHistory(900)
+  const boundaries = [
+    { id: 'b:weak', corroborated: false, confidence: 0.6 },
+    { id: 'b:strong', corroborated: true, confidence: 0.9 },
+    { id: 'b:mid', corroborated: false, confidence: 0.7 },
+  ]
+  const epochs = buildEpochs(
+    [
+      { id: 'b:weak', startIndex: 200, endIndex: 210 },
+      { id: 'b:strong', startIndex: 400, endIndex: 410 },
+      { id: 'b:mid', startIndex: 600, endIndex: 610 },
+    ],
+    episodes,
+    UNCAPPED,
+  )
+
+  const eras = groupPeriods(epochs, new Map(boundaries.map((b) => [b.id, b])), { maxPerGroup: 2, level: 1 })
+
+  assert.equal(eras.length, 2)
+  assert.equal(eras[0].closedBy, 'b:strong', 'the corroborated boundary is where the era ends')
+  assert.equal(eras[0].childIds.length + eras[1].childIds.length, epochs.length)
+})
+
+test('a grouped era spans its children and carries their ids', () => {
+  const episodes = splitHistory(600)
+  const epochs = buildEpochs([{ id: 'b:x', startIndex: 300, endIndex: 310 }], episodes, UNCAPPED)
+  const eras = groupPeriods(epochs, new Map([['b:x', { id: 'b:x', corroborated: true, confidence: 0.9 }]]), {
+    maxPerGroup: 30,
+    level: 1,
+  })
+
+  assert.equal(eras.length, 1)
+  assert.equal(eras[0].level, 1)
+  assert.equal(eras[0].startIndex, epochs[0].startIndex)
+  assert.equal(eras[0].endIndex, epochs[epochs.length - 1].endIndex)
+  assert.equal(eras[0].commitCount, epochs.reduce((sum, epoch) => sum + epoch.commitCount, 0))
+  assert.deepEqual(eras[0].childIds, epochs.map((epoch) => epoch.id))
+})
+
+test('an epoch reports its true authored span even when commits are not in date order', () => {
+  const episodes = splitHistory(200)
+  // A merged branch carries an author date earlier than commits already recorded.
+  episodes[150] = { ...episodes[150], authoredAt: '2024-01-01T00:00:00Z' }
+  episodes[160] = { ...episodes[160], authoredAt: '2027-12-31T00:00:00Z' }
+
+  const [epoch] = buildEpochs([], episodes, UNCAPPED)
+
+  assert.equal(epoch.firstAuthoredAt, '2024-01-01T00:00:00Z')
+  assert.equal(epoch.lastAuthoredAt, '2027-12-31T00:00:00Z')
+  assert.ok(epoch.firstAuthoredAt < epoch.lastAuthoredAt, 'a period cannot end before it begins')
+})
+
+test('level names run epoch, era, age and then stay legible', () => {
+  assert.equal(levelName(0), 'epoch')
+  assert.equal(levelName(1), 'era')
+  assert.equal(levelName(2), 'age')
+  assert.equal(levelName(7), 'level-7')
+})
+
+test('a long period is sampled across its whole span, not just its opening', () => {
+  const episodes = splitHistory(600)
+  const sampled = sampleCommits(episodes, 0, 600, 20)
+
+  assert.equal(sampled.length, 20)
+  assert.equal(sampled[0].commitSha, episodes[0].commitSha)
+  assert.ok(
+    Number(sampled[sampled.length - 1].commitSha.slice(1, 8)) > 500,
+    'the tail of the period must be represented',
+  )
+})
+
+test('a short period is sampled whole', () => {
+  const episodes = splitHistory(200)
+  assert.equal(sampleCommits(episodes, 10, 40, 60).length, 30)
+})
+
+test('labels flow upward: an era is named from its epochs, not from raw commits', async () => {
+  const episodes = splitHistory(600)
+  const dataset = { repository: { name: 'fixture' }, episodes }
+  const epochs = buildEpochs([{ id: 'b:x', startIndex: 300, endIndex: 310 }], episodes, UNCAPPED)
+  const eras = groupPeriods(epochs, new Map([['b:x', { id: 'b:x', corroborated: true, confidence: 0.9 }]]), {
+    maxPerGroup: 30,
+    level: 1,
+  })
+
+  const prompts = []
+  const result = await labelPeriodLevels(dataset, [epochs, eras], {
+    model: 'test-model',
+    apiKey: 'unused',
+    request: async (prompt) => {
+      prompts.push(prompt)
+      return {
+        label: { label: `named ${prompts.length}`, summary: 'summary', coherent: true, confidence: 0.8 },
+        usage: null,
+      }
+    },
+  })
+
+  assert.equal(result.levels[1][0].label, `named ${prompts.length}`)
+  assert.equal(result.levels[0][0].labelStatus, 'candidate')
+  const eraPrompt = prompts[prompts.length - 1]
+  assert.match(eraPrompt, /named 1/, 'the era prompt cites its epochs by their labels')
+  assert.doesNotMatch(eraPrompt, /frontend\/src\/file0\.ts/, 'the era prompt carries no raw commit paths')
+})
+
+test('a failed label leaves the period unnamed instead of abandoning the run', async () => {
+  const episodes = splitHistory(600)
+  const dataset = { repository: { name: 'fixture' }, episodes }
+  const epochs = buildEpochs([{ id: 'b:x', startIndex: 300, endIndex: 310 }], episodes, UNCAPPED)
+
+  let call = 0
+  const result = await labelPeriodLevels(dataset, [epochs], {
+    model: 'test-model',
+    apiKey: 'unused',
+    request: async () => {
+      call += 1
+      if (call === 1) throw new Error('HTTP 500')
+      return { label: { label: 'second', summary: 's', coherent: true, confidence: 0.7 }, usage: null }
+    },
+  })
+
+  assert.equal(result.failures.length, 1)
+  assert.equal(result.levels[0][0].label, null)
+  assert.equal(result.levels[0][0].labelStatus, 'failed')
+  assert.equal(result.levels[0][1].label, 'second')
+})
+
+test('a model that cannot find a common thread is recorded as incoherent, not forced', async () => {
+  const episodes = splitHistory(200)
+  const dataset = { repository: { name: 'fixture' }, episodes }
+  const epochs = buildEpochs([], episodes)
+
+  const result = await labelPeriodLevels(dataset, [epochs], {
+    model: 'test-model',
+    apiKey: 'unused',
+    request: async () => ({
+      label: { label: 'Mixed maintenance', summary: 'no common thread', coherent: false, confidence: 0.3 },
+      usage: null,
+    }),
+  })
+
+  assert.equal(result.levels[0][0].coherent, false)
+  assert.equal(result.levels[0][0].labelConfidence, 0.3)
+})
+
+test('building levels stops early when a grouping would not actually coarsen', () => {
+  const episodes = splitHistory(600)
+  const epochs = buildEpochs([{ id: 'b:x', startIndex: 300, endIndex: 310 }], episodes, UNCAPPED)
+  const levels = buildPeriodLevels(epochs, [{ id: 'b:x', corroborated: true, confidence: 0.9 }], { depth: 3 })
+
+  assert.equal(levels[0], epochs)
+  assert.ok(levels.length <= 3)
+  for (let level = 1; level < levels.length; level += 1) {
+    assert.ok(levels[level].length < levels[level - 1].length, 'each level must be strictly coarser')
+  }
+})
+
+test('a period too long to be one phase is split, and says the split was imposed', () => {
+  const episodes = splitHistory(800)
+  const epochs = buildEpochs([], episodes, { maxCommits: 250, maxDays: Number.POSITIVE_INFINITY })
+
+  assert.ok(epochs.length >= 4, `expected subdivision, got ${epochs.length}`)
+  assert.ok(epochs.every((epoch) => epoch.commitCount <= 250))
+  assert.equal(epochs[0].splitReason, 'size', 'an imposed cut is labeled, not passed off as evidence')
+  assert.equal(epochs[0].closedBy, null, 'an imposed cut cites no boundary')
+})
+
+test('a period splits on duration even when its commit count is small', () => {
+  // 204 commits across 277 days was a real pilot period the labeling model refused to name.
+  const episodes = Array.from({ length: 200 }, (_, index) => {
+    const base = episode(index)
+    const day = new Date(Date.UTC(2025, 0, 1 + index * 3)).toISOString()
+    return { ...base, authoredAt: day, committedAt: day }
+  })
+
+  const capped = buildEpochs([], episodes, { maxCommits: 500, maxDays: 120 })
+  const uncapped = buildEpochs([], episodes, UNCAPPED)
+
+  assert.equal(uncapped.length, 1)
+  assert.ok(capped.length > 1, 'a period spanning 600 days is not one phase')
+})
+
+test('subdivision cuts at the most divergent interior position when one exists', () => {
+  const episodes = splitHistory(600)
+  const rows = buildFocusSignals(episodes, { window: 40 })
+  const epochs = buildEpochs([], episodes, {
+    maxCommits: 400,
+    maxDays: Number.POSITIVE_INFINITY,
+    focusRows: rows,
+  })
+
+  assert.equal(epochs.length, 2)
+  assert.ok(
+    Math.abs(epochs[0].endIndex - 300) <= 40,
+    `expected the cut near the real shift at 300, got ${epochs[0].endIndex}`,
+  )
+})
+
+test('subdivision refuses to cut a period it cannot halve without making a runt', () => {
+  const episodes = splitHistory(70)
+  const epochs = buildEpochs([], episodes, { minCommits: 40, maxCommits: 10, maxDays: 1 })
+
+  assert.equal(epochs.length, 1, 'better one over-long period than two meaningless ones')
 })

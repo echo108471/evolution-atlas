@@ -8,12 +8,13 @@ import type { LifecycleStage } from './model'
  * touches the DOM.
  */
 
-export type AtlasSection = 'overview' | 'repository' | 'features' | 'people' | 'identity'
+export type AtlasSection = 'overview' | 'repository' | 'periods' | 'features' | 'people' | 'identity'
 export type EvidencePreset = 'conservative' | 'balanced' | 'all'
 
 export const ATLAS_SECTIONS: AtlasSection[] = [
   'overview',
   'repository',
+  'periods',
   'features',
   'people',
   'identity',

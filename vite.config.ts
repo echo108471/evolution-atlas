@@ -10,7 +10,9 @@ const GALLERY_MANIFEST = join(PUBLIC_DIR, 'gallery', 'manifest.json')
 
 /**
  * `public/` holds two unrelated things: the gallery a hosted site publishes, and whatever
- * local `atlas*.json` a maintainer generated from their own repository. Vite copies both
+ * local `atlas*.json` or `epochs*.json` a maintainer generated from their own repository.
+ * An epoch document quotes commit subjects and dates, so it leaks the same history the
+ * dataset does and is excluded on the same terms. Vite copies both
  * into the build, so deploying a gallery from a working tree that has been used locally
  * would also publish private histories — contributor names and emails included. Those
  * files are gitignored, which keeps them out of the repository but not out of `dist/`.
@@ -27,7 +29,7 @@ function excludeLocalDatasetsFromGalleryBuilds(): Plugin {
       if (!existsSync(GALLERY_MANIFEST)) return
 
       const removed = readdirSync(OUT_DIR)
-        .filter((entry) => /^atlas.*\.json$/.test(entry))
+        .filter((entry) => /^(atlas|epochs).*\.json$/.test(entry))
         .map((entry) => {
           rmSync(join(OUT_DIR, entry))
           return entry

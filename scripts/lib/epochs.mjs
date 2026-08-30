@@ -188,6 +188,18 @@ function dayGap(left, right) {
   return Math.round(Math.abs(new Date(left) - new Date(right)) / 86400000)
 }
 
+/** The true authored span of a range, which its endpoints do not give under topo order. */
+function authoredRange(episodes, startIndex, endIndex) {
+  let earliest = episodes[startIndex].authoredAt
+  let latest = earliest
+  for (let index = startIndex + 1; index < endIndex; index += 1) {
+    const authoredAt = episodes[index].authoredAt
+    if (authoredAt < earliest) earliest = authoredAt
+    if (authoredAt > latest) latest = authoredAt
+  }
+  return { earliest, latest }
+}
+
 /**
  * Pair each proposed boundary with the nearest focus peak and record the pair as an
  * interval. Neither reading is treated as authoritative about *when* the phase turned:
@@ -282,38 +294,217 @@ export function buildBoundaryIntervals(clusters, peaks, episodes, { reach = PAIR
 }
 
 /**
+ * How many levels of grouping a history needs, and why.
+ *
+ * Segmentation exists to make later analysis fit in a request, so the depth is decided
+ * by what has to fit — not by a taste for hierarchy. A history small enough to analyze
+ * whole needs no periods at all. A history whose period summaries still fit in one
+ * request needs one level. Only when there are too many periods to describe together
+ * does a coarser level earn its place.
+ *
+ * Depth is capped because every level of summarization is lossy and the losses compound:
+ * at depth 3 an early commit is understood through two intermediate summaries, which is
+ * how a system starts narrating things that are not true.
+ */
+export function planHierarchy(
+  commitCount,
+  { wholeHistoryCommits = 400, targetPeriodCommits = 150, maxPeriodsPerLevel = 30, maxDepth = 3 } = {},
+) {
+  if (commitCount <= wholeHistoryCommits) {
+    return {
+      depth: 0,
+      levels: [],
+      rationale: `${commitCount} commits fit in a single analysis pass; segmenting them would add structure without adding reach.`,
+    }
+  }
+
+  const levels = []
+  let count = Math.max(1, Math.ceil(commitCount / targetPeriodCommits))
+  while (levels.length < maxDepth) {
+    levels.push(count)
+    if (count <= maxPeriodsPerLevel) break
+    count = Math.ceil(count / maxPeriodsPerLevel)
+  }
+
+  const depth = levels.length
+  const capped = levels[depth - 1] > maxPeriodsPerLevel
+  return {
+    depth,
+    levels,
+    rationale: capped
+      ? `${commitCount} commits still leave ${levels[depth - 1]} periods at the coarsest level; depth is capped at ${maxDepth} because each further summary compounds loss.`
+      : `${commitCount} commits divide into about ${levels[0]} periods, and ${depth === 1 ? 'their summaries fit one request' : `grouping upward ${depth - 1} time(s) brings that to ${levels[depth - 1]}`}.`,
+  }
+}
+
+/** Level 0 is epochs, level 1 eras, level 2 ages; beyond that, numbered. */
+export const LEVEL_NAMES = ['epoch', 'era', 'age']
+
+export function levelName(level) {
+  return LEVEL_NAMES[level] ?? `level-${level}`
+}
+
+/**
+ * Group a level of periods into a coarser one by keeping only the strongest boundaries
+ * between them. A coarser cut should fall where the sharpest change already is, so
+ * corroborated boundaries outrank uncorroborated ones and confidence breaks ties.
+ */
+export function groupPeriods(periods, boundariesById, { maxPerGroup = 30, level = 1 } = {}) {
+  if (periods.length <= 1) return []
+
+  const joins = periods.slice(0, -1).map((period, index) => {
+    const boundary = boundariesById.get(period.closedBy) ?? null
+    return {
+      index,
+      strength: boundary ? (boundary.corroborated ? 1 : 0) + boundary.confidence : 0,
+      boundaryId: period.closedBy ?? null,
+    }
+  })
+
+  // Zero when the periods already fit: a level that does not actually coarsen anything
+  // is a level that only adds a lossy summary between the reader and the evidence.
+  const keepCount = Math.max(0, Math.ceil(periods.length / maxPerGroup) - 1)
+  const kept = new Set(
+    [...joins]
+      .sort((left, right) => right.strength - left.strength || left.index - right.index)
+      .slice(0, keepCount)
+      .map((join) => join.index),
+  )
+
+  const groups = []
+  let members = []
+  periods.forEach((period, index) => {
+    members.push(period)
+    if (kept.has(index) || index === periods.length - 1) {
+      groups.push({ members, closedBy: kept.has(index) ? joins[index]?.boundaryId ?? null : null })
+      members = []
+    }
+  })
+
+  return groups.map((group, order) => {
+    const first = group.members[0]
+    const last = group.members[group.members.length - 1]
+    return {
+      id: stableId(`${levelName(level)}`, `${level}:${order}:${first.firstCommitSha}`),
+      level,
+      order,
+      startIndex: first.startIndex,
+      endIndex: last.endIndex,
+      commitCount: group.members.reduce((sum, member) => sum + member.commitCount, 0),
+      firstCommitSha: first.firstCommitSha,
+      lastCommitSha: last.lastCommitSha,
+      firstAuthoredAt: group.members.reduce((earliest, member) => (member.firstAuthoredAt < earliest ? member.firstAuthoredAt : earliest), first.firstAuthoredAt),
+      lastAuthoredAt: group.members.reduce((latest, member) => (member.lastAuthoredAt > latest ? member.lastAuthoredAt : latest), last.lastAuthoredAt),
+      childIds: group.members.map((member) => member.id),
+      closedBy: group.closedBy,
+    }
+  })
+}
+
+/**
+ * Split a span that is too long to be one phase, at the most divergent position inside
+ * it, until every part is within `maxCommits`.
+ *
+ * A boundary pass finds the transitions it can see; it does not guarantee that what lies
+ * between them is one coherent stretch. Measured on the pilot, every period the labeling
+ * model refused to name as a single thing was one of the long ones — 261 commits over
+ * 277 days, 321 over 128 — while every period it named confidently ran 85 to 253 commits
+ * over 13 to 47 days. Left unsplit, those long spans are where a summary starts averaging
+ * several unrelated phases into one description.
+ *
+ * A size split is not evidence of anything and says so: it carries no `closedBy`
+ * boundary and is marked `splitReason: 'size'`, so a reader can tell a cut the passes
+ * found from a cut the code imposed.
+ */
+function subdivide(span, episodes, { minCommits, maxCommits, maxDays, focusRows }) {
+  const length = span.endIndex - span.startIndex
+  if (length < minCommits * 2) return [span]
+  // Duration is the better predictor of the two. On the pilot, every period the labeling
+  // model refused to name ran long in days, and some of them were well under the commit
+  // cap: 204 commits spread across 277 days is not one phase however few commits it holds.
+  const { earliest, latest } = authoredRange(episodes, span.startIndex, span.endIndex)
+  if (length <= maxCommits && dayGap(earliest, latest) <= maxDays) return [span]
+
+  const rows = focusRows?.filter(
+    (row) => row.index - span.startIndex >= minCommits && span.endIndex - row.index >= minCommits,
+  )
+  const best = rows?.length
+    ? rows.reduce((strongest, row) =>
+        Math.max(row.pathZ, row.languageZ) > Math.max(strongest.pathZ, strongest.languageZ) ? row : strongest,
+      )
+    : null
+  // With no usable signal inside the span, halving is the least-committed choice: it makes
+  // no claim about where the work changed, only that this much of it is not one phase.
+  const at = best ? best.index : span.startIndex + Math.floor(length / 2)
+
+  const options = { minCommits, maxCommits, maxDays, focusRows }
+  return [
+    ...subdivide({ startIndex: span.startIndex, endIndex: at, closedBy: null, splitReason: 'size' }, episodes, options),
+    ...subdivide({ startIndex: at, endIndex: span.endIndex, closedBy: span.closedBy, splitReason: span.splitReason ?? null }, episodes, options),
+  ]
+}
+
+/**
  * Cut the history at the retained boundaries. An epoch runs from the end of one
  * boundary interval to the start of the next, so the ambiguous commits inside an
  * interval belong to neither side and are reported as the transition itself.
  */
-export function buildEpochs(boundaries, episodes, { minCommits = 40 } = {}) {
+export function buildEpochs(
+  boundaries,
+  episodes,
+  { minCommits = 40, maxCommits = 250, maxDays = 120, focusRows = null } = {},
+) {
   const cuts = [...boundaries].sort((left, right) => left.startIndex - right.startIndex)
-  const epochs = []
+  const spans = []
   let cursor = 0
 
   for (const boundary of cuts) {
     if (boundary.startIndex - cursor < minCommits) continue
-    epochs.push({ startIndex: cursor, endIndex: boundary.startIndex, closedBy: boundary.id })
+    spans.push({ startIndex: cursor, endIndex: boundary.startIndex, closedBy: boundary.id })
     cursor = boundary.endIndex
   }
   if (episodes.length - cursor > 0) {
-    epochs.push({ startIndex: cursor, endIndex: episodes.length, closedBy: null })
+    spans.push({ startIndex: cursor, endIndex: episodes.length, closedBy: null })
   }
+
+  const epochs = spans.flatMap((span) => subdivide(span, episodes, { minCommits, maxCommits, maxDays, focusRows }))
 
   return epochs.map((epoch, order) => {
     const first = episodes[epoch.startIndex]
     const last = episodes[epoch.endIndex - 1]
+    // Commits are in topological order, which is not date order: a merged branch can
+    // carry an author date earlier than commits already recorded. Reading the span off
+    // the endpoints therefore produces epochs that appear to end before they begin.
+    const { earliest, latest } = authoredRange(episodes, epoch.startIndex, epoch.endIndex)
     return {
       id: stableId('epoch', `${order}:${first.commitSha}`),
+      level: 0,
       order,
       startIndex: epoch.startIndex,
       endIndex: epoch.endIndex,
       commitCount: epoch.endIndex - epoch.startIndex,
       firstCommitSha: first.commitSha,
       lastCommitSha: last.commitSha,
-      firstAuthoredAt: first.authoredAt,
-      lastAuthoredAt: last.authoredAt,
+      firstAuthoredAt: earliest,
+      lastAuthoredAt: latest,
+      childIds: [],
       closedBy: epoch.closedBy,
+      splitReason: epoch.splitReason ?? null,
     }
   })
+}
+
+/**
+ * Build every level the plan calls for, from epochs upward. Returns one array per level,
+ * so a depth-1 history yields `[epochs]` and a depth-3 one yields `[epochs, eras, ages]`.
+ */
+export function buildPeriodLevels(epochs, boundaries, plan, { maxPeriodsPerLevel = 30 } = {}) {
+  const boundariesById = new Map(boundaries.map((boundary) => [boundary.id, boundary]))
+  const levels = [epochs]
+  for (let level = 1; level < plan.depth; level += 1) {
+    const grouped = groupPeriods(levels[level - 1], boundariesById, { maxPerGroup: maxPeriodsPerLevel, level })
+    if (grouped.length === 0 || grouped.length === levels[level - 1].length) break
+    levels.push(grouped)
+  }
+  return levels
 }

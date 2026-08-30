@@ -4,6 +4,7 @@ import { ContributorTrail } from './ContributorTrail'
 import { FeatureExplorer } from './FeatureExplorer'
 import { GalleryIndex } from './GalleryIndex'
 import { IdentityReview } from './IdentityReview'
+import { PeriodBands } from './PeriodBands'
 import { RepositoryOverview } from './RepositoryOverview'
 import { RepositoryTimeMachine } from './RepositoryTimeMachine'
 import { LIFECYCLE_STAGES, normalizeSemanticEpisodes } from './lifecycle'
@@ -12,6 +13,7 @@ import {
   LOCAL_DATASET_URL,
   type GalleryManifest,
 } from './gallery'
+import { PERIODS_URL, matchesDataset, parsePeriodDocument, type PeriodDocument } from './periods'
 import { buildStructuralEpisodes } from './structure.mjs'
 import {
   applyIdentityDecision,
@@ -587,6 +589,7 @@ export default function App() {
   const [identityDecisions, setIdentityDecisions] =
     useState<IdentityDecisionsDocument | null>(null)
   const [manifest, setManifest] = useState<GalleryManifest | null>(null)
+  const [periodDocument, setPeriodDocument] = useState<PeriodDocument | null>(null)
   const [manifestSettled, setManifestSettled] = useState(false)
 
   // Every navigation coordinate lives in the query string. Selections that the user never
@@ -675,6 +678,33 @@ export default function App() {
 
     return () => controller.abort()
   }, [manifestSettled, datasetUrl])
+
+  // Periods are optional. The document is produced by a separate command that needs a
+  // model credential, so its absence is the normal case rather than a failure, and a
+  // document generated against a different head is ignored: its boundaries are commit
+  // indices and would silently point at the wrong commits.
+  useEffect(() => {
+    if (!dataset) return
+    const controller = new AbortController()
+    setPeriodDocument(null)
+    fetch(PERIODS_URL, { signal: controller.signal })
+      .then((response) => (response.ok ? (response.json() as Promise<unknown>) : null))
+      .then((loaded) => {
+        const parsed = loaded === null ? null : parsePeriodDocument(loaded)
+        if (parsed && matchesDataset(parsed, {
+          name: dataset.repository.name,
+          headSha: dataset.repository.headSha,
+          commitCount: dataset.episodes.length,
+        })) {
+          setPeriodDocument(parsed)
+        }
+      })
+      .catch(() => {
+        // No period document means the epoch pass has not been run here.
+      })
+
+    return () => controller.abort()
+  }, [dataset])
 
   const minConfidence = EVIDENCE_PRESETS[evidencePreset].threshold
   const confidenceFeatures = useMemo(() => {
@@ -1081,6 +1111,16 @@ export default function App() {
           >
             Repository
           </button>
+          {periodDocument && (
+            <button
+              type="button"
+              className={section === 'periods' ? 'is-active' : ''}
+              aria-current={section === 'periods' ? 'page' : undefined}
+              onClick={() => handleSectionChange('periods')}
+            >
+              Periods
+            </button>
+          )}
           <button
             type="button"
             className={section === 'features' ? 'is-active' : ''}
@@ -1161,6 +1201,8 @@ export default function App() {
             />
           </section>
         </>
+      ) : section === 'periods' && periodDocument ? (
+        <PeriodBands dataset={dataset} document={periodDocument} />
       ) : section === 'features' ? (
         <>
           <ScopeControls
