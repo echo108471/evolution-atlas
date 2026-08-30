@@ -59,6 +59,38 @@ permanent label for an entire feature. Feature discovery and lifecycle discovery
 are separate passes so maintenance evidence does not have to compete with
 capability discovery.
 
+### Period and period boundary
+
+A period is a stretch of history during which the work was about roughly the same thing.
+Periods are candidate interpretations. They are stacked in levels — epochs, then eras
+above them, then ages — and the number of levels is derived from the history rather than
+fixed, because segmentation exists to make later analysis fit in a request.
+
+A period boundary is where one period ends and the next begins, and it is recorded as an
+**interval rather than a point**. Two independent passes locate the same transition at
+different moments: a model reading commit messages sees the work change character, and a
+deterministic detector sees the distribution of touched paths or subject vocabulary
+shift. Measured on the pilot these sit a median of twenty-four commits and four days
+apart, in either order. Collapsing them to one commit would discard that, so the commits
+between the two readings belong to no period and are reported as the transition itself.
+
+Each boundary carries its signals with an explicit basis, the same way an identity match
+does. A `phase-proposal` signal is a `candidate`: a model's reading of the surrounding
+commits. A `path-focus-shift` or `language-focus-shift` signal is `observed`: a measured
+divergence between the commits before and after that position, in bits, standardized
+across the repository. A boundary with only a candidate signal is marked uncorroborated
+rather than hidden, and focus shifts that no proposal reached are reported rather than
+discarded — the disagreement between the two passes is evidence, not noise.
+
+Not every cut is a boundary. A period longer than the size limits is subdivided so that a
+later summary does not average several unrelated phases into one description. Those cuts
+carry no boundary and are marked `splitReason: "size"`, so a reader can always distinguish
+a transition the passes found from one the code imposed.
+
+A period label is a further candidate with its own method and confidence. A label the
+model declines to give — `coherent: false` — is retained as information about where the
+boundaries were drawn, not discarded as a failed request.
+
 ### Structural episode candidate
 
 A structural episode candidate describes an observable repository-layout

@@ -130,6 +130,33 @@ The generated `public/atlas.json` is intentionally ignored because repository
 history can contain contributor and project metadata. The application remains
 useful without it: it explains how to generate a local dataset.
 
+Epoch detection is a third optional stage, independent of interpretation. It divides the
+history into periods during which the work was about roughly the same thing, so later
+analysis can proceed period by period rather than needing the whole corpus in one request:
+
+```bash
+npm run epochs -- --in public/atlas.json --out public/epochs.json
+```
+
+It runs two passes that never see each other: a model reads raw commit windows and marks
+where the work changed character, and two deterministic detectors measure where the
+distribution of touched paths and of commit-subject vocabulary shifts. Because the two
+locate the same transition at slightly different moments, a boundary is stored as the
+interval spanning both readings, and the commits inside it belong to no period.
+
+How many levels the hierarchy has is derived from the history, not fixed. A repository
+small enough to analyze whole gets no periods at all; a mid-sized one gets epochs; only a
+history with too many periods to describe together gets eras above them.
+
+Periods are then named, which doubles as the cheapest check on the boundaries: a period
+the model can only call "Mixed feature work" is a cut in the wrong place. `--no-labels`
+skips naming, and `--proposals` reuses a saved run so the deterministic half can be
+changed without paying again.
+
+The viewer picks up `public/epochs.json` if it is present and adds a Periods tab. Like
+`public/atlas.json`, it is gitignored and excluded from gallery builds, because it quotes
+commit subjects and dates.
+
 Useful checks:
 
 ```bash
@@ -142,6 +169,8 @@ npm run build
 - [Concept](docs/CONCEPT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Evidence model](docs/EVIDENCE-MODEL.md)
+- [Epochs](docs/EPOCHS.md)
+- [Interpretation findings](docs/INTERPRETATION-FINDINGS.md)
 - [Course Recommender pilot](docs/COURSE-RECOMMENDER-PILOT.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Productization](docs/PRODUCT.md)

@@ -6,6 +6,7 @@ Start with a local evidence pipeline and an optional interpretation boundary:
 
 ```text
 Git repository -> Node analyzer -> observed atlas JSON -> optional two-pass interpretation -> React + D3 viewer
+                                          └-> optional epoch detection -> epoch document ---┘
 ```
 
 This boundary is intentionally boring. It makes analysis reproducible, lets the
@@ -62,6 +63,30 @@ per commit, not patch contents. This is sufficient for a first candidate pass,
 not confirmation. Deterministic analysis remains fully usable without a model,
 and model output never alters observed Git records.
 
+### Epoch detection
+
+Epoch detection is a second optional stage, independent of interpretation. It divides the
+history into periods during which the work was about roughly the same thing, so that later
+analysis can proceed period by period instead of needing the whole corpus in one request.
+
+It runs two passes that never see each other. A model reads raw commit windows and marks
+where the work changed character; two deterministic detectors measure where the
+distribution of touched paths, and of commit-subject vocabulary, shifts. Showing the model
+the detectors' output would let it only ratify or rank within a hypothesis space already
+fixed for it, which measures agreement rather than reading.
+
+Because the two passes locate the same transition at slightly different moments, a
+boundary is stored as the interval spanning both readings rather than as one commit, and
+the commits inside that interval belong to no period. Hierarchy depth is derived from the
+history rather than fixed: a small repository gets no periods at all, a mid-sized one gets
+epochs, and only a history with too many periods to describe together gets a level above
+them. Periods are named by a further pass, lowest level first, with each coarse period
+named from its children's labels rather than from raw commits.
+
+Its output is a separate document, not a field inside the atlas dataset. The atlas needs no
+credential and epoch detection does, so a viewer that opens a repository without one keeps
+working. See [Epochs](EPOCHS.md).
+
 ### Viewer
 
 The browser loads `public/atlas.json` and derives a repository overview, a
@@ -96,8 +121,11 @@ the repository into an unstable node-link hairball.
   comparison more than a universal relationship canvas. D3 remains useful for
   scales without owning the rendered DOM.
 - **No required model API:** observed and deterministic structural history works
-  without credentials. Optional feature and lifecycle interpretation remains a
-  reviewable layer rather than a prerequisite.
+  without credentials. Optional feature and lifecycle interpretation, and optional
+  epoch detection, remain reviewable layers rather than prerequisites.
+- **No epoch storage inside the dataset:** periods are a separate document keyed to a
+  head commit. Folding them into the atlas would make a credential-requiring stage part
+  of the credential-free contract.
 
 ## Expected pressure points
 
@@ -115,6 +143,15 @@ the repository into an unstable node-link hairball.
   repository adapter may add bounded patch evidence where subjects are weak.
 - SVG should remain comfortable for the pilot; Canvas or WebGL becomes relevant
   if visible node and edge counts make interaction sluggish.
+- Epoch boundaries are not reproducible. The proposal pass is a model request, so a
+  second run moves the boundaries, and nothing yet measures by how much. Saving proposals
+  pins a run; it does not make the pass stable.
+- Period size limits are calibrated on one repository. The 250-commit and 120-day caps
+  came from comparing periods a labeling model would name against ones it refused, and
+  both numbers should be re-derived on a second subject.
+- Commits are analyzed in topological order, which is not date order — 6.8% of adjacent
+  pairs in the pilot move backwards in time. Period spans are computed as true minima and
+  maxima for that reason, but index-based windows still interleave parallel branches.
 - Identity consolidation now preserves raw identities beneath reversible
   profiles and handles names, email-handle comparisons, GitHub noreply
   metadata, `.mailmap`, bot boundaries, and human decisions. Co-author trailers,
@@ -123,6 +160,7 @@ the repository into an unstable node-link hairball.
 
 ## Privacy posture
 
-Generated atlas files can contain repository history and contributor names.
-`public/atlas.json` is ignored by default. A sanitized, explicitly approved
+Generated atlas files can contain repository history and contributor names, and epoch
+documents quote commit subjects and dates. `public/atlas.json` and `public/epochs.json`
+are ignored by default, and gallery builds strip both from `dist/`. A sanitized, explicitly approved
 fixture should be used for screenshots, demos, or publication.

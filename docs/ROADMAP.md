@@ -71,6 +71,35 @@ traceability.
 Exit signal: the visualization communicates both repository evolution and
 uncertainty at a glance.
 
+## Milestone 3.5 — segmentation
+
+Status: first pass implemented and measured on the pilot; not yet validated on a second
+repository.
+
+Interpretation reads the whole history in one request, which caps the analyzable
+repository size and forces every compression in the corpus format. Segmentation replaces
+that ceiling with a rate.
+
+- Divide history into periods using two passes that never see each other: a model reading
+  raw commit windows, and deterministic path- and vocabulary-divergence detectors.
+  Implemented.
+- Record each boundary as the interval spanning both readings rather than one commit, and
+  leave the commits inside it in no period. Implemented.
+- Derive hierarchy depth from the history rather than fixing it, so a small repository
+  gets no periods and only a large one grows a level above epochs. Implemented.
+- Name every period, and treat a period the model declines to name as evidence about the
+  boundaries rather than a failed request. Implemented; it immediately found that nine of
+  fourteen first-pass epochs were incoherent, which produced the size limits.
+- Feed periods back into feature and lifecycle discovery so each period can afford more
+  evidence per commit. **Not started — this is the point of the exercise.**
+- Measure how much boundaries move between runs. The proposal pass is a model request and
+  is not reproducible; nothing yet quantifies the drift.
+- Re-derive the 250-commit and 120-day period limits on a second repository. Both came
+  from one subject.
+
+Exit signal: an interpretation run scoped to a period produces better-evidenced
+candidates than the same run over the whole history, measurably rather than apparently.
+
 ## Milestone 4 — generalization decision
 
 - Run the pipeline on one structurally different repository.
@@ -83,9 +112,30 @@ uncertainty at a glance.
 Exit signal: evidence from two repositories supports the next architecture
 choice—or supports stopping with a successful experiment.
 
+## Measurement debt
+
+[Interpretation findings](INTERPRETATION-FINDINGS.md) records what the interpretation
+stage actually produces. Three results change what the roadmap should prioritize:
+
+- **Coverage is about 10-13%.** Roughly nine in ten commits appear in no feature or
+  episode, on both measured repositories. The model cites exemplars where the product
+  promises a history.
+- **Feature counts saturate the `--max-features` flag.** zod returned 39 against a cap of
+  40, so the number of capabilities in a published atlas was set by a constant.
+- **Confidence is inert on one repository and informative on the other.** zod produced
+  three distinct values and never went below 0.7; the pilot produced twenty-two across
+  the full range. Contamination of a well-known repository is one live explanation.
+
 ## Immediate next steps
 
-1. Complete and verify Milestone 0 in this repository.
-2. Authorize and inspect `course-recommender` under the workspace boundary.
-3. Generate its raw dataset before writing feature heuristics.
-4. Review a small set of candidate trails together.
+1. Hand-grade the pilot's feature candidates into a gold set. Every later prompt or
+   architecture change is unmeasurable without one, and the pilot is the only subject
+   whose owner can check the answers.
+2. Write a deterministic baseline that clusters commits by shared paths and subject
+   tokens. Until that number exists, the interpretation stage's contribution over a
+   simple script is unknown.
+3. Report coverage from the interpretation run itself.
+4. Run interpretation scoped to a single period and compare it against the whole-history
+   run over the same commits.
+5. Capture commit bodies in the analyzer and pre-classify non-feature commits — the two
+   cheapest corpus improvements, neither needing a new architecture.
