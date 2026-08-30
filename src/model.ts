@@ -78,6 +78,8 @@ export interface ChangeEpisode {
   committedAt: string
   parentShas: string[]
   contributorIds: string[]
+  /** True when the commit lies on the first-parent chain from HEAD: what main itself saw. */
+  firstParent?: boolean
   codeAreaIds: string[]
   changes: FileChange[]
   interpretationStatus: 'observed'
@@ -140,7 +142,7 @@ export interface Relationship {
 }
 
 export interface AtlasDataset {
-  schemaVersion: '0.1.0'
+  schemaVersion: '0.2.0'
   analysis: {
     mode: 'observed-only' | 'interpreted'
     historyRange: string

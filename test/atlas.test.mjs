@@ -51,7 +51,7 @@ test('buildAtlas emits observed identities, episodes, areas, and evidence links'
 
     const dataset = buildAtlas(repositoryPath)
 
-    assert.equal(dataset.schemaVersion, '0.1.0')
+    assert.equal(dataset.schemaVersion, '0.2.0')
     assert.equal(dataset.analysis.mode, 'observed-only')
     assert.equal(dataset.repository.name, repositoryPath.split('/').at(-1))
     assert.equal(dataset.repository.ref, 'main')
@@ -201,5 +201,53 @@ test('buildAtlas keeps both sides of a root-folder reorganization', () => {
     )
   } finally {
     rmSync(repositoryPath, { recursive: true, force: true })
+  }
+})
+
+test('a merge records what it brought onto the branch, and the chain is marked', () => {
+  // `--first-parent` on diff-tree emits nothing at all for a merge, so every merge in a
+  // history recorded zero changes and no code area - 25.7% of the pilot. `-m` is not the
+  // fix: it emits a section per parent, so the second parent's diff arrives as if it were
+  // the first's.
+  const repository = mkdtempSync(join(tmpdir(), 'atlas-merge-'))
+  try {
+    git(repository, ['init', '--initial-branch=main', '.'])
+    git(repository, ['config', 'user.email', 'test@example.com'])
+    git(repository, ['config', 'user.name', 'Test'])
+
+    writeFileSync(join(repository, 'base.txt'), 'base\n')
+    git(repository, ['add', '-A'])
+    git(repository, ['commit', '-m', 'base'], '2025-01-01T00:00:00Z')
+
+    git(repository, ['checkout', '-b', 'feature'])
+    writeFileSync(join(repository, 'one.txt'), 'one\n')
+    git(repository, ['add', '-A'])
+    git(repository, ['commit', '-m', 'branch work'], '2025-01-02T00:00:00Z')
+
+    git(repository, ['checkout', 'main'])
+    writeFileSync(join(repository, 'side.txt'), 'side\n')
+    git(repository, ['add', '-A'])
+    git(repository, ['commit', '-m', 'main work'], '2025-01-03T00:00:00Z')
+
+    git(repository, ['merge', '--no-ff', 'feature', '-m', 'Merge pull request #1'], '2025-01-04T00:00:00Z')
+
+    const dataset = buildAtlas(repository)
+    const merge = dataset.episodes.find((episode) => episode.subject.startsWith('Merge'))
+    const branch = dataset.episodes.find((episode) => episode.subject === 'branch work')
+
+    // The merge carries the branch's contribution, and nothing from its second parent.
+    assert.deepEqual(
+      merge.changes.map((change) => change.path),
+      ['one.txt'],
+    )
+    assert.ok(merge.codeAreaIds.length > 0, 'a merge with a diff belongs to a code area')
+
+    // The chain is what main itself saw; the branch commit is a state main never had.
+    assert.equal(merge.firstParent, true)
+    assert.equal(branch.firstParent, false)
+    assert.equal(dataset.episodes.filter((episode) => episode.firstParent).length, 3)
+    assert.equal(dataset.analysis.mergeDiffStrategy, 'diff-merges-first-parent')
+  } finally {
+    rmSync(repository, { recursive: true, force: true })
   }
 })

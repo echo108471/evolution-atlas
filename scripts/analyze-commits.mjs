@@ -46,6 +46,9 @@ Options:
   --max-lines <n>        Tier 1 diff budget (default: ${DEFAULT_MAX_LINES})
   --tier2-max-lines <n>  Tier 2 diff budget (default: ${TIER2_MAX_LINES})
   --sample <n>           Analyze n commits spread evenly across history
+  --all-commits          Analyze every commit rather than the first-parent chain.
+                         Double-counts anything merged, since a merge now carries the
+                         same changes as the branch commits behind it.
   --no-tier2             Stop after tier 1
   --dry-run              Report triage and the planned request count; make no requests
   --compact              Emit compact JSON
@@ -67,6 +70,7 @@ function parseArguments(argv) {
     maxLines: DEFAULT_MAX_LINES,
     tier2MaxLines: TIER2_MAX_LINES,
     sample: null,
+    firstParent: true,
     tier2: true,
     dryRun: false,
     pretty: true,
@@ -92,6 +96,7 @@ function parseArguments(argv) {
     if (argument === '--help') return { ...options, help: true }
     if (argument === '--compact') { options.pretty = false; continue }
     if (argument === '--no-tier2') { options.tier2 = false; continue }
+    if (argument === '--all-commits') { options.firstParent = false; continue }
     if (argument === '--dry-run') { options.dryRun = true; continue }
     if (strings[argument]) {
       const value = argv[++index]
@@ -164,10 +169,28 @@ async function main() {
     report(`          ${className.padEnd(14)} ${count}`)
   }
 
+  // The first-parent chain is the history of the branch itself. Commits off it are states
+  // main never had, and in a merge-PR workflow they outnumber it three to one - 2,693
+  // commits collapse to 739 units on the pilot. It is also the only correct unit once
+  // merges carry their own diff: analyzing a merge and its branch commits together counts
+  // every merged change twice.
+  const hasChain = episodes.some((episode) => episode.firstParent !== undefined)
+  const useChain = options.firstParent && hasChain
+  if (options.firstParent && !hasChain) {
+    report('note: this atlas predates first-parent marking; analyzing every commit')
+  }
+
   let indices = []
   tier0.results.forEach((result, index) => {
-    if (result.substantive) indices.push(index)
+    if (!result.substantive) return
+    if (useChain && episodes[index].firstParent !== true) return
+    indices.push(index)
   })
+
+  if (useChain) {
+    const chainCommits = episodes.filter((episode) => episode.firstParent === true).length
+    report(`unit    first-parent chain: ${chainCommits} of ${episodes.length} commits (${((chainCommits / episodes.length) * 100).toFixed(1)}%), ${indices.length} substantive`)
+  }
   if (options.sample) indices = spread(indices, options.sample)
 
   const contextIndex = buildContextIndex(episodes)
@@ -299,7 +322,8 @@ async function main() {
     repository: dataset.repository.name,
     headSha: dataset.repository.headSha,
     commitCount: episodes.length,
-    method: `commit-readings/tier1=${options.tier1Model}/tier2=${options.tier2Model}`,
+    method: `commit-readings/${useChain ? 'first-parent' : 'all-commits'}/tier1=${options.tier1Model}/tier2=${options.tier2Model}`,
+    unit: useChain ? 'first-parent' : 'all-commits',
     triage: { counts: tier0.counts, substantive: tier0.substantiveCount, filtered: tier0.filteredCount },
     coverage: {
       analyzed: readings.length,

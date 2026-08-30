@@ -106,10 +106,16 @@ function readCommit(repositoryPath, sha) {
 
   const [commitSha, parents, authorName, authorEmail, authoredAt, committedAt] = fields
   const subject = fields.slice(6).join('\0').trimEnd()
+  // `--diff-merges=first-parent`, not `--first-parent`. The latter silently emits nothing
+  // at all for a merge commit, so every merge recorded zero changes and no code area -
+  // 25.7% of the pilot history - while `analysis.mergeDiffStrategy` claimed otherwise.
+  // Adding `-m` is not the fix either: it emits one section per parent, and with
+  // `--no-commit-id` suppressing the separators the second parent's diff is
+  // indistinguishable from the first's.
   const rawChanges = runGit(repositoryPath, [
     'diff-tree',
     '--root',
-    '--first-parent',
+    '--diff-merges=first-parent',
     '--no-commit-id',
     '--name-status',
     '-r',
@@ -144,6 +150,14 @@ export function buildAtlas(inputPath = '.') {
   ])
     .split('\n')
     .filter(Boolean)
+
+  // The first-parent chain is the history of the branch itself: what main looked like
+  // over time. Commits off it are states main never had, and in a merge-PR workflow they
+  // outnumber it three to one. Recorded per episode so an analysis pass can choose that
+  // unit without the observed layer losing anything.
+  const firstParentChain = new Set(
+    runGit(topLevel, ['log', '--first-parent', '--format=%H', 'HEAD']).split('\n').filter(Boolean),
+  )
 
   const contributors = new Map()
   const identityRecords = new Map()
@@ -240,6 +254,7 @@ export function buildAtlas(inputPath = '.') {
       committedAt: commit.committedAt,
       parentShas: commit.parentShas,
       contributorIds: [contributorId],
+      firstParent: firstParentChain.has(commit.sha),
       codeAreaIds: [...areaEvidence.keys()].sort(),
       changes: commit.changes,
       interpretationStatus: 'observed',
@@ -283,11 +298,11 @@ export function buildAtlas(inputPath = '.') {
   const structuralEpisodes = buildStructuralEpisodes(episodes)
 
   return {
-    schemaVersion: '0.1.0',
+    schemaVersion: '0.2.0',
     analysis: {
       mode: 'observed-only',
       historyRange: 'HEAD',
-      mergeDiffStrategy: 'first-parent',
+      mergeDiffStrategy: 'diff-merges-first-parent',
     },
     repository: {
       name: basename(topLevel),
