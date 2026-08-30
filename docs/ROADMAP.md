@@ -87,15 +87,24 @@ that ceiling with a rate.
   leave the commits inside it in no period. Implemented.
 - Derive hierarchy depth from the history rather than fixing it, so a small repository
   gets no periods and only a large one grows a level above epochs. Implemented.
-- Name every period, and treat a period the model declines to name as evidence about the
-  boundaries rather than a failed request. Implemented; it immediately found that nine of
-  fourteen first-pass epochs were incoherent, which produced the size limits.
+- Name every period, and treat a period the model declines to name as evidence rather
+  than a failed request. Implemented. It immediately reported that nine of fourteen
+  epochs were unnameable while every scored signal beside them looked healthy.
+- Establish whether unnameable periods indicate bad boundaries or a repository without
+  phases. **Partly answered, negatively.** Capping period size did not change the rate
+  (64% before and after), and imposed cuts were no more nameable than found ones, so the
+  pilot's middle history most likely has no single theme to find. A coherence rate looks
+  like a property to report rather than a number to optimize.
 - Feed periods back into feature and lifecycle discovery so each period can afford more
   evidence per commit. **Not started — this is the point of the exercise.**
 - Measure how much boundaries move between runs. The proposal pass is a model request and
   is not reproducible; nothing yet quantifies the drift.
 - Re-derive the 250-commit and 120-day period limits on a second repository. Both came
-  from one subject.
+  from one subject, and the coherence argument originally used to justify them did not
+  survive testing; they are kept only to bound the analysis unit.
+- Test whether feature discovery scoped to a *nameable* period beats whole-history
+  discovery by more than it does on an unnameable one. That comparison is what would
+  show segmentation paying for itself.
 
 Exit signal: an interpretation run scoped to a period produces better-evidenced
 candidates than the same run over the whole history, measurably rather than apparently.

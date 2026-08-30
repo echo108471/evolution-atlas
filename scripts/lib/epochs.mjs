@@ -405,12 +405,15 @@ export function groupPeriods(periods, boundariesById, { maxPerGroup = 30, level 
  * Split a span that is too long to be one phase, at the most divergent position inside
  * it, until every part is within `maxCommits`.
  *
- * A boundary pass finds the transitions it can see; it does not guarantee that what lies
- * between them is one coherent stretch. Measured on the pilot, every period the labeling
- * model refused to name as a single thing was one of the long ones — 261 commits over
- * 277 days, 321 over 128 — while every period it named confidently ran 85 to 253 commits
- * over 13 to 47 days. Left unsplit, those long spans are where a summary starts averaging
- * several unrelated phases into one description.
+ * The reason is that segmentation exists to bound the unit later analysis runs over. A
+ * 351-commit period spanning most of a year defeats that purpose whatever it contains.
+ *
+ * It is NOT a coherence fix, though it was built as one. Long periods did correlate with
+ * the labeling model refusing to name them, but splitting them changed nothing: the pilot
+ * went from 14 periods with 9 unnameable to 22 with 14, an identical 64%, and cuts the
+ * size rule imposed were no more nameable (5 of 8) than cuts the passes found (9 of 14).
+ * Much of that repository's history genuinely has no single theme, and "mixed feature
+ * work" is a correct description of it rather than a symptom of a badly placed boundary.
  *
  * A size split is not evidence of anything and says so: it carries no `closedBy`
  * boundary and is marked `splitReason: 'size'`, so a reader can tell a cut the passes

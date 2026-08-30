@@ -209,20 +209,22 @@ Levels are generic rather than hardcoded — `epoch`, `era`, `age`, then `level-
 available rather than at even intervals: a corroborated boundary outranks an
 uncorroborated one, and confidence breaks ties.
 
-## Period size is capped, and the cap is load-bearing
+## Period size is capped
 
 A boundary pass finds the transitions it can see. It does not promise that what lies
-between them is one coherent stretch, and on the pilot it frequently was not. Periods are
-therefore subdivided when they exceed **250 commits or 120 days**, cutting at the most
-divergent interior position, or halving when no usable signal exists inside.
+between them is small enough to be useful, and segmentation exists to bound the unit that
+later analysis runs over — a 351-commit period spanning most of a year defeats that
+purpose whatever it contains. Periods are therefore subdivided past **250 commits or 120
+days**, cutting at the most divergent interior position, or halving when no usable signal
+exists inside.
 
 A size split is not evidence of anything and says so: it carries no `closedBy` boundary
-and is marked `splitReason: "size"`. A reader can always tell a cut the passes found from
-a cut the code imposed.
+and is marked `splitReason: "size"`, so a reader can always tell a cut the passes found
+from a cut the code imposed.
 
-Duration turned out to be the better of the two triggers. One pilot period held 204
-commits — comfortably under the commit cap — spread across 277 days, and it was among the
-periods the labeling model refused to name.
+**This cap was built as a coherence fix and it is not one.** See the next section: the
+correlation it was based on did not survive being acted on. It is kept for the bounding
+reason above, which stands on its own.
 
 ## Naming, and why it is also the evaluation
 
@@ -236,18 +238,49 @@ The prompt allows the model to refuse:
 > If the commits have no common thread, say so: set coherent to false [...] A period that
 > cannot be named is useful information about where the boundaries were drawn.
 
-That refusal is the cheapest evaluation signal the system has. **On the first pilot run,
-nine of fourteen epochs came back incoherent** — labels like "Mixed demo feature work"
-repeated across four consecutive periods. Nothing else in the pipeline had reported a
-problem: the boundaries had confidence scores, vote counts, and corroborating focus
-shifts. The labels were what said the cuts were wrong.
+That refusal is the cheapest evaluation signal the system has, and on the pilot it
+immediately reported a problem nothing else did. **Nine of fourteen epochs came back
+incoherent** — "Mixed demo feature work" repeated across four consecutive periods — while
+every scored signal beside them looked healthy: confidence values, vote counts,
+corroborating focus shifts.
 
-Comparing the named periods against the refused ones is what produced the size cap above:
+### The size hypothesis, and why it was wrong
+
+The refused periods were the long ones and the named ones were not:
 
 ```
 named confidently   85–253 commits   13–47 days
 refused              up to 351       up to 277 days
 ```
+
+That is a real correlation, and acting on it produced the size cap above. Re-running the
+labeling against the newly subdivided periods falsified it:
+
+```
+                 periods   unnameable
+before the cap        14      9  (64%)
+after the cap         22     14  (64%)
+```
+
+Identical rate. And cuts the size rule imposed were no more nameable (5 of 8 refused) than
+cuts the two passes found (9 of 14). Splitting a long period produced two shorter periods
+that were still unnameable.
+
+The likelier explanation is that **much of this repository's history has no single theme.**
+It is a multi-contributor project with parallel workstreams, and "mixed frontend product
+work" is an accurate description of a stretch where several unrelated things were built at
+once — not a symptom of a misplaced boundary. Some histories have phases; this one has
+them at the start and end and much less in the middle.
+
+Span still separates the two groups imperfectly — every coherent period runs 47 days or
+fewer, while refused ones reach 138 — but short does not imply coherent: a 41-commit,
+13-day period was also refused.
+
+What this means for the roadmap is that **a coherence rate is a property to report, not a
+number to optimize.** A repository where most periods cannot be named is telling you
+something true about how it was built, and forcing nameable periods onto it would be
+manufacturing a story. The open question is whether feature discovery scoped to a
+*nameable* period beats whole-history discovery by more than it does on an unnameable one.
 
 ## Running it
 
