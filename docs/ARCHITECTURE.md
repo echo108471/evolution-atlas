@@ -6,8 +6,15 @@ Start with a local evidence pipeline and an optional interpretation boundary:
 
 ```text
 Git repository -> Node analyzer -> observed atlas JSON -> optional two-pass interpretation -> React + D3 viewer
-                                          └-> optional epoch detection -> epoch document ---┘
+                                          ├-> optional epoch detection    -> epoch document ---┤
+                                          └-> optional per-commit reading -> readings document ┘
 ```
+
+Per-commit reading ([Per-commit reading](PER-COMMIT.md)) is the successor to whole-corpus
+interpretation rather than a companion to it: it covers every substantive commit instead
+of the 10-12% the corpus pass cites, and its readings cache by commit SHA, so a repository
+that gains ten commits pays for ten requests. Epoch detection remains for the boundaries
+it finds, not as the unit that scopes later analysis.
 
 This boundary is intentionally boring. It makes analysis reproducible, lets the
 visual design evolve without rerunning Git, and keeps an inspectable artifact

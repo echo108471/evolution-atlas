@@ -137,14 +137,24 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-1. Hand-grade the pilot's feature candidates into a gold set. Every later prompt or
+1. **Group per-commit readings into capabilities.** Two models reading the same commit
+   blind agree on its lifecycle kind 82% of the time and share only 0.22 of their
+   capability wording, so aggregation cannot be done by string matching. This is the
+   load-bearing gap in [Per-commit reading](PER-COMMIT.md).
+2. Reproduce the per-commit measurements on a repository with typical commit sizes. Every
+   figure currently comes from a 20-commit repository whose commits are unusually large,
+   because the pilot's working tree is outside the workspace access policy.
+3. Hand-grade the pilot's feature candidates into a gold set. Every later prompt or
    architecture change is unmeasurable without one, and the pilot is the only subject
    whose owner can check the answers.
-2. Write a deterministic baseline that clusters commits by shared paths and subject
+4. Write a deterministic baseline that clusters commits by shared paths and subject
    tokens. Until that number exists, the interpretation stage's contribution over a
    simple script is unknown.
-3. Report coverage from the interpretation run itself.
-4. Run interpretation scoped to a single period and compare it against the whole-history
-   run over the same commits.
-5. Capture commit bodies in the analyzer and pre-classify non-feature commits — the two
-   cheapest corpus improvements, neither needing a new architecture.
+5. Act on `depthCause`: a commit promoted because its diff was partial wants a larger
+   tier-1 budget, not a more expensive model. Nine of eleven promotions were of that kind.
+6. Capture commit bodies in the analyzer — still the cheapest unexploited evidence in the
+   corpus, and now read per commit where a body would actually be seen.
+
+Superseded: scoping interpretation to a single period. Per-commit reading covers 100% of
+substantive commits for roughly what one segmentation pass cost at 12%, and a hard period
+boundary makes a capability built across it unfindable.

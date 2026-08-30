@@ -169,6 +169,7 @@ npm run build
 - [Concept](docs/CONCEPT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Evidence model](docs/EVIDENCE-MODEL.md)
+- [Per-commit reading](docs/PER-COMMIT.md)
 - [Epochs](docs/EPOCHS.md)
 - [Interpretation findings](docs/INTERPRETATION-FINDINGS.md)
 - [Course Recommender pilot](docs/COURSE-RECOMMENDER-PILOT.md)

@@ -161,9 +161,16 @@ can be kept current.
 
 ## What follows
 
-Epoch detection ([Epochs](EPOCHS.md)) is the first piece: it replaces the whole-history
-request ceiling with a rate, so later analysis can spend far more evidence per commit than
-one request over the whole corpus ever could.
+Epoch detection ([Epochs](EPOCHS.md)) was the first attempt: divide history so each unit
+fits a request. Priced against the alternative it turned out to be solving a problem that
+does not cost much, and a hard period boundary makes a capability built across it
+unfindable.
+
+[Per-commit reading](PER-COMMIT.md) is the answer that replaced it. It reads every
+substantive commit rather than sampling the corpus, reaching 95% of history against the
+10-12% measured above, for roughly what one segmentation pass cost. It also addresses
+items 1 and 5 below directly: coverage is reported by the run itself, and tier 0
+pre-classifies non-feature commits deterministically before any request is made.
 
 Still unaddressed, roughly in order of expected value:
 
