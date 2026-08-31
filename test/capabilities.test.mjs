@@ -360,29 +360,37 @@ test('singletons are not counted as stable pairs', () => {
   assert.equal(stability.alwaysShare, 0)
 })
 
-test('the naming prompt shows readings only when asked, and never says which arm', () => {
+test('each naming view shows its own channel and no other, and never names an arm', () => {
   const evidence = [
-    { subject: 'add stripe webhook', reading: 'Handles payment confirmations.' },
-    { subject: 'retry failed charges', reading: 'Retries a declined card.' },
+    { subject: 'add stripe webhook', reading: 'Handles payment confirmations.', paths: ['api/pay/hook.ts'] },
+    { subject: 'retry failed charges', reading: 'Retries a declined card.', paths: ['api/pay/retry.ts'] },
   ]
-  const plain = buildNamingRequest(evidence, { model: 'test' })
-  const plainText = JSON.stringify(plain)
-  assert.ok(plainText.includes('add stripe webhook'))
-  assert.ok(!plainText.includes('Handles payment confirmations'), 'the neutral judge must not see readings')
+  const views = {
+    subjects: JSON.stringify(buildNamingRequest(evidence, { model: 'test' })),
+    readings: JSON.stringify(buildNamingRequest(evidence, { model: 'test', show: ['reading'] })),
+    paths: JSON.stringify(buildNamingRequest(evidence, { model: 'test', show: ['paths'] })),
+  }
 
-  const withReadings = JSON.stringify(buildNamingRequest(evidence, { model: 'test', withReadings: true }))
-  assert.ok(withReadings.includes('Handles payment confirmations'))
+  for (const text of Object.values(views)) assert.ok(text.includes('add stripe webhook'))
+  assert.ok(!views.subjects.includes('Handles payment confirmations'))
+  assert.ok(!views.subjects.includes('api/pay/hook.ts'))
+  assert.ok(views.readings.includes('Handles payment confirmations'))
+  assert.ok(!views.readings.includes('api/pay/hook.ts'), 'the reading view must not leak paths')
+  assert.ok(views.paths.includes('api/pay/hook.ts'))
+  assert.ok(!views.paths.includes('Handles payment confirmations'), 'the path view must not leak readings')
 
-  for (const text of [plainText, withReadings]) {
+  for (const text of Object.values(views)) {
     for (const leak of ['baseline', 'combined', 'cluster', 'arm']) {
       assert.ok(!text.toLowerCase().includes(leak), `the judge must not learn the arm (${leak})`)
     }
   }
 })
 
-test('a commit without a reading still renders in the reading-aware prompt', () => {
-  const request = buildNamingRequest([{ subject: 'tidy imports' }], { model: 'test', withReadings: true })
-  assert.ok(JSON.stringify(request).includes('tidy imports'))
+test('a commit missing a channel still renders in every view', () => {
+  for (const show of [[], ['reading'], ['paths'], ['reading', 'paths']]) {
+    const request = buildNamingRequest([{ subject: 'tidy imports' }], { model: 'test', show })
+    assert.ok(JSON.stringify(request).includes('tidy imports'))
+  }
 })
 
 test('merge subjects contribute the branch name, never the account it came from', () => {

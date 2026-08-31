@@ -50,20 +50,28 @@ export function sampleEvidence(evidence, limit = MAX_SUBJECTS) {
 }
 
 /**
- * `withReadings` shows the per-commit reading beside each subject.
+ * `show` adds channels beside each subject: `reading`, `paths`, or both.
  *
- * It is a secondary measurement and never a tiebreaker. Three of the four arms group on
- * the readings, so a judge given the readings is being asked whether those arms' own input
- * is self-consistent - it would favour them for a reason that has nothing to do with
- * whether the grouping is right. The subject-only judge is the neutral one, and stays the
- * headline number; this exists because subjects alone were already shown insufficient on
- * 46% of commits, which makes the neutral number a lower bound.
+ * There is no neutral view, and pretending otherwise would be the mistake. Showing the
+ * readings favours the arms that group on readings; showing the paths favours the arms
+ * that group on paths. Showing only subjects is neutral in provenance but not in quality -
+ * the pilot's largest baseline group is unmistakably ETL work whose subjects read
+ * `cleanup`, `comments`, `cleanup!`, so a subject-only judge refuses a group that is
+ * plainly coherent, and depresses every arm at once.
+ *
+ * So every view is reported, and the finding is whether they agree. A group all three
+ * views can name is coherent on any account; one only its own arm's channel can name is
+ * the arm marking its own work.
  */
-export function buildNamingRequest(evidence, { model, withReadings = false }) {
+export function buildNamingRequest(evidence, { model, show = [] }) {
+  const shown = new Set(show)
   const sampled = sampleEvidence(evidence)
-  const lines = sampled.map((entry) =>
-    withReadings && entry.reading ? `- ${entry.subject}\n    ${entry.reading}` : `- ${entry.subject}`,
-  )
+  const lines = sampled.map((entry) => {
+    const parts = [`- ${entry.subject}`]
+    if (shown.has('reading') && entry.reading) parts.push(`    ${entry.reading}`)
+    if (shown.has('paths') && entry.paths?.length) parts.push(`    touched: ${entry.paths.join(', ')}`)
+    return parts.join('\n')
+  })
   return {
     model,
     max_tokens: 600,
@@ -97,7 +105,7 @@ export function parseNaming(payload) {
   }
 }
 
-export async function requestNaming(evidence, { model = DEFAULT_MODEL, apiKey, fetchImpl = fetch, withReadings = false } = {}) {
+export async function requestNaming(evidence, { model = DEFAULT_MODEL, apiKey, fetchImpl = fetch, show = [] } = {}) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   let response
@@ -105,7 +113,7 @@ export async function requestNaming(evidence, { model = DEFAULT_MODEL, apiKey, f
     response = await fetchImpl(OPENROUTER_ENDPOINT, {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(buildNamingRequest(evidence, { model, withReadings })),
+      body: JSON.stringify(buildNamingRequest(evidence, { model, show })),
       signal: controller.signal,
     })
   } catch (error) {
@@ -131,11 +139,11 @@ export async function requestNaming(evidence, { model = DEFAULT_MODEL, apiKey, f
  * excluded: a one-commit group is trivially about one thing, so counting them would
  * reward whichever arm split more.
  */
-export async function evaluateArm(capabilities, { model, apiKey, concurrency = 10, request = requestNaming, mapper, withReadings = false }) {
+export async function evaluateArm(capabilities, { model, apiKey, concurrency = 10, request = requestNaming, mapper, show = [] }) {
   const groups = capabilities.filter((capability) => capability.commitCount > 1)
   const results = await mapper(groups, concurrency, async (capability) => {
     try {
-      const naming = await request(capability.evidence, { model, apiKey, withReadings })
+      const naming = await request(capability.evidence, { model, apiKey, show })
       return { commitCount: capability.commitCount, ...naming }
     } catch (error) {
       return { commitCount: capability.commitCount, coherent: null, name: null, reason: error.message }

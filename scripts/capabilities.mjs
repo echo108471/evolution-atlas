@@ -49,9 +49,9 @@ Options:
                       across runs (default: 1). Each run costs the same as the first.
   --evaluate          Name every multi-commit group in every arm with one blind prompt
                       and report how many could not be named
-  --evaluate-readings Repeat the naming pass with each commit's reading shown beside its
-                      subject. Secondary only: arms that group on readings are favoured
-                      by a judge that reads them, so this cannot break a tie.
+  --evaluate-readings Repeat the naming pass showing the readings, and again showing the
+                      paths. No view is neutral - each favours the arms that group on it -
+                      so all three are reported and their agreement is the finding.
   --compact           Emit compact JSON
   --help              Show this help
 
@@ -102,7 +102,7 @@ function parseArguments(argv) {
 }
 
 /** A capability is only useful if it can be traced back to commits. */
-function describeCluster(members, readings, name) {
+function describeCluster(members, readings, episodes, name) {
   const dates = members.map((index) => readings[index].authoredAt).sort()
   const kinds = {}
   for (const index of members) {
@@ -122,6 +122,7 @@ function describeCluster(members, readings, name) {
       authoredAt: readings[index].authoredAt,
       subject: readings[index].subject,
       reading: readings[index].tier1.summary,
+      paths: (episodes[index].changes ?? []).slice(0, 4).map((change) => change.path),
     })),
   }
 }
@@ -259,7 +260,7 @@ async function main() {
   const namesByGroup = new Map((consolidation?.groups ?? []).map((group) => [group.members.join(','), group.name]))
   for (const arm of arms) {
     arm.capabilities = arm.clusters.map((members) =>
-      describeCluster(members, readings, arm.name === 'model' ? namesByGroup.get(members.join(',')) ?? names[members[0]] : null),
+      describeCluster(members, readings, episodes, arm.name === 'model' ? namesByGroup.get(members.join(',')) ?? names[members[0]] : null),
     )
   }
 
@@ -267,14 +268,15 @@ async function main() {
   if (options.evaluate) {
     report('\nnaming    the same blind prompt names every multi-commit group in every arm')
     let cost = 0
-    evaluation = { subjectsOnly: {}, withReadings: options.evaluateReadings ? {} : null }
+    evaluation = {}
     const passes = options.evaluateReadings
-      ? [['subjectsOnly', false], ['withReadings', true]]
-      : [['subjectsOnly', false]]
-    for (const [pass, withReadings] of passes) {
-      if (withReadings) report('          and again with each commit\'s reading shown - secondary, not a tiebreaker')
+      ? [['subjects', []], ['readings', ['reading']], ['paths', ['paths']]]
+      : [['subjects', []]]
+    for (const [pass, show] of passes) {
+      if (show.length > 0) report(`          and again showing each commit's ${pass} - no view is neutral, so all are reported`)
+      evaluation[pass] = {}
       for (const arm of arms) {
-        const naming = await evaluateArm(arm.capabilities, { apiKey, mapper: mapWithConcurrency, withReadings })
+        const naming = await evaluateArm(arm.capabilities, { apiKey, mapper: mapWithConcurrency, show })
         cost += naming.cost
         evaluation[pass][arm.name] = { ...naming, namings: undefined }
         report(
