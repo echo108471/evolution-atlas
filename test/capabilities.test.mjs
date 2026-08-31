@@ -2,10 +2,17 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  COMBINED_CHANNELS,
+  OBSERVED_CHANNELS,
+  READING_CHANNELS,
+  channelSimilarity,
   clusterByAssignment,
+  clusterFeatures,
   clusterObserved,
   clusteringShape,
   commitFeatures,
+  evidenceChannels,
+  groupingStability,
   jaccard,
   observedSimilarity,
   pairwiseAgreement,
@@ -18,6 +25,7 @@ import {
   parseConsolidation,
   renderNames,
 } from '../scripts/lib/capability-consolidate.mjs'
+import { buildNamingRequest } from '../scripts/lib/capability-naming.mjs'
 
 const episode = (subject, paths) => ({
   commitSha: `sha-${subject}`,
@@ -246,4 +254,132 @@ test('a failed naming request is not counted as a refusal', async () => {
   assert.equal(result.failures, 1)
   assert.equal(result.groupsJudged, 0)
   assert.equal(result.incoherent, 0)
+})
+
+test('evidence channels keep observed facts and interpretation apart', () => {
+  const channels = evidenceChannels(
+    { subject: 'add professor rating import', changes: [{ path: 'api/ratings/import.ts' }] },
+    { capability: 'Professor rating ingestion', summary: 'Imports ratings from the scraper.' },
+  )
+  assert.ok(channels.directories.has('api/ratings'))
+  assert.ok(channels.subject.has('professor'))
+  assert.ok(channels.capability.has('ingestion'))
+  assert.ok(channels.summary.has('scraper'))
+  // A reading-free commit still yields the observed channels, so an arm that ignores
+  // interpretation never depends on interpretation having run.
+  const observedOnly = evidenceChannels({ subject: 'tidy', changes: [{ path: 'api/x.ts' }] }, null)
+  assert.equal(observedOnly.capability.size, 0)
+  assert.equal(observedOnly.summary.size, 0)
+})
+
+test('channel weights of zero exclude a channel entirely', () => {
+  const left = evidenceChannels(
+    { subject: 'search ranking', changes: [{ path: 'search/rank.ts' }] },
+    { capability: 'Billing', summary: 'Charges cards.' },
+  )
+  const right = evidenceChannels(
+    { subject: 'search ranking', changes: [{ path: 'search/rank.ts' }] },
+    { capability: 'Scheduling', summary: 'Builds timetables.' },
+  )
+  // Identical observation, unrelated readings: the observed arm must not see the disagreement.
+  assert.equal(channelSimilarity(left, right, OBSERVED_CHANNELS), 1)
+  assert.equal(channelSimilarity(left, right, READING_CHANNELS), 0)
+})
+
+test('the combined weights are the plain mean of the two arms, not a tuned mixture', () => {
+  // Guards the claim in the module comment. With no gold set, any hand-tuned mixture would
+  // be fitted to whichever arm looked better afterwards, so drift here is a real finding.
+  for (const channel of Object.keys(COMBINED_CHANNELS)) {
+    const mean = (OBSERVED_CHANNELS[channel] + READING_CHANNELS[channel]) / 2
+    assert.equal(COMBINED_CHANNELS[channel], mean, `${channel} is no longer the mean`)
+  }
+  const total = Object.values(COMBINED_CHANNELS).reduce((sum, weight) => sum + weight, 0)
+  assert.equal(total, 1)
+})
+
+test('reading channels group commits that share a capability across unrelated paths', () => {
+  const episodes = [
+    { subject: 'wire stripe', changes: [{ path: 'api/pay/stripe.ts' }] },
+    { subject: 'invoice pdf', changes: [{ path: 'jobs/pdf/render.ts' }] },
+    { subject: 'nav tweak', changes: [{ path: 'web/nav/bar.tsx' }] },
+  ]
+  const readings = [
+    { capability: 'Payment collection', summary: 'Collects payment from customers.' },
+    { capability: 'Payment collection', summary: 'Collects payment from customers.' },
+    { capability: 'Site navigation', summary: 'Moves between pages.' },
+  ]
+  const features = episodes.map((episode, index) => evidenceChannels(episode, readings[index]))
+  const shaping = { threshold: 0.35, neighbours: 2 }
+
+  const observed = clusterFeatures(features, { ...shaping, weights: OBSERVED_CHANNELS })
+  assert.equal(observed[0].length, 1, 'paths alone share nothing here')
+
+  const byReading = clusterFeatures(features, { ...shaping, weights: READING_CHANNELS })
+  assert.deepEqual(byReading[0].sort(), [0, 1])
+})
+
+test('the baseline is the shared clustering under observed weights, not a separate path', () => {
+  const episodes = [
+    { subject: 'search ranking tweak', changes: [{ path: 'search/rank.ts' }] },
+    { subject: 'search ranking fix', changes: [{ path: 'search/rank.ts' }] },
+    { subject: 'billing webhook', changes: [{ path: 'billing/hook.ts' }] },
+  ]
+  const shaping = { threshold: 0.35, neighbours: 2 }
+  const viaWrapper = clusterObserved(episodes, shaping)
+  const viaFeatures = clusterFeatures(
+    episodes.map((episode) => evidenceChannels(episode, null)),
+    { ...shaping, weights: OBSERVED_CHANNELS },
+  )
+  assert.deepEqual(viaWrapper, viaFeatures)
+})
+
+test('stability counts pairs, because cluster counts hide membership churn', () => {
+  // Both runs produce two groups of two. Reading only the shape, they look identical;
+  // over pairs, they share nothing at all.
+  const first = [[0, 1], [2, 3]]
+  const second = [[0, 2], [1, 3]]
+  const churn = groupingStability([first, second])
+  assert.equal(churn.everPaired, 4)
+  assert.equal(churn.alwaysPaired, 0)
+  assert.equal(churn.alwaysShare, 0)
+
+  const steady = groupingStability([first, [[1, 0], [3, 2]]])
+  assert.equal(steady.everPaired, 2)
+  assert.equal(steady.alwaysShare, 1)
+
+  // A pair held by two runs of three is reported at two, not rounded up to agreement.
+  const partial = groupingStability([[[0, 1]], [[0, 1]], [[0, 2]]])
+  assert.deepEqual(partial.pairsByRunCount, [0, 1, 1, 0])
+  assert.equal(partial.everPaired, 2)
+})
+
+test('singletons are not counted as stable pairs', () => {
+  const stability = groupingStability([[[0], [1], [2]], [[0], [1], [2]]])
+  assert.equal(stability.everPaired, 0)
+  assert.equal(stability.alwaysShare, 0)
+})
+
+test('the naming prompt shows readings only when asked, and never says which arm', () => {
+  const evidence = [
+    { subject: 'add stripe webhook', reading: 'Handles payment confirmations.' },
+    { subject: 'retry failed charges', reading: 'Retries a declined card.' },
+  ]
+  const plain = buildNamingRequest(evidence, { model: 'test' })
+  const plainText = JSON.stringify(plain)
+  assert.ok(plainText.includes('add stripe webhook'))
+  assert.ok(!plainText.includes('Handles payment confirmations'), 'the neutral judge must not see readings')
+
+  const withReadings = JSON.stringify(buildNamingRequest(evidence, { model: 'test', withReadings: true }))
+  assert.ok(withReadings.includes('Handles payment confirmations'))
+
+  for (const text of [plainText, withReadings]) {
+    for (const leak of ['baseline', 'combined', 'cluster', 'arm']) {
+      assert.ok(!text.toLowerCase().includes(leak), `the judge must not learn the arm (${leak})`)
+    }
+  }
+})
+
+test('a commit without a reading still renders in the reading-aware prompt', () => {
+  const request = buildNamingRequest([{ subject: 'tidy imports' }], { model: 'test', withReadings: true })
+  assert.ok(JSON.stringify(request).includes('tidy imports'))
 })

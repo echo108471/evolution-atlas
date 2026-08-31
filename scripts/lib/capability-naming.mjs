@@ -42,8 +42,28 @@ export function sampleSubjects(evidence, limit = MAX_SUBJECTS) {
   return Array.from({ length: limit }, (_, order) => evidence[Math.floor(order * step)].subject)
 }
 
-export function buildNamingRequest(evidence, { model }) {
-  const subjects = sampleSubjects(evidence)
+/** The same even spacing, keeping whole entries so a caller may show more than the subject. */
+export function sampleEvidence(evidence, limit = MAX_SUBJECTS) {
+  if (evidence.length <= limit) return evidence
+  const step = evidence.length / limit
+  return Array.from({ length: limit }, (_, order) => evidence[Math.floor(order * step)])
+}
+
+/**
+ * `withReadings` shows the per-commit reading beside each subject.
+ *
+ * It is a secondary measurement and never a tiebreaker. Three of the four arms group on
+ * the readings, so a judge given the readings is being asked whether those arms' own input
+ * is self-consistent - it would favour them for a reason that has nothing to do with
+ * whether the grouping is right. The subject-only judge is the neutral one, and stays the
+ * headline number; this exists because subjects alone were already shown insufficient on
+ * 46% of commits, which makes the neutral number a lower bound.
+ */
+export function buildNamingRequest(evidence, { model, withReadings = false }) {
+  const sampled = sampleEvidence(evidence)
+  const lines = sampled.map((entry) =>
+    withReadings && entry.reading ? `- ${entry.subject}\n    ${entry.reading}` : `- ${entry.subject}`,
+  )
   return {
     model,
     max_tokens: 600,
@@ -53,9 +73,9 @@ export function buildNamingRequest(evidence, { model }) {
       { role: 'system', content: NAMING_SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `${evidence.length} commits${evidence.length > subjects.length ? `, ${subjects.length} shown` : ''}:
+        content: `${evidence.length} commits${evidence.length > sampled.length ? `, ${sampled.length} shown` : ''}:
 
-${subjects.map((subject) => `- ${subject}`).join('\n')}
+${lines.join('\n')}
 
 Are these about one thing?`,
       },
@@ -77,7 +97,7 @@ export function parseNaming(payload) {
   }
 }
 
-export async function requestNaming(evidence, { model = DEFAULT_MODEL, apiKey, fetchImpl = fetch } = {}) {
+export async function requestNaming(evidence, { model = DEFAULT_MODEL, apiKey, fetchImpl = fetch, withReadings = false } = {}) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   let response
@@ -85,7 +105,7 @@ export async function requestNaming(evidence, { model = DEFAULT_MODEL, apiKey, f
     response = await fetchImpl(OPENROUTER_ENDPOINT, {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(buildNamingRequest(evidence, { model })),
+      body: JSON.stringify(buildNamingRequest(evidence, { model, withReadings })),
       signal: controller.signal,
     })
   } catch (error) {
@@ -111,11 +131,11 @@ export async function requestNaming(evidence, { model = DEFAULT_MODEL, apiKey, f
  * excluded: a one-commit group is trivially about one thing, so counting them would
  * reward whichever arm split more.
  */
-export async function evaluateArm(capabilities, { model, apiKey, concurrency = 10, request = requestNaming, mapper }) {
+export async function evaluateArm(capabilities, { model, apiKey, concurrency = 10, request = requestNaming, mapper, withReadings = false }) {
   const groups = capabilities.filter((capability) => capability.commitCount > 1)
   const results = await mapper(groups, concurrency, async (capability) => {
     try {
-      const naming = await request(capability.evidence, { model, apiKey })
+      const naming = await request(capability.evidence, { model, apiKey, withReadings })
       return { commitCount: capability.commitCount, ...naming }
     } catch (error) {
       return { commitCount: capability.commitCount, coherent: null, name: null, reason: error.message }
