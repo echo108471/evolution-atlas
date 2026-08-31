@@ -45,6 +45,10 @@ Options:
   --threshold <n>     Baseline similarity floor, 0-1 (default: 0.35)
   --neighbours <n>    Baseline mutual-kNN size (default: 3)
   --baseline-only     Skip the model arm; the three deterministic arms still run
+  --sweep             Report the deterministic arms across a grid of neighbour counts and
+                      floors instead of one setting, and make no requests. The defaults
+                      were chosen for producing no dominant cluster, which is a property
+                      of the evidence, so it has to be rechecked when the evidence changes.
   --model-runs <n>    Run consolidation n times and report how stable its grouping is
                       across runs (default: 1). Each run costs the same as the first.
   --evaluate          Name every multi-commit group in every arm with one blind prompt
@@ -63,7 +67,7 @@ function parseArguments(argv) {
   const options = {
     readingsPath: null, atlasPath: null, outputPath: null, model: DEFAULT_MODEL,
     threshold: 0.35, neighbours: 3, baselineOnly: false, evaluate: false, pretty: true,
-    modelRuns: 1, evaluateReadings: false,
+    modelRuns: 1, evaluateReadings: false, sweep: false,
   }
   const strings = { '--readings': 'readingsPath', '--atlas': 'atlasPath', '--out': 'outputPath', '--model': 'model' }
 
@@ -72,6 +76,7 @@ function parseArguments(argv) {
     if (argument === '--help') return { ...options, help: true }
     if (argument === '--compact') { options.pretty = false; continue }
     if (argument === '--baseline-only') { options.baselineOnly = true; continue }
+    if (argument === '--sweep') { options.sweep = true; options.baselineOnly = true; continue }
     if (argument === '--evaluate') { options.evaluate = true; continue }
     if (argument === '--evaluate-readings') { options.evaluate = true; options.evaluateReadings = true; continue }
     if (strings[argument]) {
@@ -172,6 +177,41 @@ async function main() {
       `          ${name.padEnd(9)} ${String(shape.clusters).padStart(4)} groups  largest ${String(shape.largest).padStart(3)}  ` +
         `${String(shape.singletons).padStart(3)} singletons  ${(shape.groupedShare * 100).toFixed(0).padStart(3)}% grouped  (${description})`,
     )
+  }
+
+  // A cluster holding more than this share of the corpus is a blob, not a capability. The
+  // shaping defaults were picked to avoid one; the check says so out loud rather than
+  // leaving it as a claim in a comment that nothing verifies.
+  const DOMINANT_SHARE = 0.1
+  for (const arm of arms) {
+    if (arm.shape.largest > readings.length * DOMINANT_SHARE) {
+      report(`          ! ${arm.name}'s largest group holds ${arm.shape.largest} of ${readings.length} units; that is a blob, not a capability`)
+    }
+  }
+
+  let sweep = null
+  if (options.sweep) {
+    report('\nsweep     the same three arms across neighbour counts and floors')
+    report('          k  floor   baseline    reading     combined    F1 base/read')
+    sweep = []
+    for (const neighbours of [2, 3, 5, 8]) {
+      for (const threshold of [0.25, 0.35, 0.45]) {
+        const grid = channelArms.map(([name, weights]) => {
+          const clusters = clusterFeatures(features, { neighbours, threshold, weights })
+          return { name, clusters, shape: clusteringShape(clusters, readings.length) }
+        })
+        const f1 = pairwiseAgreement(grid[0].clusters, grid[1].clusters, readings.length).f1
+        sweep.push({
+          neighbours, threshold, f1,
+          shapes: Object.fromEntries(grid.map((entry) => [entry.name, entry.shape])),
+        })
+        report(
+          `          ${neighbours}  ${threshold.toFixed(2)}   ` +
+            grid.map((entry) => `${entry.shape.clusters}/${entry.shape.largest}`.padEnd(11)).join(' ') +
+            ` ${f1.toFixed(3)}`,
+        )
+      }
+    }
   }
 
   const names = readings.map((reading) => reading.tier1.capability ?? reading.subject)
@@ -307,6 +347,7 @@ async function main() {
       capabilities: arm.capabilities,
     })),
     agreements,
+    sweep,
     stability,
     evaluation,
   }
