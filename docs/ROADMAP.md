@@ -141,9 +141,8 @@ stage actually produces. Three results change what the roadmap should prioritize
    blind agree on its lifecycle kind 82% of the time and share only 0.22 of their
    capability wording, so aggregation cannot be done by string matching. This is the
    load-bearing gap in [Per-commit reading](PER-COMMIT.md).
-2. Reproduce the per-commit measurements on a repository with typical commit sizes. Every
-   figure currently comes from a 20-commit repository whose commits are unusually large,
-   because the pilot's working tree is outside the workspace access policy.
+2. Separate unit size from repository when measuring capability-name convergence. The
+   0.22 and 0.31 readings differ in repository, unit, and size at once.
 3. Hand-grade the pilot's feature candidates into a gold set. Every later prompt or
    architecture change is unmeasurable without one, and the pilot is the only subject
    whose owner can check the answers.

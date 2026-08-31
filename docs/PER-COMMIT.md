@@ -191,28 +191,71 @@ readings served from cache.
 
 ## What was measured
 
-All figures are from this repository (20 commits, `evolution-atlas` at `c3b97ca`) unless
-marked otherwise. It is a poor stand-in for a typical subject — its commits are unusually
-large and documentation-heavy — and the pilot repository's working tree is outside the
-workspace access policy, so the numbers below have not been reproduced on it.
+A full run over the pilot repository, `course-recommender` at `ba900d8f`, 2,693 commits.
 
 ```
-tier 0   filtered 35.3% of the pilot history (course-recommender, 2,693 commits)
-         merge 682  docs 128  chore 55  dependencies 38  revert 25  data 23
-         infrastructure 18  assets 14  tests 12  empty 9  release 2
+unit      first-parent chain: 739 of 2,693 commits (27.4%)
+          608 substantive after tier 0
 
-coverage 19/19 substantive commits read, 95% of history
-         against 10.1% (zod) and 12.6% (course-recommender) for whole-corpus interpretation
+readings  606 of 739 units read, 2 failed
+          82.0% of what landed on the branch; the remainder was filtered at tier 0
 
-agreement 11 commits read twice, blind
-         capability name overlap   0.22
-         same lifecycle kind       82%
-         mean significance gap     0.15
+cost      $0.4448    elapsed 394s    2,609,214 tokens in, 100,975 out
 
-promotion 11 of 19 promoted to tier 2
-         because the diff was partial        9
-         because the change was consequential 2
+kinds     refactor 26.6%  fix 26.4%  extend 17.0%  introduce 13.2%
+          config 7.9%  remove 3.6%  migrate 3.1%  test 1.7%  unclear 0.5%
+
+promotion 84 of 606 (13.8%)
+          because the diff was partial        68
+          because the change was consequential 16
+
+agreement 84 units read twice, blind
+          capability name overlap   0.31
+          same lifecycle kind       67%
+          mean significance gap     0.20
 ```
+
+Whole-corpus interpretation of the same repository cited 12.6% of commits. Per-commit
+reading covers 82% of what landed on the branch for **$0.44**, against $1.08 for one
+epoch-detection pass at 12% coverage.
+
+### Diffs are what make a commit legible
+
+The first run over this repository accidentally produced a controlled comparison. A stale
+`--first-parent` in the diff reader meant merges returned nothing, and the chain is 63%
+merges, so 407 of 600 units were read from subject and paths alone.
+
+```
+                        units   marked "unclear"
+read with a diff          193      0    ( 0.0%)
+read without one          407    121    (29.7%)
+```
+
+Every `unclear` reading in that run was a diff-less one. With merge diffs restored the
+rate over the whole history is **0.5%**. The separate open-vocabulary taxonomy pass, which
+also saw only subjects and paths, reported itself uncertain on 46% of commits. Both
+measurements say the same thing: subject and path evidence is not enough to say what a
+change does, and it is the diff that closes the gap.
+
+### Confidence is no longer inert
+
+```
+zod, whole-corpus interpretation      3 distinct values, none below 0.7
+course-recommender, per-commit       20 distinct values, 0.20 to 0.99
+```
+
+The flat high-confidence band that made the viewer's ranking meaningless on zod does not
+appear here. Whether that is the unit, the evidence, or the model remains unseparated.
+
+### The naming hypothesis is not settled
+
+Capability-name overlap between two blind readings measured 0.22 on this project's own
+20-commit history and 0.31 on the pilot's PR-sized units. That is the direction predicted
+for larger, more coherent units, but the two runs differ in repository, unit, and size at
+once, so it is not a controlled result and is recorded here as unsettled. Kind agreement
+moved the other way, 82% to 67%.
+
+Grouping readings into capabilities still cannot be done by string matching at 0.31.
 
 ### The two models agree on what a commit does and disagree on what to call it
 
@@ -297,9 +340,8 @@ gates what a later pass may look at.
   matching will not do it. This is now the load-bearing gap.
 - **Acting on `depthCause`.** A `partial` promotion should raise the tier-1 budget and
   re-read, not escalate to a more expensive model.
-- **Reproducing any of this on a repository with typical commit sizes.** Every number
-  above comes from a 20-commit repository whose commits are unusually large; the pilot's
-  working tree is outside the current workspace access policy.
+- **A controlled test of whether unit size drives capability-name convergence.** The two
+  measurements available differ in repository, unit, and size simultaneously.
 - **Commit bodies.** `ChangeEpisode` still has no field for them, and 708 zod commits
   carry a substantial one. They remain the cheapest unexploited evidence in the corpus.
 - **A deterministic baseline and a gold set.** Unchanged from
