@@ -67,7 +67,12 @@ export function buildNamingRequest(evidence, { model, show = [] }) {
   const shown = new Set(show)
   const sampled = sampleEvidence(evidence)
   const lines = sampled.map((entry) => {
+    // The body comes with the subject in every view. It is the message the author wrote,
+    // observed rather than interpreted, and available to every arm - and on the pilot it
+    // is the half that says what the commit was, since 445 merges put provenance in the
+    // subject and the pull request title in the body.
     const parts = [`- ${entry.subject}`]
+    if (entry.body) parts.push(`    ${entry.body}`)
     if (shown.has('reading') && entry.reading) parts.push(`    ${entry.reading}`)
     if (shown.has('paths') && entry.paths?.length) parts.push(`    touched: ${entry.paths.join(', ')}`)
     return parts.join('\n')

@@ -362,7 +362,7 @@ test('singletons are not counted as stable pairs', () => {
 
 test('each naming view shows its own channel and no other, and never names an arm', () => {
   const evidence = [
-    { subject: 'add stripe webhook', reading: 'Handles payment confirmations.', paths: ['api/pay/hook.ts'] },
+    { subject: 'add stripe webhook', body: 'feat: collect card payments', reading: 'Handles payment confirmations.', paths: ['api/pay/hook.ts'] },
     { subject: 'retry failed charges', reading: 'Retries a declined card.', paths: ['api/pay/retry.ts'] },
   ]
   const views = {
@@ -371,7 +371,11 @@ test('each naming view shows its own channel and no other, and never names an ar
     paths: JSON.stringify(buildNamingRequest(evidence, { model: 'test', show: ['paths'] })),
   }
 
-  for (const text of Object.values(views)) assert.ok(text.includes('add stripe webhook'))
+  for (const text of Object.values(views)) {
+    assert.ok(text.includes('add stripe webhook'))
+    // The body is observed evidence every arm has, so it appears in every view.
+    assert.ok(text.includes('feat: collect card payments'))
+  }
   assert.ok(!views.subjects.includes('Handles payment confirmations'))
   assert.ok(!views.subjects.includes('api/pay/hook.ts'))
   assert.ok(views.readings.includes('Handles payment confirmations'))

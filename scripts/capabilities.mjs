@@ -121,6 +121,7 @@ function describeCluster(members, readings, episodes, name) {
       shortSha: readings[index].shortSha,
       authoredAt: readings[index].authoredAt,
       subject: readings[index].subject,
+      ...(episodes[index].body ? { body: episodes[index].body.slice(0, 200) } : {}),
       reading: readings[index].tier1.summary,
       paths: (episodes[index].changes ?? []).slice(0, 4).map((change) => change.path),
     })),
@@ -270,8 +271,8 @@ async function main() {
     let cost = 0
     evaluation = {}
     const passes = options.evaluateReadings
-      ? [['subjects', []], ['readings', ['reading']], ['paths', ['paths']]]
-      : [['subjects', []]]
+      ? [['message', []], ['readings', ['reading']], ['paths', ['paths']]]
+      : [['message', []]]
     for (const [pass, show] of passes) {
       if (show.length > 0) report(`          and again showing each commit's ${pass} - no view is neutral, so all are reported`)
       evaluation[pass] = {}
