@@ -178,12 +178,48 @@ output while the small one carries the intent.
 Diffs are never written into the atlas. They are read on demand and discarded: they are
 large, and they contain source that has no business in a distributable dataset.
 
+### The byte budget is the one that binds
+
+There are two budgets — lines and bytes — and for a long time only the line budget was
+reachable from the command line. It was the wrong one. Measured over the pilot's 605
+units, with no model involved:
+
+```
+lines   bytes     truncated        of the 71 that cited "partial"   diff bytes
+  400   65536     256  (42.3%)     71                               5.0 MB
+ 4000   65536     236  (39.0%)     66                               (line budget only)
+  400  262144     172  (28.4%)     59                               6.6 MB
+ 1800  1048576     64  (10.6%)     20                              12.8 MB
+```
+
+Raising the line budget tenfold barely moves anything, because a file is admitted only if
+it fits in *both* budgets and 64 KB is what most files fail. Raising the byte budget
+fourfold cuts truncation by a third for 32% more diff volume. Every one of the 71 commits
+that asked for a second reading because it had seen only part of the change was truncated
+by the byte cap.
+
+The effect on tier 2 was worse. It is given three times tier 1's line budget and costs
+three times as much per token — but both tiers were capped at the same 65536 bytes, so the
+extra lines were inert. **83 of the 91 promoted commits arrived truncated, and 40 of them —
+44% — showed tier 2 exactly the same files tier 1 had already read.** For those, the depth
+tier was a model swap presented as more evidence. It also reframes the 0.31 blind
+capability overlap between the tiers: much of it is two models disagreeing about one diff,
+not one model seeing further than the other.
+
+Tier 2 now gets four times the bytes. Tier 1's defaults are unchanged, because raising
+them is a real cost increase and the flag now exists for anyone who wants to buy it.
+
 ## Readings cache by SHA
 
 Whole-corpus analysis is not incremental — one new commit re-pays for all of them, which
 is why gallery subjects are pinned to a frozen head and why `--reuse-interpretation`
-exists. Per-commit readings are keyed by `sha:tier:model`, so a repository that gained ten
-commits costs ten requests.
+exists. Per-commit readings are keyed by `sha:tier:model:lines:bytes` and an evidence version, so
+a repository that gained ten commits costs ten requests.
+
+The budgets are in the key because they were once not, and that is a silent-wrong-answer
+bug rather than a missed optimisation: a reading formed from a truncated diff is not the
+answer to a question asked with a larger one, and an experiment raising the budget would
+have replayed the old readings and reported that the budget made no difference.
 
 Measured on this repository after a fix that recovered four failed commits: the cold run
 cost $0.0438 and 785 seconds; the re-run cost **$0.0107 and 14 seconds**, with 15 of 19
@@ -336,14 +372,23 @@ gates what a later pass may look at.
 
 ## Not built yet
 
-- **Grouping readings into capabilities.** The measured 0.22 name overlap says string
-  matching will not do it. This is now the load-bearing gap.
-- **Acting on `depthCause`.** A `partial` promotion should raise the tier-1 budget and
-  re-read, not escalate to a more expensive model.
+- **Acting on `depthCause` by re-reading rather than escalating.** The budget half of this
+  is answered — `--max-bytes` exists and the measurements above say what it buys — but
+  nothing yet re-reads a `partial` commit at a larger budget instead of promoting it to a
+  pricier model. That is the experiment those numbers set up.
 - **A controlled test of whether unit size drives capability-name convergence.** The two
   measurements available differ in repository, unit, and size simultaneously.
-- **Commit bodies.** `ChangeEpisode` still has no field for them, and 708 zod commits
-  carry a substantial one. They remain the cheapest unexploited evidence in the corpus.
-- **A deterministic baseline and a gold set.** Unchanged from
-  [Interpretation findings](INTERPRETATION-FINDINGS.md): without them, no prompt or
-  architecture change here is measurable.
+- **A gold set.** Unchanged from [Interpretation findings](INTERPRETATION-FINDINGS.md),
+  and now the binding constraint rather than one item among several. A deterministic
+  baseline exists; see [Capabilities](CAPABILITIES.md).
+
+### Answered, and recorded as answered
+
+- **Commit bodies** are captured. 72.4% of the pilot's first-parent chain carries one, and
+  445 of those 535 are merges whose subject is provenance and whose body is the pull
+  request title. They are now in the atlas and in every clustering and judging view. They
+  did not do what was hoped: see [Capabilities](CAPABILITIES.md).
+- **Whitespace-only commits are not worth detecting.** `git diff -w --numstat` against
+  plain counts finds **2 of the pilot's 728 first-parent commits with a text diff**, and 0
+  of this repository's 31. A tier-0 filter for them would remove 0.3% of units and save
+  about a tenth of a cent, for a second Git invocation on every commit. Dropped.
