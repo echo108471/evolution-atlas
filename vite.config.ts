@@ -29,7 +29,7 @@ function excludeLocalDatasetsFromGalleryBuilds(): Plugin {
       if (!existsSync(GALLERY_MANIFEST)) return
 
       const removed = readdirSync(OUT_DIR)
-        .filter((entry) => /^(atlas|epochs|readings).*\.json$/.test(entry))
+        .filter((entry) => /^(atlas|epochs|readings|capabilities).*\.json$/.test(entry))
         .map((entry) => {
           rmSync(join(OUT_DIR, entry))
           return entry

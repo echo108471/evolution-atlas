@@ -18,3 +18,4 @@ coverage/
 /.gallery-cache/
 /public/readings*.json
 *.cache.jsonl
+/public/capabilities*.json
