@@ -14,13 +14,14 @@
  */
 
 import { extractJson } from './phase-model.mjs'
+import { withRetry } from './retry.mjs'
 
 export const DEFAULT_MODEL = 'x-ai/grok-4.6'
 export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 export const API_KEY_ENV = 'OPENROUTER_API_KEY'
 
 const DEFAULT_CHUNK = 250
-const REQUEST_TIMEOUT_MS = 300000
+const REQUEST_TIMEOUT_MS = 600000
 
 export const CONSOLIDATE_SYSTEM_PROMPT = `You are given a list of capability names, each
 written independently by someone who read a single commit from one software repository.
@@ -173,7 +174,12 @@ export async function consolidateCapabilities(
   const firstRound = []
   let dropped = 0
   for (const [order, batch] of batches.entries()) {
-    const result = await request(batch.map((entry) => entry.name), { model, apiKey })
+    // A consolidation request reasons over hundreds of names and is slow enough to time
+    // out; without retry a single abort loses a whole batch and the run with it.
+    const result = await withRetry(
+      () => request(batch.map((entry) => entry.name), { model, apiKey }),
+      { onNotice: (notice) => onProgress?.({ round: 1, order, total: batches.length, notice }) },
+    )
     addUsage(result.usage)
     dropped += result.dropped
     for (const group of result.groups) {
@@ -187,11 +193,10 @@ export async function consolidateCapabilities(
   }
 
   // Round two: rejoin capabilities that were split across batches.
-  const merged = await request(firstRound.map((group) => group.name), {
-    model,
-    apiKey,
-    system: MERGE_SYSTEM_PROMPT,
-  })
+  const merged = await withRetry(
+    () => request(firstRound.map((group) => group.name), { model, apiKey, system: MERGE_SYSTEM_PROMPT }),
+    { onNotice: (notice) => onProgress?.({ round: 2, order: 0, total: 1, notice }) },
+  )
   addUsage(merged.usage)
   dropped += merged.dropped
   onProgress?.({ round: 2, order: 0, total: 1, groups: merged.groups.length })

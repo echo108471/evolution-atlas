@@ -179,3 +179,71 @@ test('assignment groups readings and leaves unassigned ones alone', () => {
   assert.equal(clusters.length, 3)
   assert.deepEqual(clusters[0], { label: 'A', members: [0, 1] })
 })
+
+test('the namer is never told which arm produced a group', async () => {
+  // Two arms that disagree cannot be ranked by cluster counts and no gold set exists, so
+  // the same prompt judges both. Telling it the provenance would be telling it the answer.
+  const { buildNamingRequest, NAMING_SYSTEM_PROMPT } = await import('../scripts/lib/capability-naming.mjs')
+  const body = buildNamingRequest(
+    [{ subject: 'add retry to upload' }, { subject: 'fix upload timeout' }],
+    { model: 'test' },
+  )
+  const rendered = JSON.stringify(body)
+  assert.doesNotMatch(rendered, /baseline|deterministic|model arm|cluster|jaccard|consolidat/i)
+  assert.match(NAMING_SYSTEM_PROMPT, /refus/i, 'refusal must be offered as a valid answer')
+})
+
+test('a group is sampled across its whole span, not just its opening', async () => {
+  const { sampleSubjects } = await import('../scripts/lib/capability-naming.mjs')
+  const evidence = Array.from({ length: 40 }, (_, index) => ({ subject: `commit ${index}` }))
+  const sampled = sampleSubjects(evidence, 4)
+  assert.equal(sampled.length, 4)
+  assert.equal(sampled[0], 'commit 0')
+  assert.ok(Number(sampled.at(-1).split(' ')[1]) >= 30, `last sample was ${sampled.at(-1)}`)
+  assert.deepEqual(sampleSubjects([{ subject: 'only one' }], 4), ['only one'])
+})
+
+test('a refusal is recorded as incoherent, not as an empty name', async () => {
+  const { parseNaming } = await import('../scripts/lib/capability-naming.mjs')
+  const refused = parseNaming({
+    choices: [{ message: { content: '{"coherent":false,"name":null,"reason":"unrelated work"}' } }],
+  })
+  assert.equal(refused.coherent, false)
+  assert.equal(refused.name, null)
+
+  // A group claimed coherent but given no name is a refusal in disguise.
+  const empty = parseNaming({ choices: [{ message: { content: '{"coherent":true,"name":"   "}' } }] })
+  assert.equal(empty.coherent, false)
+})
+
+test('singletons are excluded so splitting more cannot raise an arm score', async () => {
+  const { evaluateArm } = await import('../scripts/lib/capability-naming.mjs')
+  const { mapWithConcurrency } = await import('../scripts/lib/commit-analysis.mjs')
+  const capabilities = [
+    { commitCount: 3, evidence: [{ subject: 'a' }, { subject: 'b' }, { subject: 'c' }] },
+    { commitCount: 1, evidence: [{ subject: 'lonely' }] },
+    { commitCount: 2, evidence: [{ subject: 'd' }, { subject: 'e' }] },
+  ]
+  const seen = []
+  const request = async (evidence) => {
+    seen.push(evidence.length)
+    return { coherent: evidence.length === 3, name: 'x', reason: null, usage: null }
+  }
+  const result = await evaluateArm(capabilities, { apiKey: 'k', request, mapper: mapWithConcurrency })
+  assert.deepEqual(seen.sort(), [2, 3], 'the one-commit group must not be judged')
+  assert.equal(result.groupsJudged, 2)
+  assert.equal(result.coherentShare, 0.5)
+})
+
+test('a failed naming request is not counted as a refusal', async () => {
+  const { evaluateArm } = await import('../scripts/lib/capability-naming.mjs')
+  const { mapWithConcurrency } = await import('../scripts/lib/commit-analysis.mjs')
+  const request = async () => { throw new Error('HTTP 500') }
+  const result = await evaluateArm(
+    [{ commitCount: 2, evidence: [{ subject: 'a' }, { subject: 'b' }] }],
+    { apiKey: 'k', request, mapper: mapWithConcurrency },
+  )
+  assert.equal(result.failures, 1)
+  assert.equal(result.groupsJudged, 0)
+  assert.equal(result.incoherent, 0)
+})

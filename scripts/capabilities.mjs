@@ -19,6 +19,8 @@ import {
   pairwiseAgreement,
 } from './lib/capability-cluster.mjs'
 import { API_KEY_ENV, DEFAULT_MODEL, consolidateCapabilities } from './lib/capability-consolidate.mjs'
+import { evaluateArm } from './lib/capability-naming.mjs'
+import { mapWithConcurrency } from './lib/commit-analysis.mjs'
 
 function usage() {
   return `Usage: npm run capabilities -- [options]
@@ -33,6 +35,8 @@ Options:
   --threshold <n>     Baseline similarity floor, 0-1 (default: 0.35)
   --neighbours <n>    Baseline mutual-kNN size (default: 3)
   --baseline-only     Skip the model arm; make no requests
+  --evaluate          Name every multi-commit group in both arms with one prompt and
+                      report how many could not be named
   --compact           Emit compact JSON
   --help              Show this help
 
@@ -43,7 +47,7 @@ Requires ${API_KEY_ENV} unless --baseline-only.
 function parseArguments(argv) {
   const options = {
     readingsPath: null, atlasPath: null, outputPath: null, model: DEFAULT_MODEL,
-    threshold: 0.35, neighbours: 3, baselineOnly: false, pretty: true,
+    threshold: 0.35, neighbours: 3, baselineOnly: false, evaluate: false, pretty: true,
   }
   const strings = { '--readings': 'readingsPath', '--atlas': 'atlasPath', '--out': 'outputPath', '--model': 'model' }
 
@@ -52,6 +56,7 @@ function parseArguments(argv) {
     if (argument === '--help') return { ...options, help: true }
     if (argument === '--compact') { options.pretty = false; continue }
     if (argument === '--baseline-only') { options.baselineOnly = true; continue }
+    if (argument === '--evaluate') { options.evaluate = true; continue }
     if (strings[argument]) {
       const value = argv[++index]
       if (!value) throw new Error(`${argument} requires a value`)
@@ -141,8 +146,12 @@ async function main() {
     consolidation = await consolidateCapabilities(names, {
       model: options.model,
       apiKey,
-      onProgress: ({ round, order, total, groups }) =>
-        report(`          round ${round}, batch ${order + 1}/${total}: ${groups} groups`),
+      onProgress: ({ round, order, total, groups, notice }) =>
+        report(
+          notice
+            ? `          round ${round}, batch ${order + 1}/${total}: ${notice}`
+            : `          round ${round}, batch ${order + 1}/${total}: ${groups} groups`,
+        ),
     })
     const assignment = new Map()
     for (const group of consolidation.groups) {
@@ -166,7 +175,30 @@ async function main() {
     report(`          F1 ${agreement.f1.toFixed(3)}  (precision ${agreement.precision.toFixed(3)}, recall ${agreement.recall.toFixed(3)})`)
   }
 
+  const baselineCapabilities = baselineClusters.map((members) => describeCluster(members, readings, null))
   const namesByGroup = new Map((consolidation?.groups ?? []).map((group) => [group.members.join(','), group.name]))
+  const modelCapabilities = modelClusters
+    ? modelClusters.map((members) =>
+        describeCluster(members, readings, namesByGroup.get(members.join(',')) ?? names[members[0]]),
+      )
+    : null
+
+  let evaluation = null
+  if (options.evaluate) {
+    report('\nnaming    the same prompt names every multi-commit group in both arms')
+    const baselineNaming = await evaluateArm(baselineCapabilities, { apiKey, mapper: mapWithConcurrency })
+    report(`          baseline  ${baselineNaming.coherent}/${baselineNaming.groupsJudged} nameable (${(baselineNaming.coherentShare * 100).toFixed(0)}%)`)
+    let modelNaming = null
+    if (modelCapabilities) {
+      modelNaming = await evaluateArm(modelCapabilities, { apiKey, mapper: mapWithConcurrency })
+      report(`          model     ${modelNaming.coherent}/${modelNaming.groupsJudged} nameable (${(modelNaming.coherentShare * 100).toFixed(0)}%)`)
+    }
+    evaluation = {
+      baseline: { ...baselineNaming, namings: undefined },
+      model: modelNaming ? { ...modelNaming, namings: undefined } : null,
+    }
+    report(`          $${(baselineNaming.cost + (modelNaming?.cost ?? 0)).toFixed(4)}`)
+  }
   const document = {
     schemaVersion: '0.1.0',
     repository: readingsDocument.repository,
@@ -176,24 +208,18 @@ async function main() {
       baseline: `observed-mutual-knn/k=${options.neighbours}/floor=${options.threshold}`,
       model: options.baselineOnly ? null : `capability-consolidation/${options.model}`,
     },
-    baseline: {
-      shape: baselineShape,
-      capabilities: baselineClusters.map((members) =>
-        describeCluster(members, readings, null),
-      ),
-    },
+    baseline: { shape: baselineShape, capabilities: baselineCapabilities },
     model: modelClusters
       ? {
           shape: clusteringShape(modelClusters, readings.length),
           droppedNames: consolidation.dropped,
           rounds: consolidation.rounds,
           usage: consolidation.usage,
-          capabilities: modelClusters.map((members) =>
-            describeCluster(members, readings, namesByGroup.get(members.join(',')) ?? names[members[0]]),
-          ),
+          capabilities: modelCapabilities,
         }
       : null,
     agreement,
+    evaluation,
   }
 
   const serialized = `${JSON.stringify(document, null, options.pretty ? 2 : 0)}\n`
