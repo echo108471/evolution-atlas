@@ -78,8 +78,22 @@ export function pathDirectories(episode) {
   return directories
 }
 
+/**
+ * The whole commit message: the subject shorn of merge provenance, plus the body.
+ *
+ * The body is where the description usually is. On the pilot, 72.4% of first-parent
+ * commits have one, and 445 of those 535 are merges whose subject is provenance and whose
+ * body is the pull request title. Reading the subject alone was reading the half that
+ * says least.
+ */
+export function messageText(episode) {
+  const subject = subjectText(episode?.subject)
+  const body = String(episode?.body ?? '').trim()
+  return body ? `${subject}\n${body}` : subject
+}
+
 export function commitFeatures(episode) {
-  return { directories: pathDirectories(episode), tokens: new Set(tokenize(subjectText(episode.subject))) }
+  return { directories: pathDirectories(episode), tokens: new Set(tokenize(messageText(episode))) }
 }
 
 export function jaccard(left, right) {
@@ -111,7 +125,7 @@ export function observedSimilarity(left, right) {
 export function evidenceChannels(episode, reading) {
   return {
     directories: pathDirectories(episode),
-    subject: new Set(tokenize(subjectText(episode?.subject))),
+    message: new Set(tokenize(messageText(episode))),
     capability: new Set(tokenize(reading?.capability)),
     summary: new Set(tokenize(reading?.summary)),
   }
@@ -127,10 +141,10 @@ export function evidenceChannels(episode, reading) {
  * nothing to tune a mixture against, so tuning one would amount to fitting the weights to
  * whichever arm looked better afterwards and then reporting that as a finding.
  */
-export const OBSERVED_CHANNELS = { directories: 0.65, subject: 0.35, capability: 0, summary: 0 }
-export const READING_CHANNELS = { directories: 0, subject: 0, capability: 0.65, summary: 0.35 }
+export const OBSERVED_CHANNELS = { directories: 0.65, message: 0.35, capability: 0, summary: 0 }
+export const READING_CHANNELS = { directories: 0, message: 0, capability: 0.65, summary: 0.35 }
 export const COMBINED_CHANNELS = {
-  directories: 0.325, subject: 0.175, capability: 0.325, summary: 0.175,
+  directories: 0.325, message: 0.175, capability: 0.325, summary: 0.175,
 }
 
 export function channelSimilarity(left, right, weights) {

@@ -51,7 +51,7 @@ test('buildAtlas emits observed identities, episodes, areas, and evidence links'
 
     const dataset = buildAtlas(repositoryPath)
 
-    assert.equal(dataset.schemaVersion, '0.2.0')
+    assert.equal(dataset.schemaVersion, '0.3.0')
     assert.equal(dataset.analysis.mode, 'observed-only')
     assert.equal(dataset.repository.name, repositoryPath.split('/').at(-1))
     assert.equal(dataset.repository.ref, 'main')
@@ -249,5 +249,38 @@ test('a merge records what it brought onto the branch, and the chain is marked',
     assert.equal(dataset.analysis.mergeDiffStrategy, 'diff-merges-first-parent')
   } finally {
     rmSync(repository, { recursive: true, force: true })
+  }
+})
+
+test('commit bodies are captured, and absent rather than empty when unwritten', () => {
+  const repositoryPath = mkdtempSync(join(tmpdir(), 'evolution-atlas-body-'))
+
+  try {
+    git(repositoryPath, ['init', '-b', 'main'])
+    git(repositoryPath, ['config', 'user.name', 'Example Author'])
+    git(repositoryPath, ['config', 'user.email', 'author@example.test'])
+
+    writeFileSync(join(repositoryPath, 'a.js'), 'export const a = 1\n')
+    git(repositoryPath, ['add', '-A'])
+    git(repositoryPath, ['commit', '-m', 'Subject only'], '2025-01-02T12:00:00Z')
+
+    writeFileSync(join(repositoryPath, 'b.js'), 'export const b = 2\n')
+    git(repositoryPath, ['add', '-A'])
+    // The shape that matters: a subject that says nothing and a body that says what it was.
+    git(
+      repositoryPath,
+      ['commit', '-m', 'Merge pull request #7 from someone/branch', '-m', 'feat: professor subpage'],
+      '2025-01-03T12:00:00Z',
+    )
+
+    const dataset = buildAtlas(repositoryPath)
+    const [first, second] = dataset.episodes
+
+    assert.equal(first.subject, 'Subject only')
+    assert.ok(!('body' in first), 'a commit with no body carries no body field')
+    assert.equal(second.subject, 'Merge pull request #7 from someone/branch')
+    assert.equal(second.body, 'feat: professor subpage')
+  } finally {
+    rmSync(repositoryPath, { recursive: true, force: true })
   }
 })

@@ -15,7 +15,7 @@ const dataset: AtlasDataset = {
   analysis: {
     mode: 'interpreted',
     historyRange: 'HEAD',
-    mergeDiffStrategy: 'first-parent',
+    mergeDiffStrategy: 'diff-merges-first-parent',
   },
   repository: { name: 'example', ref: 'main', headSha: 'bbb', commitCount: 3 },
   timeRange: {

@@ -29,7 +29,7 @@ function episode(
 /** A directory that is created, renamed away from, grown, and partly emptied. */
 const dataset: AtlasDataset = {
   schemaVersion: '0.1.0',
-  analysis: { mode: 'interpreted', historyRange: 'HEAD', mergeDiffStrategy: 'first-parent' },
+  analysis: { mode: 'interpreted', historyRange: 'HEAD', mergeDiffStrategy: 'diff-merges-first-parent' },
   repository: { name: 'example', ref: 'main', headSha: 'd4', commitCount: 4 },
   timeRange: {
     firstAuthoredAt: '2025-01-01T12:00:00Z',

@@ -263,7 +263,7 @@ test('evidence channels keep observed facts and interpretation apart', () => {
     { capability: 'Professor rating ingestion', summary: 'Imports ratings from the scraper.' },
   )
   assert.ok(channels.directories.has('api/ratings'))
-  assert.ok(channels.subject.has('professor'))
+  assert.ok(channels.message.has('professor'))
   assert.ok(channels.capability.has('ingestion'))
   assert.ok(channels.summary.has('scraper'))
   // A reading-free commit still yields the observed channels, so an arm that ignores
@@ -404,11 +404,33 @@ test('merge subjects contribute the branch name, never the account it came from'
   const left = evidenceChannels({ subject: 'Merge pull request #1 from octocat/billing-retry', changes: [] }, null)
   const right = evidenceChannels({ subject: 'Merge pull request #2 from octocat/search-ranking', changes: [] }, null)
   assert.equal(channelSimilarity(left, right, OBSERVED_CHANNELS), 0)
-  assert.ok(!left.subject.has('octocat'))
+  assert.ok(!left.message.has('octocat'))
 })
 
 test('issue numbers are not capability words', () => {
   const channels = evidenceChannels({ subject: 'Update etl-pipeline.yml (#743)', changes: [] }, null)
-  assert.ok(!channels.subject.has('743'))
-  assert.ok(channels.subject.has('etl'))
+  assert.ok(!channels.message.has('743'))
+  assert.ok(channels.message.has('etl'))
+})
+
+test('the message channel reads the body, where the description usually is', () => {
+  const provenanceOnly = { subject: 'Merge pull request #7 from someone/branch', changes: [] }
+  const described = {
+    subject: 'Merge pull request #8 from another/branch',
+    body: 'feat: professor subpage',
+    changes: [],
+  }
+  const alsoProfessors = { subject: 'professor subpage tweaks', changes: [] }
+
+  const channels = evidenceChannels(described, null)
+  assert.ok(channels.message.has('professor'))
+  assert.ok(!channels.message.has('another'), 'the account name is still dropped')
+
+  // Without the body the two merges share nothing; with it, the described one reaches the
+  // commit that is actually about the same thing.
+  assert.equal(
+    channelSimilarity(evidenceChannels(provenanceOnly, null), evidenceChannels(alsoProfessors, null), OBSERVED_CHANNELS),
+    0,
+  )
+  assert.ok(channelSimilarity(channels, evidenceChannels(alsoProfessors, null), OBSERVED_CHANNELS) > 0)
 })

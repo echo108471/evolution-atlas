@@ -35,7 +35,7 @@ function episode(shortSha, subject, paths, areaIds, authoredAt) {
 function observedDataset() {
   return {
     schemaVersion: '0.1.0',
-    analysis: { mode: 'observed-only', historyRange: 'HEAD', mergeDiffStrategy: 'first-parent' },
+    analysis: { mode: 'observed-only', historyRange: 'HEAD', mergeDiffStrategy: 'diff-merges-first-parent' },
     repository: { name: 'demo', ref: 'main', headSha: 'ffff0000', commitCount: 2 },
     timeRange: { firstAuthoredAt: '2025-01-01T00:00:00Z', lastAuthoredAt: '2025-02-01T00:00:00Z' },
     contributors: [],

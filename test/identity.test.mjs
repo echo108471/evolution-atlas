@@ -38,7 +38,7 @@ function datasetWith(contributors, identityMatches) {
   return {
     ...(identityMatches ? { identityMatches } : {}),
     schemaVersion: '0.1.0',
-    analysis: { mode: 'observed-only', historyRange: 'HEAD', mergeDiffStrategy: 'first-parent' },
+    analysis: { mode: 'observed-only', historyRange: 'HEAD', mergeDiffStrategy: 'diff-merges-first-parent' },
     repository: { name: 'identity-test', ref: 'main', headSha: 'bbb', commitCount: contributors.length },
     timeRange: {
       firstAuthoredAt: '2025-01-01T00:00:00Z',

@@ -74,6 +74,11 @@ export interface ChangeEpisode {
   commitSha: string
   shortSha: string
   subject: string
+  /**
+   * Everything after the subject line, capped. Absent when the author wrote none, which
+   * on the pilot is 27.6% of the first-parent chain.
+   */
+  body?: string
   authoredAt: string
   committedAt: string
   parentShas: string[]
@@ -142,11 +147,17 @@ export interface Relationship {
 }
 
 export interface AtlasDataset {
-  schemaVersion: '0.2.0'
+  schemaVersion: '0.3.0'
   analysis: {
     mode: 'observed-only' | 'interpreted'
     historyRange: string
-    mergeDiffStrategy: 'first-parent'
+    /**
+     * Named for the flag that produces it. The type said `first-parent` long after the
+     * analyzer stopped passing `--first-parent` - which emitted nothing for a merge - and
+     * nothing caught the drift, because the analyzer is JavaScript and never checked
+     * against this file.
+     */
+    mergeDiffStrategy: 'diff-merges-first-parent'
   }
   repository: {
     name: string

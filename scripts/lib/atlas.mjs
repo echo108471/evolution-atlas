@@ -94,18 +94,27 @@ export function parseNameStatus(output) {
   return changes
 }
 
+/** Long enough for a pull request title and a squashed commit list; short of a changelog. */
+const MAX_BODY_CHARACTERS = 2000
+
 function readCommit(repositoryPath, sha) {
   const rawMetadata = runGit(repositoryPath, [
     'show',
     '-s',
-    '--format=%H%x00%P%x00%an%x00%ae%x00%aI%x00%cI%x00%s',
+    '--format=%H%x00%P%x00%an%x00%ae%x00%aI%x00%cI%x00%s%x00%b',
     sha,
   ])
   const fields = rawMetadata.split('\0')
-  if (fields.length < 7) throw new Error(`Could not parse metadata for ${sha}`)
+  if (fields.length < 8) throw new Error(`Could not parse metadata for ${sha}`)
 
-  const [commitSha, parents, authorName, authorEmail, authoredAt, committedAt] = fields
-  const subject = fields.slice(6).join('\0').trimEnd()
+  const [commitSha, parents, authorName, authorEmail, authoredAt, committedAt, rawSubject] = fields
+  const subject = rawSubject.trimEnd()
+  // 72.4% of the pilot's first-parent commits carry a body, and 445 of those 535 are
+  // merges whose body holds the pull request title - `Merge pull request #772 from
+  // AggieWorks/feat/professor-subpage` has the body `feat: professor subpage`. The subject
+  // channel was measurably the weakest evidence anywhere in the pipeline while the text
+  // that would fix it was being thrown away at the first step.
+  const body = fields.slice(7).join('\0').trim().slice(0, MAX_BODY_CHARACTERS)
   // `--diff-merges=first-parent`, not `--first-parent`. The latter silently emits nothing
   // at all for a merge commit, so every merge recorded zero changes and no code area -
   // 25.7% of the pilot history - while `analysis.mergeDiffStrategy` claimed otherwise.
@@ -132,6 +141,7 @@ function readCommit(repositoryPath, sha) {
     authoredAt,
     committedAt,
     subject,
+    body,
     changes: parseNameStatus(rawChanges),
   }
 }
@@ -250,6 +260,7 @@ export function buildAtlas(inputPath = '.') {
       commitSha: commit.sha,
       shortSha: commit.sha.slice(0, 8),
       subject: commit.subject,
+      ...(commit.body ? { body: commit.body } : {}),
       authoredAt: commit.authoredAt,
       committedAt: commit.committedAt,
       parentShas: commit.parentShas,
@@ -298,7 +309,7 @@ export function buildAtlas(inputPath = '.') {
   const structuralEpisodes = buildStructuralEpisodes(episodes)
 
   return {
-    schemaVersion: '0.2.0',
+    schemaVersion: '0.3.0',
     analysis: {
       mode: 'observed-only',
       historyRange: 'HEAD',

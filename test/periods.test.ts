@@ -5,7 +5,7 @@ import { levelLabel, matchesDataset, parsePeriodDocument, type PeriodDocument } 
 
 function document(overrides: Partial<PeriodDocument> = {}): PeriodDocument {
   return {
-    schemaVersion: '0.2.0',
+    schemaVersion: '0.3.0',
     repository: 'course-recommender',
     headSha: 'ba900d8f',
     method: 'epoch-boundaries:openrouter:x-ai/grok-4.6',
