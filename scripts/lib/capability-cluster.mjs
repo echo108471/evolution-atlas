@@ -27,11 +27,39 @@ const SUBJECT_STOPWORDS = new Set([
   'feat', 'chore', 'docs', 'wip', 'minor', 'small', 'clean', 'cleanup', 'now', 'not',
 ])
 
+const MERGE_PULL_REQUEST = /^merge pull request #\d+ from [^/\s]+\/(.+)$/i
+const MERGE_BRANCH = /^merge branch '([^']+)'(?: of \S+)?(?: into .+)?$/i
+const MERGE_REMOTE_BRANCH = /^merge remote-tracking branch '[^/']+\/([^']+)'/i
+
+/**
+ * The part of a subject that describes work rather than provenance.
+ *
+ * `Merge pull request #431 from AggieWorks/prefetch-api` carries one useful word and one
+ * account name. Left whole, the account name becomes a clustering feature, and the arms
+ * start grouping commits by whose fork they arrived through - which is not a capability,
+ * and is contributor history being used to impose structure. The branch name is kept
+ * because it is a description the author wrote; the owner is dropped.
+ */
+export function subjectText(subject) {
+  const text = String(subject ?? '').trim()
+  for (const pattern of [MERGE_PULL_REQUEST, MERGE_REMOTE_BRANCH, MERGE_BRANCH]) {
+    const matched = pattern.exec(text)
+    if (matched) return matched[1]
+  }
+  return text
+}
+
 const tokenize = (text) =>
   String(text ?? '')
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter((token) => token.length > 2 && !SUBJECT_STOPWORDS.has(token))
+    .filter(
+      (token) =>
+        token.length > 2 &&
+        !SUBJECT_STOPWORDS.has(token) &&
+        // Issue and pull-request numbers are shared by nothing.
+        !/^\d+$/.test(token),
+    )
 
 /**
  * Directories a commit touches, at every depth. Depth matters: two commits under
@@ -51,7 +79,7 @@ export function pathDirectories(episode) {
 }
 
 export function commitFeatures(episode) {
-  return { directories: pathDirectories(episode), tokens: new Set(tokenize(episode.subject)) }
+  return { directories: pathDirectories(episode), tokens: new Set(tokenize(subjectText(episode.subject))) }
 }
 
 export function jaccard(left, right) {
@@ -83,7 +111,7 @@ export function observedSimilarity(left, right) {
 export function evidenceChannels(episode, reading) {
   return {
     directories: pathDirectories(episode),
-    subject: new Set(tokenize(episode?.subject)),
+    subject: new Set(tokenize(subjectText(episode?.subject))),
     capability: new Set(tokenize(reading?.capability)),
     summary: new Set(tokenize(reading?.summary)),
   }

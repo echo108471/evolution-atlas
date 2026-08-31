@@ -17,6 +17,7 @@ import {
   observedSimilarity,
   pairwiseAgreement,
   pathDirectories,
+  subjectText,
 } from '../scripts/lib/capability-cluster.mjs'
 import {
   CONSOLIDATE_SYSTEM_PROMPT,
@@ -382,4 +383,24 @@ test('the naming prompt shows readings only when asked, and never says which arm
 test('a commit without a reading still renders in the reading-aware prompt', () => {
   const request = buildNamingRequest([{ subject: 'tidy imports' }], { model: 'test', withReadings: true })
   assert.ok(JSON.stringify(request).includes('tidy imports'))
+})
+
+test('merge subjects contribute the branch name, never the account it came from', () => {
+  assert.equal(subjectText('Merge pull request #431 from AggieWorks/prefetch-api'), 'prefetch-api')
+  assert.equal(subjectText("Merge remote-tracking branch 'origin/fix-routes'"), 'fix-routes')
+  assert.equal(subjectText("Merge branch 'staging' into main"), 'staging')
+  assert.equal(subjectText('cleanup'), 'cleanup', 'an ordinary subject passes through')
+
+  // Two merges from different contributors, describing different work, must not be drawn
+  // together by the account names alone.
+  const left = evidenceChannels({ subject: 'Merge pull request #1 from octocat/billing-retry', changes: [] }, null)
+  const right = evidenceChannels({ subject: 'Merge pull request #2 from octocat/search-ranking', changes: [] }, null)
+  assert.equal(channelSimilarity(left, right, OBSERVED_CHANNELS), 0)
+  assert.ok(!left.subject.has('octocat'))
+})
+
+test('issue numbers are not capability words', () => {
+  const channels = evidenceChannels({ subject: 'Update etl-pipeline.yml (#743)', changes: [] }, null)
+  assert.ok(!channels.subject.has('743'))
+  assert.ok(channels.subject.has('etl'))
 })

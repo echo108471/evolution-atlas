@@ -147,7 +147,14 @@ function loadCache(path) {
   return cache
 }
 
-const cacheKey = (sha, tier, model) => `${sha}:${tier}:${model}:v${EVIDENCE_VERSION}`
+/**
+ * The diff budget belongs in the key. Raising it is the cheapest thing to try when tier 1
+ * keeps asking for depth because it only saw part of the change - 68 of the pilot's 84
+ * promotions gave `partial` as the cause - and without the budget here that experiment
+ * would return the old, smaller-diff readings and report no effect.
+ */
+const cacheKey = (sha, tier, model, maxLines) =>
+  `${sha}:${tier}:${model}:${maxLines}:v${EVIDENCE_VERSION}`
 
 function addUsage(total, usage) {
   if (!usage) return
@@ -232,7 +239,7 @@ async function main() {
 
   const readCommit = async (index, { tier, model, maxLines }) => {
     const episode = episodes[index]
-    const key = cacheKey(episode.commitSha, tier, model)
+    const key = cacheKey(episode.commitSha, tier, model, maxLines)
     const hit = cache.get(key)
     if (hit) { cached += 1; return hit }
 
