@@ -137,18 +137,18 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-1. **Group per-commit readings into capabilities.** Two models reading the same commit
-   blind agree on its lifecycle kind 82% of the time and share only 0.22 of their
-   capability wording, so aggregation cannot be done by string matching. This is the
-   load-bearing gap in [Per-commit reading](PER-COMMIT.md).
+1. **Hand-grade a sample of pilot commits into capabilities.** Grouping is now built two
+   ways and they disagree at F1 0.090, with neither measurably more nameable than the
+   other (38% against 42%) and the model arm not reproducing itself between runs. No
+   further tuning is evaluable without an answer key. See
+   [Capabilities](CAPABILITIES.md).
 2. Separate unit size from repository when measuring capability-name convergence. The
    0.22 and 0.31 readings differ in repository, unit, and size at once.
-3. Hand-grade the pilot's feature candidates into a gold set. Every later prompt or
-   architecture change is unmeasurable without one, and the pilot is the only subject
-   whose owner can check the answers.
-4. Write a deterministic baseline that clusters commits by shared paths and subject
-   tokens. Until that number exists, the interpretation stage's contribution over a
-   simple script is unknown.
+3. Try grouping on evidence rather than on names. Both arms are extremes: one sees only
+   paths, the other only capability names, and nothing has yet been tried that sees both.
+4. Measure consolidation variance directly by running it several times and reporting how
+   often two commits land together — converting a non-reproducibility problem into the
+   measured confidence the interpretation findings asked for.
 5. Act on `depthCause`: a commit promoted because its diff was partial wants a larger
    tier-1 budget, not a more expensive model. Nine of eleven promotions were of that kind.
    Detect whitespace-only commits with `git diff -w --numstat` against the plain counts —
