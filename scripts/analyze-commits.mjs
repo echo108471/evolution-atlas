@@ -15,7 +15,7 @@ import { dirname, resolve } from 'node:path'
 
 import { triage } from './lib/triage.mjs'
 import { buildContextIndex, situate, renderContext } from './lib/commit-context.mjs'
-import { readCommitDiff, DEFAULT_MAX_LINES } from './lib/commit-diff.mjs'
+import { readCommitDiff, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from './lib/commit-diff.mjs'
 import {
   API_KEY_ENV,
   DEFAULT_TIER1_MODEL,
@@ -51,7 +51,12 @@ Options:
   --tier1-model <id>     Volume tier (default: ${DEFAULT_TIER1_MODEL})
   --tier2-model <id>     Depth tier (default: ${DEFAULT_TIER2_MODEL})
   --concurrency <n>      Requests in flight (default: 8)
-  --max-lines <n>        Tier 1 diff budget (default: ${DEFAULT_MAX_LINES})
+  --max-lines <n>        Tier 1 diff line budget (default: ${DEFAULT_MAX_LINES})
+  --max-bytes <n>        Tier 1 diff byte budget (default: ${DEFAULT_MAX_BYTES}). This is
+                         the budget that actually binds: on the pilot, raising only the
+                         line budget tenfold moved truncation from 42.3% to 39.0%, while
+                         raising this to 262144 moved it to 28.4% for 32% more diff bytes.
+  --tier2-max-bytes <n>  Tier 2 diff byte budget (default: ${DEFAULT_MAX_BYTES * 4})
   --tier2-max-lines <n>  Tier 2 diff budget (default: ${TIER2_MAX_LINES})
   --sample <n>           Analyze n commits spread evenly across history
   --all-commits          Analyze every commit rather than the first-parent chain.
@@ -76,6 +81,8 @@ function parseArguments(argv) {
     tier2Model: DEFAULT_TIER2_MODEL,
     concurrency: 8,
     maxLines: DEFAULT_MAX_LINES,
+    maxBytes: DEFAULT_MAX_BYTES,
+    tier2MaxBytes: DEFAULT_MAX_BYTES * 4,
     tier2MaxLines: TIER2_MAX_LINES,
     sample: null,
     firstParent: true,
@@ -87,6 +94,8 @@ function parseArguments(argv) {
   const numbers = {
     '--concurrency': 'concurrency',
     '--max-lines': 'maxLines',
+    '--max-bytes': 'maxBytes',
+    '--tier2-max-bytes': 'tier2MaxBytes',
     '--tier2-max-lines': 'tier2MaxLines',
     '--sample': 'sample',
   }
@@ -153,8 +162,8 @@ function loadCache(path) {
  * promotions gave `partial` as the cause - and without the budget here that experiment
  * would return the old, smaller-diff readings and report no effect.
  */
-const cacheKey = (sha, tier, model, maxLines) =>
-  `${sha}:${tier}:${model}:${maxLines}:v${EVIDENCE_VERSION}`
+const cacheKey = (sha, tier, model, maxLines, maxBytes) =>
+  `${sha}:${tier}:${model}:${maxLines}:${maxBytes}:v${EVIDENCE_VERSION}`
 
 function addUsage(total, usage) {
   if (!usage) return
@@ -237,13 +246,13 @@ async function main() {
   let done = 0
   let cached = 0
 
-  const readCommit = async (index, { tier, model, maxLines }) => {
+  const readCommit = async (index, { tier, model, maxLines, maxBytes }) => {
     const episode = episodes[index]
-    const key = cacheKey(episode.commitSha, tier, model, maxLines)
+    const key = cacheKey(episode.commitSha, tier, model, maxLines, maxBytes)
     const hit = cache.get(key)
     if (hit) { cached += 1; return hit }
 
-    const diff = readCommitDiff(repositoryPath, episode.commitSha, { maxLines })
+    const diff = readCommitDiff(repositoryPath, episode.commitSha, { maxLines, maxBytes })
     const contextText = renderContext(situate(dataset, contextIndex, index))
     const body = tier === 1
       ? buildTier1Request({ repositoryName: dataset.repository.name, contextText, subject: episode.subject, diff, model })
@@ -264,7 +273,9 @@ async function main() {
 
   const tier1 = await mapWithConcurrency(indices, options.concurrency, async (index) => {
     try {
-      const reading = await readCommit(index, { tier: 1, model: options.tier1Model, maxLines: options.maxLines })
+      const reading = await readCommit(index, {
+        tier: 1, model: options.tier1Model, maxLines: options.maxLines, maxBytes: options.maxBytes,
+      })
       done += 1
       if (done % 50 === 0) {
         const rate = done / ((Date.now() - startedAt) / 1000)
@@ -298,6 +309,7 @@ async function main() {
           tier: 2,
           model: options.tier2Model,
           maxLines: options.tier2MaxLines,
+          maxBytes: options.tier2MaxBytes,
         })
         return { index: row.index, reading }
       } catch (error) {
