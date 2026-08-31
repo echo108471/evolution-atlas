@@ -1,135 +1,229 @@
 # Grouping readings into capabilities
 
-Per-commit reading produces one capability name per commit and no way to relate them.
-On the pilot that is **579 distinct names across 606 units**, with only 23 used more than
-once — a capability is almost never named the same way twice. Blind tier-2 reading
-predicted this when it measured two models sharing 0.31 of their wording for the same
-commit; at this scale, grouping by string equality recovers nothing.
+Per-commit reading produces one capability name per commit and no way to relate them. On
+the pilot that is **585 distinct names across 605 units**, with only 15 phrases used more
+than once, covering 35 commits between them. The reading prompt explicitly asks for
+reusable wording — *"use the same words you would use if you saw a related commit later,
+since these names are compared across commits"* — and the words are in fact shared:
+`course` appears in 157 names, `frontend` in 91, `etl` in 75. It is the phrases that are
+unique, averaging 5.2 words. An independent per-commit call can be asked for a shared
+vocabulary but cannot be given one, because it has no access to the vocabulary.
 
-`npm run capabilities` groups them two ways and compares the results. The comparison is
-the point. Until a deterministic baseline exists, nobody can say what interpretation
-contributes over a simple script, and that has been the most decision-relevant open
-question in the project since before per-commit reading was built.
+`npm run capabilities` groups the readings four ways and compares them.
 
-## Two arms, neither shown the other
+## Four arms, and why three of them share one routine
 
-**The deterministic arm** (`scripts/lib/capability-cluster.mjs`) sees only observed Git
-facts: the directories a commit touched, at every depth, and the words in its subject.
-Paths carry more weight than words, because a path is where the change landed and a
-subject is whatever the author felt like typing. No reading, no model, no cost.
+The first version of this comparison had two arms and could not interpret its own result.
+The baseline saw paths and subjects and clustered them; the model arm saw capability names
+and had a model group them. They disagreed at F1 0.090, and nothing in the design said
+whether the evidence or the method was responsible.
 
-It clusters by **mutual nearest neighbours**, not by thresholded connected components.
-Single linkage collapsed the pilot into one cluster of **568 units out of 606 at every
-threshold tried** — a few sprawling commits touch enough of the tree to join unrelated
-work, and connected components lets them. Requiring the link to be mutual denies a hub
-that power: a hub is nobody's nearest neighbour. A baseline exists to be beaten honestly,
-and leaving it degenerate would have made the comparison meaningless.
+Three arms now share one clustering routine — the same mutual-kNN, the same neighbour
+count, the same floor — and differ only in which evidence channels the similarity may
+read.
 
-**The model arm** (`scripts/lib/capability-consolidate.mjs`) groups the proposed names.
-It sees names alone — never paths, dates, authors, or the baseline's clusters. Names
-split across request batches are rejoined by a second round, and a name the model drops
-becomes its own capability rather than vanishing, because losing a capability silently is
-worse than reporting one that should have merged.
+| arm | directories | message | capability | summary |
+| --- | --- | --- | --- | --- |
+| `baseline` | 0.65 | 0.35 | — | — |
+| `reading` | — | — | 0.65 | 0.35 |
+| `combined` | 0.325 | 0.175 | 0.325 | 0.175 |
 
-The consolidation prompt originally illustrated "capability" with *"course search"* and
-*"professor review scraping"* — two of the pilot repository's actual capabilities, which
-is the answers written into the question. A test now forbids illustrations there.
+`combined` is the plain mean of the other two, and a test holds it there. With no gold set
+there is nothing to tune a mixture against, so a hand-tuned one would only be fitted to
+whichever arm looked better afterwards.
 
-## Judging them
+The fourth arm, `model`, hands the capability names to `x-ai/grok-4.6` and asks it to
+group them. It sees names alone — never paths, dates, authors, or another arm's clusters.
 
-Cluster counts cannot rank two clusterings: an arm can look better simply by splitting
-more. Two measurements are used instead.
+`message` is the commit subject plus its body, with merge provenance removed. `Merge pull
+request #431 from AggieWorks/prefetch-api` contributes `prefetch-api` and not
+`AggieWorks`: grouping commits by whose fork they arrived through is not a capability, and
+is contributor history being used to impose structure.
+
+Clustering is by **mutual nearest neighbours**, not thresholded connected components.
+Single linkage collapsed the pilot into one cluster of 568 units out of 606 at every
+threshold tried. Requiring the link to be mutual denies a hub that power: a hub is nobody's
+nearest neighbour.
+
+## Judging
+
+Cluster counts cannot rank two clusterings — an arm can look better by splitting more — so
+four measurements are used, and each needs the others to be readable.
 
 **Agreement over commit pairs.** Given two commits, do both arms put them in the same
-capability? Reported as precision and recall with neither arm treated as truth.
+capability? Precision and recall, with neither arm treated as truth.
 
-**Naming as evaluation.** A group of commits nobody can name is a bad group whichever
-method produced it — the same test the epoch work applies to periods. The same prompt
-names every multi-commit group from both arms, is never told which arm a group came from,
-and is told that refusing is a valid answer. Singletons are excluded, since a one-commit
-group is trivially about one thing and counting them would reward whichever arm split
-more.
+**A chance floor.** Two clusterings share some pairs by accident, and how many depends on
+their shapes. Keeping each arm's exact group sizes and shuffling which commits fill them
+gives the floor: **0.004 to 0.012** for these shapes. Every number below is above it, and
+saying two arms "disagree" without this would have been saying nothing.
+
+**A stability ceiling.** The model arm is not deterministic, so its agreement with anything
+cannot exceed its agreement with itself. Three runs over identical input give that ceiling.
+
+**Naming, from three views.** A group nobody can name is a bad group whichever method
+produced it — the test the epoch work applies to periods. One prompt names every
+multi-commit group, is never told which arm produced it, and may refuse. There is no
+neutral view: showing the readings favours the arms that group on readings, showing the
+paths favours the arms that group on paths, and showing only the commit message favours
+neither but is itself weak evidence. So all three are reported and their agreement is the
+finding.
 
 ## What was measured
 
-Pilot repository, `course-recommender` at `ba900d8f`, 606 readings.
+Pilot repository, `course-recommender` at `ba900d8f`, 605 readings on the first-parent
+chain.
 
 ```
-                        clusters   largest   singletons   grouped
-baseline                     248        17          141       77%
-model                         85        63           18       97%
+arm         groups  largest  singletons  grouped  mean size
+baseline       256       17         146      76%        4.2
+reading        398       21         326      46%        3.9
+combined       287       20         196      68%        4.5
+model           81       48          19      97%        9.5
 
-agreement over commit pairs
-  together in both           306
-  baseline only              894
-  model only               5,293
-  F1 0.090   (precision 0.055, recall 0.255)
+agreement over commit pairs        F1     chance floor
+  baseline vs reading             0.104        0.006
+  baseline vs combined            0.321        0.004
+  baseline vs model               0.112        0.009
+  reading  vs combined            0.219        0.006
+  reading  vs model               0.143        0.008
+  combined vs model               0.152        0.012
 
-nameable, same prompt, arm concealed
-  baseline               41/107      38%
-  model                   28/67      42%
+model arm, three runs over identical input
+  capabilities              81, 64, 77
+  largest                   48, 53, 48
+  F1 between runs           0.717, 0.773, 0.738
+  pairs grouped by any run  7113, of which 3222 by all three (45%)
 
-consolidation cost        $0.4618
-naming cost               $0.0060
+nameable, same prompt, arm concealed; two independent passes over identical groups
+                   message      +readings      +paths
+  baseline        50%  52%      70%  71%      57%  59%
+  reading         53%  46%      96%  97%      75%  72%
+  combined        48%  46%      79%  81%      68%  71%
+  model           52%  56%      89%  92%      70%  70%
+
+the same, conditioned on group size, +paths view, second pass
+                    2-3 commits   4-6 commits   7+ commits
+  baseline          70% (35/50)   54% (25/46)   36%  (5/14)
+  reading           72% (33/46)   81% (13/16)   60%  (6/10)
+  combined          78% (35/45)   71% (22/31)   46%  (6/13)
+  model             61% (11/18)   82%  (9/11)   72% (23/32)
+
+readings         $0.4508
+consolidation    $1.3181  (three runs)
+naming           $0.0461  (four arms, three views)
 ```
 
-### The two arms do not agree
+### The evidence decides the grouping; the method barely matters
 
-F1 0.090. They are not two approximations of one answer; they are different answers. The
-model arm groups far more aggressively — 97% of units into 85 capabilities against 77%
-into 248 — so it proposes about four times as many co-grouped pairs, and the baseline
-endorses 5.5% of them.
+`reading` is a deterministic clustering and `model` is a language model, working on the
+same capability names by completely different mechanisms. Against the path-based baseline
+they land at **0.104 and 0.112** — indistinguishable. The original two-arm result of 0.090
+was not a fact about consolidation. It was a fact about what capability names are.
 
-### Interpretation does not measurably beat the baseline at grouping
+A sweep of 24 shaping settings — four neighbour counts by three floors, with and without
+commit bodies — keeps `baseline vs reading` below 0.15 in 22 of them, the whole range being
+0.013 to 0.399. This is not an artifact of one choice of neighbour count or floor.
 
-**38% against 42% nameable**, on 107 and 67 groups. That difference is well inside noise,
-and it is the answer to the question the roadmap has been asking: on this evidence, the
-model arm does not earn its cost at grouping.
+### The model arm is more stable than cluster counts suggested
 
-This is a negative result and it is recorded as one. It does not say interpretation is
-worthless — per-commit reading itself is measurably strong, taking `unclear` from 29.7% to
-0.5% and producing a calibrated confidence spread where whole-corpus interpretation
-produced three values. It says the *grouping* step, as built, is not yet better than
-paths and subject words.
+This corrects an earlier record. Two runs producing 106 and 85 capabilities were written
+down here as evidence that the arm "is not reproducible". Measured over pairs, three runs
+agree at **F1 0.717 to 0.773** — substantial. The cluster count is the unstable thing; the
+membership is not, and counting the wrong unit exaggerated the instability.
 
-### Two reasons to distrust both numbers
+The ceiling matters more than the correction. The model agrees with itself at ~0.74 and
+with every other arm at 0.11 to 0.15. Its disagreement with them is real rather than run
+noise, and roughly an order of magnitude larger than its disagreement with itself.
 
-**The judge is handicapped.** It sees commit subjects only, and subjects alone were
-already measured insufficient: an open-vocabulary pass over the same repository reported
-itself uncertain on 46% of commits from subjects and paths. Both arms are handicapped
-equally, so the comparison stands, but the absolute 38% and 42% are lower bounds on
-coherence rather than measurements of it.
+45% of commit pairs grouped by any run were grouped by all three. A pairing proposed by one
+run is closer to a coin flip than to a finding; a pairing all three runs make is worth
+something. That is the confidence measure the interpretation findings asked for, and it
+costs one extra consolidation run to obtain.
 
-Feeding the judge the per-commit summaries instead would be stronger evidence, and would
-also favour the model arm by construction: those summaries are what its capability names
-were derived from, so it would be judged on its own inputs while the baseline would not.
-That variant is therefore not a tiebreaker.
+### The judge has its own noise, and it is not small
 
-**The model arm is not reproducible.** Two runs over identical input:
+Judging is cheap where grouping is expensive, so the same four arms were judged twice. The
+two passes differ by up to **7 points on the message view** and by about 3 on the other
+two — weak evidence makes an indecisive judge. Every comparison below is read against that.
+
+### No arm groups better under the neutral view
+
+Under the message view the arms span 48% to 53% on the first pass and 46% to 56% on the
+second, and they do not keep their order between passes. That spread is entirely inside
+the judge's noise. Four methods, two of which cost money, none distinguishable from the
+free one.
+
+### Interpretation explains groups it did not form
+
+Showing the readings lifts every arm, the baseline from 50% to **70%** — on groups built
+without ever seeing a reading, a rise far outside the judge's noise. The readings did not
+form those groups and cannot take credit for them. They explain them: shown a reading, the
+judge names a group it had just refused.
+
+That is the separable-stages result. Group with the free clustering, describe with the
+readings, and pay for only one of the two.
+
+### But path grouping falls apart as groups get larger, and interpretation does not
+
+The separable-stages conclusion holds only for small groups. `reading` beats `baseline`
+under the **paths** view — the baseline's own channel, where self-favouring runs the wrong
+way — 75% against 57%, and 72% against 59% on the second pass. Conditioning on group size
+shows why, and it is not the group-size confound it looks like:
 
 ```
-run 1     106 capabilities, largest 27
-run 2      85 capabilities, largest 63
+                    2-3 commits   4-6 commits   7+ commits
+  baseline              70%           54%           36%
+  reading               72%           81%           60%
+  model                 61%           82%           72%
 ```
 
-The largest capability more than doubled. Any conclusion drawn from one consolidation run
-inherits that variance, and the naming comparison above rests on a single run of each arm.
+The baseline is fine at pairs and triples and collapses beyond them, from 70% to 36%. The
+interpretation arms hold, and `model` improves. Paths group small clusters of adjacent work
+well and cannot sustain a capability; a capability that spans fourteen months is exactly
+what the atlas is for.
+
+The cells are small — 14, 10 and 32 groups in the 7+ column — so this is a direction, not a
+coefficient. It is the strongest argument in this document that interpretation contributes
+something to grouping and not only to description, and it is the thing a gold set should be
+built to settle first.
+
+### Commit bodies: a mixed result
+
+72.4% of the pilot's first-parent chain carries a commit body, and 445 of those 535 are
+merges whose subject is provenance and whose body is the pull request title. Adding them
+tightened the baseline slightly, 256 groups to 245. It made `combined` worse: its largest
+group went from 20 to 45 and became the project's first six months, held together by
+bodies reading `New frontend`, `New data`, `push`. And `baseline vs reading` did not move
+at all, staying at 0.104. The gap between grouping on paths and grouping on interpretation
+is not one the message text closes.
+
+## Two caveats that still stand
+
+**The shaping defaults are a claim about the evidence.** They were chosen for producing no
+dominant cluster, which stops being true when the evidence changes — and it changed twice,
+for merge diffs and for bodies. Across the sweep the largest baseline group ranges from 10
+units to 226, and k=5 and k=8 collapse into blobs of up to 493 of 605. A group holding more
+than a tenth of the corpus now says so in the report.
+
+**Nameability is not correctness.** A judge can name a group that is wrong; the three views
+disagree by up to 43 points on the same groups; and two passes of the same view disagree by
+up to 7. Nameability discriminates between methods only where they differ by more than
+that. Under the neutral view they do not differ at all, and in the 7+ column they do.
 
 ## What follows
 
-The gold set is no longer deferrable. Two methods disagree at F1 0.090, neither is
-measurably more nameable, and the model arm does not reproduce itself between runs. No
-further tuning of either arm can be evaluated without an answer key, and the pilot is the
-only subject whose owner can supply one.
+The gold set is the binding constraint, and is now the only one. Everything that could be
+measured without an answer key has been: the evidence dominates the method, the model arm
+is stable enough to trust one run of, the chance floor is known, and the three judging
+views bracket what nameability can say. None of it can settle whether any arm is *right*.
 
-Concretely, in order:
-
-1. **Hand-grade a sample of the pilot's commits into capabilities.** Not all 606 — enough
-   to score both arms, perhaps 100 commits across the history.
-2. **Measure consolidation variance directly.** Run it several times and report how often
-   two commits land together, which converts a non-reproducibility problem into the
-   confidence measure the interpretation findings asked for.
-3. **Give the judge the readings** as a secondary measurement, reported alongside the
-   subject-only one rather than replacing it.
-4. **Try grouping on evidence rather than names.** Both arms are extremes — one sees only
-   paths, the other only names. Nothing has yet been tried that sees both.
+1. **Hand-grade a sample of the pilot's commits into capabilities.** Not all 605 — around
+   100 across the history is enough to score four arms. Only the repository's owner can
+   supply it. Weight it toward capabilities of seven commits or more, since that is where
+   the arms actually diverge and where the present cells are thinnest.
+2. **Ask for shorter capability names.** The 5.2-word phrase is why 585 of 605 names are
+   unique while their words are shared. A two-or-three-word name would make the free
+   `reading` arm sharper without a consolidation step, and it costs one re-read to test.
+3. **Re-read `partial` promotions at a larger byte budget** rather than escalating to a
+   pricier model. See [Per-commit reading](PER-COMMIT.md) for what the budgets buy.

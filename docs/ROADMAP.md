@@ -98,7 +98,9 @@ that ceiling with a rate.
 - Feed periods back into feature and lifecycle discovery so each period can afford more
   evidence per commit. **Not started — this is the point of the exercise.**
 - Measure how much boundaries move between runs. The proposal pass is a model request and
-  is not reproducible; nothing yet quantifies the drift.
+  nothing yet quantifies the drift. `groupingStability` in the capability work is the
+  instrument: it counts pairs rather than clusters, which matters, because counting
+  clusters is what made consolidation look non-reproducible when it was not.
 - Re-derive the 250-commit and 120-day period limits on a second repository. Both came
   from one subject, and the coherence argument originally used to justify them did not
   survive testing; they are kept only to bound the analysis unit.
@@ -137,24 +139,36 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-1. **Hand-grade a sample of pilot commits into capabilities.** Grouping is now built two
-   ways and they disagree at F1 0.090, with neither measurably more nameable than the
-   other (38% against 42%) and the model arm not reproducing itself between runs. No
-   further tuning is evaluable without an answer key. See
-   [Capabilities](CAPABILITIES.md).
-2. Separate unit size from repository when measuring capability-name convergence. The
+1. **Hand-grade a sample of pilot commits into capabilities.** This is now the only
+   blocker. Grouping is built four ways; the three that share a clustering routine show
+   that the *evidence* decides the result and the method barely matters, and no arm is
+   distinguishable from the free one under a neutral judge. Weight the sample toward
+   capabilities of seven commits or more, because that is the one place the arms diverge
+   and the one place the present evidence is thinnest. See [Capabilities](CAPABILITIES.md).
+2. Ask the reading prompt for a shorter capability name. 585 of 605 names are unique while
+   their words are heavily shared, because the names average 5.2 words. A two- or
+   three-word name would sharpen the free `reading` arm without a consolidation step, and
+   one re-read tests it.
+3. Re-read a `partial` promotion at a larger byte budget instead of escalating it to a
+   pricier model. The budgets are now measured and `--max-bytes` exists; nothing yet acts
+   on the promotion cause.
+4. Separate unit size from repository when measuring capability-name convergence. The
    0.22 and 0.31 readings differ in repository, unit, and size at once.
-3. Try grouping on evidence rather than on names. Both arms are extremes: one sees only
-   paths, the other only capability names, and nothing has yet been tried that sees both.
-4. Measure consolidation variance directly by running it several times and reporting how
-   often two commits land together — converting a non-reproducibility problem into the
-   measured confidence the interpretation findings asked for.
-5. Act on `depthCause`: a commit promoted because its diff was partial wants a larger
-   tier-1 budget, not a more expensive model. Nine of eleven promotions were of that kind.
-   Detect whitespace-only commits with `git diff -w --numstat` against the plain counts —
-   the one commit class an open-vocabulary pass found that paths alone cannot prove.
-6. Capture commit bodies in the analyzer — still the cheapest unexploited evidence in the
-   corpus, and now read per commit where a body would actually be seen.
+
+### Closed since
+
+- **Grouping on evidence rather than names.** Built. Three arms share one clustering
+  routine and differ only in evidence; agreement with the baseline is 0.104 for the
+  deterministic reading arm and 0.112 for the model arm, indistinguishable.
+- **Consolidation variance.** Measured. Three runs agree at F1 0.717 to 0.773 over commit
+  pairs, which *corrects* the earlier claim that the arm does not reproduce: the cluster
+  count is unstable, the membership is not.
+- **Giving the judge the readings.** Done, along with a paths view and a second pass that
+  measures the judge's own noise at up to 7 points.
+- **Commit bodies.** Captured. 72.4% of the pilot's first-parent chain carries one. Mixed
+  result — see [Capabilities](CAPABILITIES.md).
+- **Whitespace-only detection.** Dropped on measurement: 2 of the pilot's 728 first-parent
+  commits with a text diff, and 0 of this repository's 31.
 
 Superseded: scoping interpretation to a single period. Per-commit reading covers 100% of
 substantive commits for roughly what one segmentation pass cost at 12%, and a hard period

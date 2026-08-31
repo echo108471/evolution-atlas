@@ -45,6 +45,10 @@ Options:
   --threshold <n>     Baseline similarity floor, 0-1 (default: 0.35)
   --neighbours <n>    Baseline mutual-kNN size (default: 3)
   --baseline-only     Skip the model arm; the three deterministic arms still run
+  --judge <path>      Re-run the naming passes over a capabilities document already
+                      written, and nothing else. Grouping is the expensive half; judging
+                      it costs cents, so the evaluation can be reworked without paying
+                      for consolidation again.
   --sweep             Report the deterministic arms across a grid of neighbour counts and
                       floors instead of one setting, and make no requests. The defaults
                       were chosen for producing no dominant cluster, which is a property
@@ -67,9 +71,12 @@ function parseArguments(argv) {
   const options = {
     readingsPath: null, atlasPath: null, outputPath: null, model: DEFAULT_MODEL,
     threshold: 0.35, neighbours: 3, baselineOnly: false, evaluate: false, pretty: true,
-    modelRuns: 1, evaluateReadings: false, sweep: false,
+    modelRuns: 1, evaluateReadings: false, sweep: false, judgePath: null,
   }
-  const strings = { '--readings': 'readingsPath', '--atlas': 'atlasPath', '--out': 'outputPath', '--model': 'model' }
+  const strings = {
+    '--readings': 'readingsPath', '--atlas': 'atlasPath', '--out': 'outputPath',
+    '--model': 'model', '--judge': 'judgePath',
+  }
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
@@ -102,7 +109,9 @@ function parseArguments(argv) {
     }
     throw new Error(`Unknown option: ${argument}`)
   }
-  if (!options.readingsPath || !options.atlasPath) throw new Error('--readings and --atlas are both required')
+  if (!options.judgePath && (!options.readingsPath || !options.atlasPath)) {
+    throw new Error('--readings and --atlas are both required')
+  }
   return options
 }
 
@@ -133,6 +142,42 @@ function describeCluster(members, readings, episodes, name) {
   }
 }
 
+/**
+ * Judge an already-written document again. Grouping costs dollars and judging costs cents,
+ * so the two are separable and the evaluation can be reworked without re-buying the arms -
+ * which also keeps the arms fixed while the measurement of them changes.
+ */
+async function judgeExisting(options, apiKey, report) {
+  const documentPath = resolve(options.judgePath)
+  const document = JSON.parse(readFileSync(documentPath, 'utf8'))
+  report(`${document.repository}: ${document.arms.length} arms from ${documentPath}`)
+
+  const evaluation = {}
+  let cost = 0
+  for (const [pass, show] of [['message', []], ['readings', ['reading']], ['paths', ['paths']]]) {
+    report(`\nnaming    ${pass}`)
+    evaluation[pass] = {}
+    for (const arm of document.arms) {
+      const naming = await evaluateArm(arm.capabilities, { apiKey, mapper: mapWithConcurrency, show })
+      cost += naming.cost
+      evaluation[pass][arm.name] = {
+        ...naming,
+        namings: naming.namings.map((entry) => ({ commitCount: entry.commitCount, coherent: entry.coherent })),
+      }
+      report(
+        `          ${arm.name.padEnd(9)} ${String(naming.coherent).padStart(3)}/${String(naming.groupsJudged).padEnd(4)} nameable ` +
+          `(${(naming.coherentShare * 100).toFixed(0)}%)`,
+      )
+    }
+  }
+  report(`          $${cost.toFixed(4)}`)
+
+  const updated = { ...document, evaluation }
+  const outputPath = resolve(options.outputPath ?? options.judgePath)
+  writeFileSync(outputPath, `${JSON.stringify(updated, null, options.pretty ? 2 : 0)}\n`, 'utf8')
+  report(`\nwrote ${outputPath}`)
+}
+
 async function main() {
   const options = parseArguments(process.argv.slice(2))
   if (options.help) {
@@ -141,6 +186,12 @@ async function main() {
   }
 
   const apiKey = process.env[API_KEY_ENV]
+  if (options.judgePath) {
+    if (!apiKey) throw new Error(`${API_KEY_ENV} is not set`)
+    await judgeExisting(options, apiKey, (line) => process.stderr.write(`${line}\n`))
+    return
+  }
+
   if (!apiKey && !(options.baselineOnly && !options.evaluate)) throw new Error(`${API_KEY_ENV} is not set`)
 
   const readingsDocument = JSON.parse(readFileSync(resolve(options.readingsPath), 'utf8'))
@@ -319,7 +370,10 @@ async function main() {
       for (const arm of arms) {
         const naming = await evaluateArm(arm.capabilities, { apiKey, mapper: mapWithConcurrency, show })
         cost += naming.cost
-        evaluation[pass][arm.name] = { ...naming, namings: undefined }
+        evaluation[pass][arm.name] = {
+          ...naming,
+          namings: naming.namings.map((entry) => ({ commitCount: entry.commitCount, coherent: entry.coherent })),
+        }
         report(
           `          ${arm.name.padEnd(9)} ${String(naming.coherent).padStart(3)}/${String(naming.groupsJudged).padEnd(4)} nameable ` +
             `(${(naming.coherentShare * 100).toFixed(0)}%)`,
