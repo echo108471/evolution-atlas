@@ -321,3 +321,39 @@ test('a commit mixing a dataset with source is source', () => {
   assert.equal(result.class, 'code')
   assert.equal(result.substantive, true)
 })
+
+test('the diff budget counts bytes, not only lines', async () => {
+  // A single-line minified dataset in the pilot reports one changed line and emits 12.87
+  // MB of patch. Ordering by line count admitted it first, so the budget selected the
+  // worst possible file and sent 3.2 million tokens to a 1.3 million token endpoint.
+  const { execFileSync } = await import('node:child_process')
+  const { mkdtempSync, rmSync, writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { readCommitDiff } = await import('../scripts/lib/commit-diff.mjs')
+
+  const repository = mkdtempSync(join(tmpdir(), 'atlas-bytes-'))
+  const git = (args) => execFileSync('git', ['-C', repository, ...args], { encoding: 'utf8' })
+  try {
+    git(['init', '--initial-branch=main', '.'])
+    git(['config', 'user.email', 'test@example.com'])
+    git(['config', 'user.name', 'Test'])
+    writeFileSync(join(repository, 'seed.txt'), 'seed\n')
+    git(['add', '-A'])
+    git(['commit', '-m', 'seed'])
+
+    // One line, one megabyte - the shape that broke the budget.
+    writeFileSync(join(repository, 'data.json'), `${'x'.repeat(1024 * 1024)}\n`)
+    writeFileSync(join(repository, 'small.ts'), 'export const value = 1\n')
+    git(['add', '-A'])
+    git(['commit', '-m', 'add a minified dataset and a small module'])
+
+    const diff = readCommitDiff(repository, 'HEAD', { maxLines: 400, maxBytes: 64 * 1024 })
+    assert.equal(diff.truncated, true, 'a one-line megabyte must not count as under budget')
+    assert.ok(diff.text.length < 200 * 1024, `patch was ${diff.text.length} bytes`)
+    assert.ok(diff.included.includes('small.ts'), 'the small file should still be shown')
+    assert.ok(!diff.included.includes('data.json'), 'the megabyte file should be summarized only')
+  } finally {
+    rmSync(repository, { recursive: true, force: true })
+  }
+})

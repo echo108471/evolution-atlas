@@ -24,6 +24,15 @@ const GIT_MAX_BUFFER = 256 * 1024 * 1024
 export const DEFAULT_MAX_LINES = 400
 export const DEFAULT_CONTEXT_LINES = 3
 
+/**
+ * A byte ceiling alongside the line ceiling, because a line count says nothing about
+ * line length. A single-line minified dataset in the pilot reports one changed line and
+ * emits 12.87 MB of patch - and being "one line" it was the first file the smallest-first
+ * rule admitted, so the budget selected the worst possible file and sent 3.2 million
+ * tokens to a 1.3 million token endpoint.
+ */
+export const DEFAULT_MAX_BYTES = 64 * 1024
+
 function runGit(repositoryPath, args) {
   return execFileSync('git', ['-C', repositoryPath, ...args], {
     encoding: 'utf8',
@@ -39,7 +48,7 @@ function runGit(repositoryPath, args) {
  */
 export function readNumstat(repositoryPath, sha) {
   const raw = runGit(repositoryPath, [
-    'diff-tree', '--root', '--first-parent', '--no-commit-id', '--numstat', '-r', '-M', '-z', sha,
+    'diff-tree', '--root', '--diff-merges=first-parent', '--no-commit-id', '--numstat', '-r', '-M', '-z', sha,
   ])
 
   const tokens = raw.split('\0')
@@ -71,9 +80,59 @@ export function readNumstat(repositoryPath, sha) {
   return files
 }
 
+/**
+ * Byte sizes for the blobs on both sides of each change, read in two cheap calls. The sum
+ * bounds how much patch text a file can produce, which numstat cannot tell us.
+ */
+export function readBlobSizes(repositoryPath, sha) {
+  const raw = runGit(repositoryPath, [
+    'diff-tree', '--root', '--diff-merges=first-parent', '--no-commit-id', '--raw', '-r', '-M', '-z', sha,
+  ])
+
+  const tokens = raw.split('\0')
+  const entries = []
+  const wanted = new Set()
+  for (let index = 0; index < tokens.length; ) {
+    const meta = tokens[index++]
+    if (!meta || !meta.startsWith(':')) continue
+    const fields = meta.slice(1).split(' ')
+    if (fields.length < 5) continue
+    const [, , oldBlob, newBlob, status] = fields
+    const isRename = status.startsWith('R') || status.startsWith('C')
+    if (isRename) index += 1
+    const path = tokens[index++]
+    if (!path) continue
+    for (const blob of [oldBlob, newBlob]) {
+      if (/^0+$/.test(blob)) continue
+      wanted.add(blob)
+    }
+    entries.push({ path, oldBlob, newBlob })
+  }
+
+  const sizes = new Map()
+  if (wanted.size > 0) {
+    const output = execFileSync('git', ['-C', repositoryPath, 'cat-file', '--batch-check=%(objectname) %(objectsize)'], {
+      input: `${[...wanted].join('\n')}\n`,
+      encoding: 'utf8',
+      maxBuffer: GIT_MAX_BUFFER,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    for (const line of output.split('\n')) {
+      const [name, size] = line.split(' ')
+      if (name && size) sizes.set(name, Number.parseInt(size, 10) || 0)
+    }
+  }
+
+  const byPath = new Map()
+  for (const entry of entries) {
+    byPath.set(entry.path, (sizes.get(entry.oldBlob) ?? 0) + (sizes.get(entry.newBlob) ?? 0))
+  }
+  return byPath
+}
+
 function readPatch(repositoryPath, sha, paths, contextLines) {
   const args = [
-    'diff-tree', '--root', '--first-parent', '--no-commit-id', '-p', '-r', '-M',
+    'diff-tree', '--root', '--diff-merges=first-parent', '--no-commit-id', '-p', '-r', '-M',
     `--unified=${contextLines}`, '--no-color', sha,
   ]
   if (paths.length > 0) args.push('--', ...paths)
@@ -92,22 +151,27 @@ const summaryLine = (file) =>
  * that stands in for the files that did not fit. `omitted` is reported rather than
  * hidden: a tier that saw a partial diff should be able to say so.
  */
-export function readCommitDiff(repositoryPath, sha, { maxLines = DEFAULT_MAX_LINES, contextLines = DEFAULT_CONTEXT_LINES } = {}) {
+export function readCommitDiff(repositoryPath, sha, { maxLines = DEFAULT_MAX_LINES, maxBytes = DEFAULT_MAX_BYTES, contextLines = DEFAULT_CONTEXT_LINES } = {}) {
   const files = readNumstat(repositoryPath, sha)
   const totalLines = files.reduce((sum, file) => sum + file.added + file.deleted, 0)
 
   if (files.length === 0) {
-    return { text: '', files, totalLines: 0, truncated: false, included: [], omitted: [], binaryCount: 0 }
+    return { text: '', files, totalLines: 0, totalBytes: 0, truncated: false, included: [], omitted: [], binaryCount: 0 }
   }
+
+  const blobSizes = readBlobSizes(repositoryPath, sha)
+  const sizeOf = (file) => blobSizes.get(file.path) ?? 0
+  const totalBytes = files.reduce((sum, file) => sum + sizeOf(file), 0)
 
   const binaryCount = files.filter((file) => file.binary).length
   const textFiles = files.filter((file) => !file.binary)
 
-  if (totalLines <= maxLines) {
+  if (totalLines <= maxLines && totalBytes <= maxBytes) {
     return {
       text: readPatch(repositoryPath, sha, [], contextLines),
       files,
       totalLines,
+      totalBytes,
       truncated: false,
       included: textFiles.map((file) => file.path),
       omitted: [],
@@ -116,17 +180,19 @@ export function readCommitDiff(repositoryPath, sha, { maxLines = DEFAULT_MAX_LIN
   }
 
   // Smallest first: in a rewrite the big file is usually generated and the small one
-  // carries the authored intent.
-  const ordered = [...textFiles].sort(
-    (left, right) => left.added + left.deleted - (right.added + right.deleted),
-  )
+  // carries the authored intent. Ordered by bytes rather than lines, because the file
+  // that broke this was one line long and 12.87 MB.
+  const ordered = [...textFiles].sort((left, right) => sizeOf(left) - sizeOf(right))
 
   const included = []
-  let budget = maxLines
+  let lineBudget = maxLines
+  let byteBudget = maxBytes
   for (const file of ordered) {
-    const size = file.added + file.deleted
-    if (size > budget) break
-    budget -= size
+    const lines = file.added + file.deleted
+    const bytes = sizeOf(file)
+    if (lines > lineBudget || bytes > byteBudget) continue
+    lineBudget -= lines
+    byteBudget -= bytes
     included.push(file.path)
   }
 
@@ -146,6 +212,7 @@ export function readCommitDiff(repositoryPath, sha, { maxLines = DEFAULT_MAX_LIN
     text: header + (included.length > 0 ? readPatch(repositoryPath, sha, included, contextLines) : ''),
     files,
     totalLines,
+    totalBytes,
     truncated: true,
     included,
     omitted: omitted.map((file) => file.path),

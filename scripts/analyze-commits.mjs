@@ -30,6 +30,14 @@ import { withRetry } from './lib/retry.mjs'
 
 const TIER2_MAX_LINES = 1200
 
+/**
+ * Bumped whenever a change alters what a tier is shown for the same commit. Readings are
+ * cached by commit SHA, and a cache that ignores this silently serves answers formed from
+ * different evidence: the merge-diff fix changed the input for 68% of the pilot's units,
+ * and without this every one of them would have been reused unchanged.
+ */
+const EVIDENCE_VERSION = 2
+
 function usage() {
   return `Usage: npm run analyze-commits -- [options]
 
@@ -139,7 +147,7 @@ function loadCache(path) {
   return cache
 }
 
-const cacheKey = (sha, tier, model) => `${sha}:${tier}:${model}`
+const cacheKey = (sha, tier, model) => `${sha}:${tier}:${model}:v${EVIDENCE_VERSION}`
 
 function addUsage(total, usage) {
   if (!usage) return
@@ -187,8 +195,11 @@ async function main() {
     indices.push(index)
   })
 
+  const unitCount = useChain
+    ? episodes.filter((episode) => episode.firstParent === true).length
+    : episodes.length
   if (useChain) {
-    const chainCommits = episodes.filter((episode) => episode.firstParent === true).length
+    const chainCommits = unitCount
     report(`unit    first-parent chain: ${chainCommits} of ${episodes.length} commits (${((chainCommits / episodes.length) * 100).toFixed(1)}%), ${indices.length} substantive`)
   }
   if (options.sample) indices = spread(indices, options.sample)
@@ -327,6 +338,10 @@ async function main() {
     triage: { counts: tier0.counts, substantive: tier0.substantiveCount, filtered: tier0.filteredCount },
     coverage: {
       analyzed: readings.length,
+      // When the unit is the first-parent chain, the honest denominator is the chain:
+      // commits off it are states the branch never had, so they are not missing evidence.
+      unitCount,
+      ofUnit: unitCount === 0 ? 0 : readings.length / unitCount,
       ofSubstantive: tier0.substantiveCount === 0 ? 0 : readings.length / tier0.substantiveCount,
       ofHistory: episodes.length === 0 ? 0 : readings.length / episodes.length,
     },
@@ -337,7 +352,11 @@ async function main() {
     readings,
   }
 
-  report(`\ncoverage ${readings.length}/${tier0.substantiveCount} substantive, ${(document.coverage.ofHistory * 100).toFixed(1)}% of history`)
+  report(
+    useChain
+      ? `\ncoverage ${readings.length}/${unitCount} of what landed on the branch (${(document.coverage.ofUnit * 100).toFixed(1)}%); the rest was filtered at tier 0`
+      : `\ncoverage ${readings.length}/${tier0.substantiveCount} substantive, ${(document.coverage.ofHistory * 100).toFixed(1)}% of history`,
+  )
   if (agreement) {
     report(`agreement ${agreement.commits} commits read twice, blind: capability overlap ${agreement.meanCapabilityOverlap.toFixed(2)}, same kind ${(agreement.kindAgreementRate * 100).toFixed(0)}%, mean significance gap ${agreement.meanSignificanceDelta.toFixed(2)}`)
   }
