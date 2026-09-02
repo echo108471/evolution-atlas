@@ -280,23 +280,36 @@ function assertComparable(documents, { allowMixedProtocols = false } = {}) {
   for (const document of rest) {
     if (document.repository !== first.repository) throw new Error('runs describe different repositories')
     if (document.headSha !== first.headSha) throw new Error('runs describe different repository heads')
-    if (document.schemaVersion !== first.schemaVersion) throw new Error('runs use different parsed-document schemas')
+    if (!allowMixedProtocols && document.schemaVersion !== first.schemaVersion) {
+      throw new Error('runs use different parsed-document schemas')
+    }
     const firstCommits = Object.keys(first.commits ?? {}).sort()
     const commits = Object.keys(document.commits ?? {}).sort()
     if (firstCommits.length !== commits.length || firstCommits.some((sha, index) => sha !== commits[index])) {
       throw new Error('runs do not contain the same commit-reading universe')
     }
   }
-  const fingerprints = unique(documents.map((document) => document.protocol?.requestSha256).filter(Boolean))
-  const missingFingerprints = documents.filter((document) => !document.protocol?.requestSha256).length
-  if (!allowMixedProtocols && (fingerprints.length !== 1 || missingFingerprints > 0)) {
-    throw new Error('runs do not prove an identical induction protocol; use fresh fingerprinted runs')
+  const comparisonFingerprints = unique(documents.map((document) =>
+    document.protocol?.comparisonSha256 ?? document.protocol?.requestSha256).filter(Boolean))
+  const missingComparisonFingerprints = documents.filter((document) =>
+    !(document.protocol?.comparisonSha256 ?? document.protocol?.requestSha256)).length
+  if (!allowMixedProtocols && (comparisonFingerprints.length !== 1 || missingComparisonFingerprints > 0)) {
+    throw new Error('runs do not prove a shared comparison protocol; use compatible fingerprinted runs')
   }
-  return fingerprints.length === 1 && missingFingerprints === 0 ? fingerprints[0] : null
+  const requestFingerprints = unique(documents.map((document) =>
+    document.protocol?.requestSha256).filter(Boolean))
+  const requestsIdentical = requestFingerprints.length === 1 &&
+    documents.every((document) => document.protocol?.requestSha256)
+  return {
+    comparisonFingerprint: comparisonFingerprints.length === 1 && missingComparisonFingerprints === 0
+      ? comparisonFingerprints[0]
+      : null,
+    requestFingerprint: requestsIdentical ? requestFingerprints[0] : null,
+  }
 }
 
 export function compareInductionRuns(documents, { runIds, allowMixedProtocols = false } = {}) {
-  const protocolFingerprint = assertComparable(documents, { allowMixedProtocols })
+  const protocolFingerprints = assertComparable(documents, { allowMixedProtocols })
   const ids = runIds ?? documents.map((_, index) => `run-${index + 1}`)
   if (ids.length !== documents.length) throw new Error('runIds must identify every document')
   const pairwise = []
@@ -313,9 +326,11 @@ export function compareInductionRuns(documents, { runIds, allowMixedProtocols = 
     repository: documents[0].repository,
     headSha: documents[0].headSha,
     protocol: {
-      requestSha256: protocolFingerprint,
-      identical: protocolFingerprint != null,
-      parsedDocumentSchema: documents[0].schemaVersion ?? null,
+      comparisonSha256: protocolFingerprints.comparisonFingerprint,
+      comparable: protocolFingerprints.comparisonFingerprint != null,
+      requestSha256: protocolFingerprints.requestFingerprint,
+      requestsIdentical: protocolFingerprints.requestFingerprint != null,
+      parsedDocumentSchemas: unique(documents.map((document) => document.schemaVersion ?? null)),
     },
     runs: ids.map((id, index) => ({
       id,

@@ -150,17 +150,70 @@ cross-cutting assignment, and a small set of split/merge alternatives. The full 
 raw provider responses remain ignored under `public/` because they contain repository and
 provider metadata.
 
+## Fixed-hierarchy evidence assignment
+
+`npm run assign-capability-evidence` separates two semantic decisions that induction made
+at once. It receives one discovered hierarchy—IDs, names, summaries, audience, and parent-
+child structure—but none of that run's prior commit memberships. It then reconsiders all
+605 readings globally and assigns each to zero, one, or several of the fixed nodes.
+
+The three clean discovery maps were each assigned once under one shared assignment protocol.
+The full requests intentionally differ because their candidate maps differ, while a second
+fingerprint proves that the model, instructions, readings, and output contract are the same.
+The parser rejects unknown capability IDs, makes omissions explicitly unassigned, retains
+fixed nodes even when they receive no evidence, and removes ancestor assignments that merely
+duplicate a more specific child.
+
+The assignment passes cost $0.8799 together and produced:
+
+| source map | fixed nodes | assigned before | assigned after | overlap before | overlap after | cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 37 | 549 | 537 | 69 | 118 | $0.2815 |
+| 2 | 43 | 549 | 551 | 81 | 184 | $0.3119 |
+| 3 | 32 | 540 | 544 | 53 | 115 | $0.2865 |
+
+No pass invented an ID, omitted an input, or emptied a fixed capability. One pass repeated
+one commit on a child and its ancestor; deterministic validation removed the redundant
+ancestor copy when the saved response was replayed.
+
+The useful comparison is between the original cross-run baseline and the independently
+reassigned maps:
+
+| mean pairwise measurement | discovery | fixed-map assignment | change |
+| --- | ---: | ---: | ---: |
+| assigned-commit F1 | 98.6% | 98.0% | -0.6 points |
+| unassigned-commit F1 | 87.0% | 81.8% | -5.1 points |
+| multiply assigned commit F1 | 53.7% | 68.5% | +14.7 points |
+| umbrella co-membership F1 | 79.3% | 79.8% | +0.5 points |
+| child co-membership F1 | 55.6% | 58.3% | +2.7 points |
+| matched umbrella evidence Jaccard | 78.6% | 79.1% | +0.5 points |
+| matched child evidence Jaccard | 61.7% | 63.1% | +1.4 points |
+| matched child evidence under the same parent | 92.8% | 95.4% | +2.6 points |
+
+The dedicated pass materially improves agreement about cross-cutting commits. It does not
+materially improve the umbrella map, and it only modestly improves child boundaries. It
+also changes the memberships inside its own source map: discovery-versus-assignment child
+co-membership F1 ranges from 61.6% to 66.1%, and overlap F1 from 47.6% to 53.5%. Assignment
+is therefore a distinct semantic judgment, not a cleanup that reproduces discovery.
+
+The architectural conclusion is to keep discovery and assignment separate, because they
+answer different questions and the second pass represents overlap better. But another
+model pass is not sufficient by itself: the principal remaining instability is which child
+capabilities exist and where their boundaries lie. This experiment used one assignment
+sample per discovered map, so it also does not yet separate assignment-model randomness
+from disagreement caused by the different hierarchies.
+
 ## What this establishes—and what it does not
 
-The experiment establishes that autonomous discovery can produce a recognizably coarse and
-substantially recurring umbrella hierarchy without being told the answer or a target count.
-It does not establish that any generated membership is correct, that child boundaries or
-overlap are dependable, that two levels are enough, or that the result generalizes beyond
-this repository.
+The experiments establish that autonomous discovery can produce a recognizably coarse and
+substantially recurring umbrella hierarchy without being told the answer or a target count,
+and that a separate assignment pass makes cross-cutting membership more reproducible. They
+do not establish that any generated membership is correct, that child boundaries are
+dependable, that two levels are enough, or that the result generalizes beyond this
+repository.
 
-The next experiment should separate hierarchy discovery from evidence assignment. First
-discover a candidate map; then independently reconsider every reading against that map with
-zero, one, or several assignments allowed. Compare that assignment pass with the baseline
-above before adding a critic that can propose merges, splits, or reparenting. Evidence
-review should come from cross-run disagreements, substantive unassigned commits, and
-unstable overlaps rather than from a maintainer-authored taxonomy.
+Before adding a hierarchy critic, repeat assignment against one unchanged map to measure the
+assignment pass's own variance. Then the critic can focus on the residual cross-map split,
+merge, and child-boundary disagreements with evidence rather than being credited for noise
+from a different stage. Evidence review should come from those disagreements, substantive
+unassigned commits, and unstable overlaps rather than from a maintainer-authored taxonomy.

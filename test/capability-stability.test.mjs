@@ -101,8 +101,25 @@ test('comparison refuses changed or missing protocols by default', () => {
   const changed = document([node('two', 'Two', ['a'])], { protocol: { requestSha256: 'changed' } })
   const legacy = document([node('three', 'Three', ['a'])], { protocol: null })
   const changedSchema = document([node('four', 'Four', ['a'])], { schemaVersion: '0.3.0' })
-  assert.throws(() => compareInductionRuns([first, changed]), /identical induction protocol/)
-  assert.throws(() => compareInductionRuns([first, legacy]), /identical induction protocol/)
+  assert.throws(() => compareInductionRuns([first, changed]), /shared comparison protocol/)
+  assert.throws(() => compareInductionRuns([first, legacy]), /shared comparison protocol/)
   assert.throws(() => compareInductionRuns([first, changedSchema]), /different parsed-document schemas/)
-  assert.equal(compareInductionRuns([first, legacy], { allowMixedProtocols: true }).protocol.identical, false)
+  assert.equal(compareInductionRuns([first, legacy], { allowMixedProtocols: true }).protocol.comparable, false)
+  assert.deepEqual(
+    compareInductionRuns([first, changedSchema], { allowMixedProtocols: true }).protocol.parsedDocumentSchemas,
+    ['0.2.0', '0.3.0'],
+  )
+})
+
+test('assignment documents may share a protocol while using different hierarchy requests', () => {
+  const first = document([node('one', 'One', ['a'])], {
+    protocol: { requestSha256: 'hierarchy-one', comparisonSha256: 'assignment-v1' },
+  })
+  const second = document([node('two', 'Two', ['a'])], {
+    protocol: { requestSha256: 'hierarchy-two', comparisonSha256: 'assignment-v1' },
+  })
+  const report = compareInductionRuns([first, second])
+  assert.equal(report.protocol.comparable, true)
+  assert.equal(report.protocol.requestsIdentical, false)
+  assert.equal(report.protocol.comparisonSha256, 'assignment-v1')
 })

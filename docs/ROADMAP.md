@@ -139,15 +139,17 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-1. **Separate discovery from assignment.** Repeated blind induction is now measured: broad
-   umbrella co-membership recurs at 79.3% mean F1, while child co-membership is 55.6% and
-   overlapping assignment is 53.7%. Discover a candidate map first, then independently
-   reconsider every reading against it with zero, one, or several assignments allowed. See
+1. **Measure assignment-stage variance on one fixed map.** Separating discovery from
+   assignment raised cross-run overlap F1 from 53.7% to 68.5%, but child co-membership only
+   from 55.6% to 58.3%. Repeat the same fixed hierarchy so assignment randomness can be
+   distinguished from hierarchy disagreement. See
    [Blind capability induction](CAPABILITY-INDUCTION.md).
-2. Draw an evidence-review sample from cross-run disagreements, substantive unassigned
+2. Draw an evidence-review sample from cross-run child-boundary disagreements, substantive unassigned
    commits, and overlapping assignments. The owner evaluates claims after discovery rather
    than supplying the taxonomy the system is meant to discover.
-3. Add a separate hierarchy critic only after measuring the unassisted induction baseline.
+3. Add a separate hierarchy critic after measuring assignment-stage variance. Give it the
+   competing evidence sets and bounded retrieval operations so proposed merges, splits, and
+   reparenting remain inspectable.
 4. Expose per-commit readings and candidate hierarchies in the viewer with direct links to
    the underlying Git evidence.
 5. Re-read a `partial` promotion at a larger byte budget instead of escalating it to a
@@ -161,6 +163,12 @@ describes when its work changed character. Keep those axes separate until eviden
 useful relationship between them.
 
 ### Closed since
+
+- **Discovery versus evidence assignment.** Separated and measured across the three blind
+  maps. The assignment pass materially improved multiply assigned commit agreement from
+  53.7% to 68.5% mean F1, but child co-membership moved only from 55.6% to 58.3%; the
+  remaining bottleneck is mostly hierarchy formation or assignment-stage variance, not the
+  ability to express overlap.
 
 - **Blind hierarchy repeatability.** Measured over three fresh, request-fingerprinted runs.
   Assigned-versus-unassigned decisions recur at 98.6% mean F1 and umbrella co-membership at

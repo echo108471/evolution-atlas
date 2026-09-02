@@ -10,8 +10,9 @@ import { compareInductionRuns } from './lib/capability-stability.mjs'
 function usage() {
   return `Usage: npm run compare-capability-inductions -- [options] <run.json> <run.json> [...]
 
-Compare two or more hierarchical capability-induction documents. Runs must describe the
-same commit universe and carry the same request fingerprint.
+Compare two or more hierarchical capability documents. Runs must describe the same commit
+universe and carry a shared comparison-protocol fingerprint. Induction runs require the
+same request; fixed-hierarchy assignment runs may intentionally use different hierarchies.
 
 Options:
   --out <path>              Write the stability report here (required)
