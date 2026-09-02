@@ -199,21 +199,62 @@ is therefore a distinct semantic judgment, not a cleanup that reproduces discove
 The architectural conclusion is to keep discovery and assignment separate, because they
 answer different questions and the second pass represents overlap better. But another
 model pass is not sufficient by itself: the principal remaining instability is which child
-capabilities exist and where their boundaries lie. This experiment used one assignment
-sample per discovered map, so it also does not yet separate assignment-model randomness
-from disagreement caused by the different hierarchies.
+capabilities exist and where their boundaries lie. Because the three assigned maps above
+still changed the hierarchy and the assignment sample together, a second experiment held
+the first clean hierarchy constant.
+
+## Fixed-map assignment repeatability
+
+The first clean map's 11 umbrellas and 26 children were assigned three times. All three
+documents carry the same complete-request and comparison-protocol fingerprints: the model,
+instructions, 605 readings, hierarchy, and output contract were identical. The two new
+passes cost $0.4975 together; all three fixed-map samples cost $0.7790.
+
+| assignment sample | assigned | unassigned | overlapping | assignments | cost |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 537 | 68 | 118 | 682 | $0.2815 |
+| 2 | 538 | 67 | 113 | 672 | $0.2223 |
+| 3 | 533 | 72 | 80 | 619 | $0.2753 |
+
+Across the three sample pairs:
+
+| fixed-map measurement | minimum | mean | maximum |
+| --- | ---: | ---: | ---: |
+| assigned-commit F1 | 98.3% | 98.8% | 99.2% |
+| unassigned-commit F1 | 87.1% | 90.4% | 93.3% |
+| multiply assigned commit F1 | 78.8% | 82.9% | 89.2% |
+| umbrella commit-pair co-membership F1 | 89.0% | 89.9% | 90.6% |
+| child commit-pair co-membership F1 | 82.5% | 84.7% | 86.3% |
+| matched umbrella evidence Jaccard | 89.5% | 90.7% | 91.9% |
+| matched child evidence Jaccard | 85.1% | 86.3% | 87.1% |
+| matched child evidence under the same parent | 100.0% | 100.0% | 100.0% |
+
+Of the 605 commits, 489 (80.8%) received exactly the same direct capability set in all
+three samples. Assigned-versus-unassigned status agreed for 585 (96.7%), and overlap status
+agreed for 553 (91.4%). Across 735 distinct commit-to-capability edges, 579 appeared in all
+three samples, 80 in two, and 76 in only one. The least repeatable individual node was
+`CI/CD and environments`: its direct evidence count varied from 17 to 32 and its mean
+pairwise F1 was 72.4%.
+
+This separates two effects that the cross-map experiment conflated. With the hierarchy
+fixed, mean child co-membership rises from 58.3% to 84.7%, umbrella co-membership from 79.8%
+to 89.9%, and overlap agreement from 68.5% to 82.9%. Hierarchy formation is therefore the
+larger source of disagreement. Assignment is nevertheless not deterministic: cross-cutting
+membership and a few child boundaries still need evidence review rather than silent
+majority voting.
 
 ## What this establishes—and what it does not
 
 The experiments establish that autonomous discovery can produce a recognizably coarse and
 substantially recurring umbrella hierarchy without being told the answer or a target count,
-and that a separate assignment pass makes cross-cutting membership more reproducible. They
-do not establish that any generated membership is correct, that child boundaries are
+that a separate assignment pass makes cross-cutting membership more reproducible, and that
+hierarchy formation accounts for more of the remaining variance than assignment alone.
+They do not establish that any generated membership is correct, that child boundaries are
 dependable, that two levels are enough, or that the result generalizes beyond this
 repository.
 
-Before adding a hierarchy critic, repeat assignment against one unchanged map to measure the
-assignment pass's own variance. Then the critic can focus on the residual cross-map split,
-merge, and child-boundary disagreements with evidence rather than being credited for noise
-from a different stage. Evidence review should come from those disagreements, substantive
-unassigned commits, and unstable overlaps rather than from a maintainer-authored taxonomy.
+The next evidence review should sample the 116 commits whose exact direct assignments varied,
+especially one-run edges, unstable overlaps, and the `CI/CD and environments` boundary. A
+hierarchy critic can then focus on residual cross-map splits, merges, and child-boundary
+disagreements without being credited for assignment-stage noise. Neither step should use a
+maintainer-authored taxonomy as the discovery target.

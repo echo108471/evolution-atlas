@@ -242,11 +242,12 @@ sorting the pilot into them, and tuning against the result would make the soluti
 one repository owner's memory. Keep the list held out and let it audit what autonomous
 discovery missed.
 
-1. Repeat blind hierarchical induction and measure stability by evidence-set and parent-child
-   agreement rather than counts or wording.
-2. Review a small sample drawn from cross-run disagreements, substantive unassigned commits,
-   and overlapping assignments. This checks evidence without defining the ontology first.
-3. Add a separate critic that can merge, split, nest, or reject candidates only after the
-   pre-critic stability baseline exists.
+1. Review a small sample from the 116 commits whose assignments varied across three runs of
+   one fixed hierarchy, emphasizing one-run edges and unstable overlaps. This checks evidence
+   without defining the ontology first.
+2. Add a separate critic that can merge, split, nest, or reject candidates against the
+   measured pre-critic stability baseline.
+3. Repeat the blind hierarchy and assignment experiment on a structurally different
+   repository.
 4. Put per-commit readings and candidate hierarchies in the viewer with their interpretation
    status and cited Git evidence visible.
