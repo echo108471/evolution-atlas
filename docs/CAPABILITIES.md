@@ -11,6 +11,31 @@ vocabulary but cannot be given one, because it has no access to the vocabulary.
 
 `npm run capabilities` groups the readings four ways and compares them.
 
+## Correction: all four arms impose the wrong shape
+
+The four-arm comparison is valid as a comparison of flat grouping methods, but not as a
+measurement of capability quality. After the measurements below were complete, the
+repository owner named roughly thirteen broad capabilities. The four arms return 81, 256,
+287, and 398 groups; even an unambiguous 17-commit blog capability is split across 11–13
+groups. All four methods are solving a task 10–50 times finer than the owner's concept of a
+capability.
+
+The cause was partly designed in. The defaults were chosen to prevent any group from
+holding more than a tenth of the corpus, and groups over that size were called blobs. One
+owner-recognized capability covers roughly 28% of the pilot. The rule structurally forbids
+that answer. It is retracted: size can identify an umbrella to inspect, but cannot decide
+that it is invalid.
+
+There is a second mismatch. These arms partition commits into one flat set, while one
+capability may contain meaningful sub-capabilities and a cross-cutting commit may support
+more than one. The measurements below remain useful for understanding evidence channels,
+model stability, and judging noise. Conclusions about which arm groups capabilities well
+do not survive the granularity error.
+
+[Blind hierarchical capability induction](CAPABILITY-INDUCTION.md) records the replacement
+experiment. It withholds the owner's list, infers umbrellas and children from the readings,
+and allows overlapping evidence.
+
 ## Four arms, and why three of them share one routine
 
 The first version of this comparison had two arms and could not interpret its own result.
@@ -198,13 +223,12 @@ bodies reading `New frontend`, `New data`, `push`. And `baseline vs reading` did
 at all, staying at 0.104. The gap between grouping on paths and grouping on interpretation
 is not one the message text closes.
 
-## Two caveats that still stand
+## Two caveats, one corrected
 
-**The shaping defaults are a claim about the evidence.** They were chosen for producing no
-dominant cluster, which stops being true when the evidence changes — and it changed twice,
-for merge diffs and for bodies. Across the sweep the largest baseline group ranges from 10
-units to 226, and k=5 and k=8 collapse into blobs of up to 493 of 605. A group holding more
-than a tenth of the corpus now says so in the report.
+**The no-dominant-cluster rule was wrong.** Across the sweep the largest baseline group
+ranges from 10 units to 226, and k=5 and k=8 produce groups up to 493 of 605. Those were
+dismissed as blobs without an external reason. The report now flags a large group as a
+possible umbrella that a flat arm cannot represent, rather than declaring it invalid.
 
 **Nameability is not correctness.** A judge can name a group that is wrong; the three views
 disagree by up to 43 points on the same groups; and two passes of the same view disagree by
@@ -213,17 +237,16 @@ that. Under the neutral view they do not differ at all, and in the 7+ column the
 
 ## What follows
 
-The gold set is the binding constraint, and is now the only one. Everything that could be
-measured without an answer key has been: the evidence dominates the method, the model arm
-is stable enough to trust one run of, the chance floor is known, and the three judging
-views bracket what nameability can say. None of it can settle whether any arm is *right*.
+Do not turn the owner's list into the system's taxonomy. Giving a model those categories,
+sorting the pilot into them, and tuning against the result would make the solution imitate
+one repository owner's memory. Keep the list held out and let it audit what autonomous
+discovery missed.
 
-1. **Hand-grade a sample of the pilot's commits into capabilities.** Not all 605 — around
-   100 across the history is enough to score four arms. Only the repository's owner can
-   supply it. Weight it toward capabilities of seven commits or more, since that is where
-   the arms actually diverge and where the present cells are thinnest.
-2. **Ask for shorter capability names.** The 5.2-word phrase is why 585 of 605 names are
-   unique while their words are shared. A two-or-three-word name would make the free
-   `reading` arm sharper without a consolidation step, and it costs one re-read to test.
-3. **Re-read `partial` promotions at a larger byte budget** rather than escalating to a
-   pricier model. See [Per-commit reading](PER-COMMIT.md) for what the budgets buy.
+1. Repeat blind hierarchical induction and measure stability by evidence-set and parent-child
+   agreement rather than counts or wording.
+2. Review a small sample drawn from cross-run disagreements, substantive unassigned commits,
+   and overlapping assignments. This checks evidence without defining the ontology first.
+3. Add a separate critic that can merge, split, nest, or reject candidates only after the
+   pre-critic stability baseline exists.
+4. Put per-commit readings and candidate hierarchies in the viewer with their interpretation
+   status and cited Git evidence visible.

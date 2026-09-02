@@ -20,6 +20,107 @@ This boundary is intentionally boring. It makes analysis reproducible, lets the
 visual design evolve without rerunning Git, and keeps an inspectable artifact
 between evidence extraction and interpretation.
 
+## Target: an evidence-backed semantic decision loop
+
+The long-term architecture should not encode the pilot owner's understanding of one
+repository as a permanent taxonomy or a growing collection of repository-specific
+heuristics. It should give a model enough inspectable evidence to make semantic decisions
+on repositories their users do not already understand.
+
+The division of responsibility is:
+
+- **the model decides** whether work constitutes a capability, which narrower capabilities
+  belong beneath an umbrella, whether one commit supports several candidates, where a
+  lifecycle event sits, and where the work changes temporal character;
+- **the evidence system supplies context** at the needed resolution and lets the model ask
+  for more rather than forcing a decision from one underspecified slice;
+- **deterministic code governs the decision** by resolving citations, rejecting unsupported
+  claims, preserving observed facts, recording provenance, and measuring recurrence;
+- **the candidate graph preserves change** so a later run can add, merge, split, rename, or
+  reparent an interpretation without silently rewriting the earlier one.
+
+```text
+Git objects and diffs
+        │
+        ▼
+observed atlas ──> deterministic indexes and evidence tools
+        │                         │
+        │                         ▼
+        └──────────────> model decision session
+                           │  inspect / search / request depth
+                           │  propose / cite / abstain
+                           ▼
+                    validated candidate graph
+                           │
+             ┌─────────────┼──────────────┐
+             ▼             ▼              ▼
+        capabilities   lifecycle       epochs / eras
+             │             │              │
+             └─────────────┴──────────────┘
+                           ▼
+                    viewer projections
+```
+
+Capabilities, lifecycle events, and periods share the decision infrastructure but remain
+different projections. Capability hierarchy describes **what** the system does and may
+overlap. Lifecycle describes **how a capability changed**. Epochs and eras describe
+**when the repository's work changed character** and partition time. A capability may
+cross several epochs, and one epoch may contain work on several capabilities.
+
+### Evidence available to a decision session
+
+The current blind induction run sends all saved readings in one request. That is a useful
+control for the pilot, not the scaling strategy. A larger repository needs a model-facing
+evidence interface over the same local artifacts. Its smallest useful operations are:
+
+- inspect the repository tree, entry points, source, tests, and configuration at the
+  current revision or a cited historical revision;
+- retrieve a commit's observed metadata, paths, and bounded diff;
+- retrieve its cached per-commit reading and the exact input that produced it;
+- find related commits by paths, semantic reading, time, rename continuity, or explicit
+  issue and merge relationships;
+- inspect the history of a path, candidate capability, or proposed parent-child relation;
+- follow symbol, dependency, route, schema, and test relationships when a language-aware
+  adapter can establish them;
+- compare two candidates' supporting and contradicting evidence; and
+- request deeper evidence for a partial or ambiguous reading.
+
+Each model decision records which operations and evidence it used. Retrieval is context
+selection, not proof: a claim is publishable only when its cited Git evidence resolves
+locally. The model may abstain when the available information does not support a decision.
+Repository documentation and commit messages are evidence of what authors claimed; source,
+tests, schemas, routes, and observed behavior are evidence of what was implemented. The
+decision session must keep those bases distinct rather than letting confident prose stand
+in for code.
+
+### From proposal to durable candidate
+
+One model response must not become canonical merely because it parsed. The intended flow
+is:
+
+1. **Propose:** infer candidates without a maintainer taxonomy or target count.
+2. **Assign:** revisit evidence against the proposed map, allowing multiple capabilities
+   per commit and explicit unassigned work.
+3. **Critique:** independently propose merges, splits, nesting changes, contradictions, and
+   missing evidence.
+4. **Stabilize:** repeat the run and align candidates by cited evidence and relationships,
+   not by label wording or list position.
+5. **Publish:** materialize a versioned candidate graph pinned to repository head, model,
+   prompt, evidence inputs, and validation method.
+
+Stable candidate identity belongs to reconciliation, not to the model's label. A renamed
+candidate should retain lineage; a split or merge should cite its predecessors. User edits
+remain useful review evidence, but the system must be able to run without them and they
+must not be smuggled into later blind evaluations.
+
+### Current two-layer boundary
+
+Capability induction currently permits one umbrella layer and one optional child layer.
+That keeps the first stability experiment interpretable. The serialized shape is recursive
+so a later decision session may propose broader umbrellas or deeper children without a
+schema migration. The viewer can continue projecting two levels even if the underlying
+candidate graph later becomes deeper.
+
 ## Initial stack
 
 | Layer | Choice | Why now |
@@ -64,6 +165,12 @@ dataset. A feature has no permanent lifecycle label: introduced, expanded,
 hardened, migrated, and removed belong to individual candidate episodes.
 Feature candidates can be reused while calibrating the lifecycle pass, and
 deterministic boundary validation can be rerun without a model request.
+
+This two-pass whole-corpus interpreter is the first implementation, not the target decision
+architecture. Per-commit reading plus blind capability induction now tests the replacement:
+cache local semantic evidence by commit, then let a global decision session infer an
+evidence-linked hierarchy without a supplied taxonomy. See
+[Blind capability induction](CAPABILITY-INDUCTION.md).
 
 The current corpus contains commit subjects and at most twelve touched paths
 per commit, not patch contents. This is sufficient for a first candidate pass,
@@ -138,6 +245,12 @@ the repository into an unstable node-link hairball.
 
 - Per-commit Git calls favor clarity over throughput and will need batching for
   large repositories.
+- The pilot's one-request capability induction needs roughly 58,000 input tokens for 605
+  readings. Larger repositories require evidence retrieval and multi-resolution summaries;
+  naive batching would recreate the fragmentation the hierarchy is meant to solve.
+- Candidate ids produced from one response's list positions are not durable identities.
+  Cross-run reconciliation must establish identity from evidence and lineage before an
+  induced map can be updated incrementally.
 - First-parent merge diffs are a provisional representation, not the only valid
   view of merge effects.
 - Top-level directories are only code-area candidates.

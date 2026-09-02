@@ -133,6 +133,18 @@ the feature, allowing several stages—or repeated stages—along one trail.
 
 The initial analyzer emits an empty feature-candidate collection.
 
+Candidate capabilities may form a hierarchy and may overlap. A parent-child relationship
+claims that the child is a meaningful narrower behavior serving the parent's broader
+outcome; it is not inferred merely from directory nesting. A commit may support several
+capabilities when one change genuinely advances several outcomes. Evidence attached to a
+child rolls up for display on its ancestors, but remains directly attached only where the
+model cited it so inferred ancestry does not become fabricated direct evidence.
+
+The current induction experiment publishes at most two levels. This is a generation and
+viewer boundary, not a claim that all repositories have two semantic levels. Candidate
+identity must eventually survive model renames, splits, merges, and reparenting through
+explicit lineage records rather than through label equality.
+
 ### Relationship
 
 An edge between entities. Initial observed edge kinds are:
@@ -146,6 +158,14 @@ episode, while `evolves-feature` connects that candidate episode to its feature.
 Each edge carries at least one evidence reference and a confidence value;
 observed Git relationships use confidence `1` without implying that Git is a
 complete social record.
+
+Capability induction adds two candidate relationship kinds:
+
+- `supports-capability`: a change episode directly supports a capability candidate; and
+- `narrows-capability`: one capability candidate is a meaningful child of another.
+
+Several `supports-capability` edges may leave the same commit. Ancestor rollups are derived
+from `narrows-capability`; they are not serialized as duplicate direct-support claims.
 
 ## Lifecycle vocabulary
 

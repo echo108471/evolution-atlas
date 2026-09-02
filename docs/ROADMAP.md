@@ -139,21 +139,26 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-1. **Hand-grade a sample of pilot commits into capabilities.** This is now the only
-   blocker. Grouping is built four ways; the three that share a clustering routine show
-   that the *evidence* decides the result and the method barely matters, and no arm is
-   distinguishable from the free one under a neutral judge. Weight the sample toward
-   capabilities of seven commits or more, because that is the one place the arms diverge
-   and the one place the present evidence is thinnest. See [Capabilities](CAPABILITIES.md).
-2. Ask the reading prompt for a shorter capability name. 585 of 605 names are unique while
-   their words are heavily shared, because the names average 5.2 words. A two- or
-   three-word name would sharpen the free `reading` arm without a consolidation step, and
-   one re-read tests it.
-3. Re-read a `partial` promotion at a larger byte budget instead of escalating it to a
-   pricier model. The budgets are now measured and `--max-bytes` exists; nothing yet acts
-   on the promotion cause.
-4. Separate unit size from repository when measuring capability-name convergence. The
-   0.22 and 0.31 readings differ in repository, unit, and size at once.
+1. **Measure blind hierarchical induction across repeated runs.** The first run inferred
+   16 umbrellas and 48 supported nodes from 605 readings, assigned 92.1% of them, and
+   independently named counterparts for the owner's held-out concepts. Compare repeated
+   runs by cited evidence and parent-child relationships, not label wording or counts. See
+   [Blind capability induction](CAPABILITY-INDUCTION.md).
+2. Draw an evidence-review sample from cross-run disagreements, substantive unassigned
+   commits, and overlapping assignments. The owner evaluates claims after discovery rather
+   than supplying the taxonomy the system is meant to discover.
+3. Add a separate hierarchy critic only after measuring the unassisted induction baseline.
+4. Expose per-commit readings and candidate hierarchies in the viewer with direct links to
+   the underlying Git evidence.
+5. Re-read a `partial` promotion at a larger byte budget instead of escalating it to a
+   pricier model. The budgets are measured and `--max-bytes` exists; nothing yet acts on
+   the promotion cause.
+
+The present capability experiment is capped at two generated levels—umbrella plus
+children—while retaining a recursive representation for later super-umbrella or deeper
+nesting experiments. Capability hierarchy describes what the system does; epoch hierarchy
+describes when its work changed character. Keep those axes separate until evidence shows a
+useful relationship between them.
 
 ### Closed since
 

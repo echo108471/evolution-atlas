@@ -230,13 +230,14 @@ async function main() {
     )
   }
 
-  // A cluster holding more than this share of the corpus is a blob, not a capability. The
-  // shaping defaults were picked to avoid one; the check says so out loud rather than
-  // leaving it as a claim in a comment that nothing verifies.
+  // A cluster holding more than this share may be an umbrella capability. Keep the size
+  // visible because a flat arm cannot say whether it is coherent or contains meaningful
+  // children, but do not reject it: the pilot's owner identified valid capabilities larger
+  // than this threshold after the original "blob" rule had already biased the defaults.
   const DOMINANT_SHARE = 0.1
   for (const arm of arms) {
     if (arm.shape.largest > readings.length * DOMINANT_SHARE) {
-      report(`          ! ${arm.name}'s largest group holds ${arm.shape.largest} of ${readings.length} units; that is a blob, not a capability`)
+      report(`          ! ${arm.name}'s largest group holds ${arm.shape.largest} of ${readings.length} units; inspect it as a possible umbrella because this flat arm cannot represent children`)
     }
   }
 

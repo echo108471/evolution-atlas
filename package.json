@@ -11,6 +11,7 @@
     "analyze": "node scripts/analyze.mjs",
     "analyze-commits": "node scripts/analyze-commits.mjs",
     "capabilities": "node scripts/capabilities.mjs",
+    "induce-capabilities": "node scripts/induce-capabilities.mjs",
     "epochs": "node scripts/epochs.mjs",
     "survey": "node scripts/survey.mjs",
     "gallery": "node scripts/gallery.mjs",
