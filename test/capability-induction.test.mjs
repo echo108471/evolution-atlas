@@ -5,6 +5,7 @@ import {
   INDUCTION_SYSTEM_PROMPT,
   MAX_INDUCTION_DEPTH,
   buildInductionRequest,
+  fingerprintInductionRequest,
   parseInductionPayload,
   renderReadings,
 } from '../scripts/lib/capability-induction.mjs'
@@ -42,6 +43,14 @@ test('the request exposes readings globally without calling them a gold taxonomy
   assert.match(rendered, /Per-commit label: Thing 0/)
   assert.doesNotMatch(rendered, /gold|maintainer-provided categories|target count/i)
   assert.match(renderReadings(readings), /^0\. 2025-01-01 change 0/m)
+})
+
+test('the request fingerprint changes when any experimental input changes', () => {
+  const original = buildInductionRequest([reading(0)], { model: 'test' })
+  const same = buildInductionRequest([reading(0)], { model: 'test' })
+  const changed = buildInductionRequest([reading(0, { subject: 'different' })], { model: 'test' })
+  assert.equal(fingerprintInductionRequest(original), fingerprintInductionRequest(same))
+  assert.notEqual(fingerprintInductionRequest(original), fingerprintInductionRequest(changed))
 })
 
 test('parsing preserves hierarchy and overlapping evidence', () => {

@@ -98,15 +98,69 @@ The owner list remains held out. It must not be inserted into the induction prom
 as a target taxonomy for tuning this repository. Its role is to expose conspicuous misses
 after autonomous discovery, as it already exposed the flat methods' granularity error.
 
+## Repeated-run stability
+
+The first pilot is not part of the formal repeatability measurement because the explicit
+two-level sentence was added to the prompt after that request. Three fresh runs used the
+same 605 readings, model, complete prompt, parser, and two-level boundary. Every parsed
+document carries a SHA-256 fingerprint of the complete request; the comparator refuses to
+claim identical protocols when the fingerprints are absent or different.
+
+`npm run compare-capability-inductions` matches nodes only by cited commit sets. Names are
+retained in the report for inspection but never enter matching or any score. It reports:
+
+- maximum-weight one-to-one Jaccard matches between umbrella evidence sets and between
+  child evidence sets;
+- commit-pair co-membership, which exposes splits and merges even when node counts differ;
+- whether independently matched children recur beneath independently matched parents;
+- assigned, unassigned, and multiply assigned commit-set agreement.
+
+The clean runs cost $0.7389 together and produced:
+
+| run | umbrellas | total nodes | assigned | overlapping | cost |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 11 | 37 | 549 (90.7%) | 69 | $0.2982 |
+| 2 | 13 | 43 | 549 (90.7%) | 81 | $0.2464 |
+| 3 | 12 | 32 | 540 (89.3%) | 53 | $0.1943 |
+
+Across the three run pairs:
+
+| evidence-based measurement | minimum | mean | maximum |
+| --- | ---: | ---: | ---: |
+| assigned-commit F1 | 98.3% | 98.6% | 99.0% |
+| unassigned-commit F1 | 84.3% | 87.0% | 90.9% |
+| multiply assigned commit F1 | 53.3% | 53.7% | 54.1% |
+| umbrella commit-pair co-membership F1 | 78.3% | 79.3% | 80.8% |
+| child commit-pair co-membership F1 | 53.3% | 55.6% | 57.7% |
+| matched umbrella evidence Jaccard | 76.6% | 78.6% | 80.0% |
+| matched child evidence Jaccard | 59.2% | 61.7% | 66.1% |
+| matched child evidence under the same matched parent | 86.6% | 92.8% | 100.0% |
+
+This corrects both an optimistic and a pessimistic reading of the varying node counts.
+The model is not regenerating an identical hierarchy, but it is also not starting over.
+It repeatedly makes almost the same assigned-versus-unassigned decision and substantially
+recovers the broad umbrellas. The narrower child boundaries are much less stable. Overlap
+is now used materially, unlike the first pilot, but *which* commits overlap is also
+unstable. Parent placement is comparatively consistent once a child has a meaningful
+evidence counterpart.
+
+These measurements do not say which run is correct. They establish a pre-critic baseline
+and identify where more evidence or a separate decision pass is needed: child boundaries,
+cross-cutting assignment, and a small set of split/merge alternatives. The full reports and
+raw provider responses remain ignored under `public/` because they contain repository and
+provider metadata.
+
 ## What this establishes—and what it does not
 
-This run establishes that autonomous discovery can produce a recognizably coarse hierarchy
-without being told the answer or a target count. It does not establish that the hierarchy
-is reproducible, that its evidence membership is correct, that two levels are enough, or
-that the result generalizes beyond this repository.
+The experiment establishes that autonomous discovery can produce a recognizably coarse and
+substantially recurring umbrella hierarchy without being told the answer or a target count.
+It does not establish that any generated membership is correct, that child boundaries or
+overlap are dependable, that two levels are enough, or that the result generalizes beyond
+this repository.
 
-The next measurement is repeated blind induction. Compare nodes across runs by their cited
-commit sets and parent-child relationships, not by counts or label wording. After that,
-sample disagreements, unassigned substantive commits, and rare overlaps for evidence review.
-Only then should a separate critic pass be added to propose merges, splits, or reparenting;
-otherwise the critic's apparent improvement has no pre-critic baseline.
+The next experiment should separate hierarchy discovery from evidence assignment. First
+discover a candidate map; then independently reconsider every reading against that map with
+zero, one, or several assignments allowed. Compare that assignment pass with the baseline
+above before adding a critic that can propose merges, splits, or reparenting. Evidence
+review should come from cross-run disagreements, substantive unassigned commits, and
+unstable overlaps rather than from a maintainer-authored taxonomy.

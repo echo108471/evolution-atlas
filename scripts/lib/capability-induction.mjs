@@ -8,6 +8,8 @@
  * taxonomy or target count is part of the request.
  */
 
+import { createHash } from 'node:crypto'
+
 import { extractJson } from './phase-model.mjs'
 
 export const DEFAULT_MODEL = 'x-ai/grok-4.6'
@@ -106,6 +108,10 @@ Infer the capability hierarchy supported by these ${readings.length} observation
       },
     ],
   }
+}
+
+export function fingerprintInductionRequest(request) {
+  return createHash('sha256').update(JSON.stringify(request)).digest('hex')
 }
 
 function parseNode(raw, readings, path, depth, assignedCounts, diagnostics) {

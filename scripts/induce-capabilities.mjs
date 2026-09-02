@@ -8,7 +8,9 @@ import { dirname, resolve } from 'node:path'
 import {
   API_KEY_ENV,
   DEFAULT_MODEL,
+  MAX_INDUCTION_DEPTH,
   buildInductionRequest,
+  fingerprintInductionRequest,
   parseInductionPayload,
   requestInductionPayload,
 } from './lib/capability-induction.mjs'
@@ -104,8 +106,13 @@ async function main() {
 
   const induced = parseInductionPayload(payload, readings)
   const document = {
-    schemaVersion: '0.1.0',
+    schemaVersion: '0.2.0',
     method: `hierarchical-capability-induction:openrouter:${options.model}`,
+    protocol: {
+      model: options.model,
+      maxDepth: MAX_INDUCTION_DEPTH,
+      requestSha256: fingerprintInductionRequest(request),
+    },
     repository: readingsDocument.repository,
     headSha: readingsDocument.headSha,
     readingCount: readings.length,

@@ -139,10 +139,10 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-1. **Measure blind hierarchical induction across repeated runs.** The first run inferred
-   16 umbrellas and 48 supported nodes from 605 readings, assigned 92.1% of them, and
-   independently named counterparts for the owner's held-out concepts. Compare repeated
-   runs by cited evidence and parent-child relationships, not label wording or counts. See
+1. **Separate discovery from assignment.** Repeated blind induction is now measured: broad
+   umbrella co-membership recurs at 79.3% mean F1, while child co-membership is 55.6% and
+   overlapping assignment is 53.7%. Discover a candidate map first, then independently
+   reconsider every reading against it with zero, one, or several assignments allowed. See
    [Blind capability induction](CAPABILITY-INDUCTION.md).
 2. Draw an evidence-review sample from cross-run disagreements, substantive unassigned
    commits, and overlapping assignments. The owner evaluates claims after discovery rather
@@ -161,6 +161,11 @@ describes when its work changed character. Keep those axes separate until eviden
 useful relationship between them.
 
 ### Closed since
+
+- **Blind hierarchy repeatability.** Measured over three fresh, request-fingerprinted runs.
+  Assigned-versus-unassigned decisions recur at 98.6% mean F1 and umbrella co-membership at
+  79.3%; child co-membership and overlap are materially less stable at 55.6% and 53.7%.
+  Labels are excluded from every comparison metric.
 
 - **Grouping on evidence rather than names.** Built. Three arms share one clustering
   routine and differ only in evidence; agreement with the baseline is 0.104 for the
