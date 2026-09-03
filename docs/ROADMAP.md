@@ -139,10 +139,12 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-1. Repeat the hierarchy critic against the unchanged review-packet fingerprint. Compare
-   operation and target recurrence plus cited-evidence overlap before applying any proposal.
-2. Replace the 55.8k-token static hierarchy-review packet with bounded on-demand retrieval,
-   preserving the same locally validated citation contract.
+1. Replace static hierarchy-review packets with staged, bounded retrieval. A run must account
+   for every selected signal and pass citation validation before any recurring proposal can
+   enter reconciliation.
+2. Repeat the focused hierarchy critic with a capable model and an unchanged request when
+   provider credit permits. Compare operation targets and cited evidence; do not combine it
+   with the differently scoped full-packet pilot.
 3. Repeat discovery and assignment on a structurally different repository before treating
    the present hierarchy behavior as general.
 4. Expose per-commit readings and candidate hierarchies in the viewer with direct links to
@@ -165,6 +167,13 @@ useful relationship between them.
   high-confidence dependency-automation child and a medium-confidence split of growth from
   analytics, with no invalid citations. The proposals remain unapplied; one run does not
   establish their stability, and the 55.8k-token static packet does not yet scale.
+
+- **Focused hierarchy-critic ablation and cheap-model repeat.** A deterministic focus rule
+  reduced the packet to 86 readings and 33 signals. One complete Grok run changed its
+  secondary proposals when context selection changed. Three identical Gemini 2.5 Flash Lite
+  runs cost $0.0097 but reached only 24.9% mean operation-target F1 and accounted for 2–3
+  signals each, so the new completion gate rejects the condition for automatic revision.
+  Dependency automation was the sole 3/3 proposal, with identical citations in every run.
 
 - **Repeated assignment-disagreement critic.** Built a deterministic dataset for all 116 unstable
   commits and a replayable critic with explicit assign, unassigned, ambiguous, and

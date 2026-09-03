@@ -242,9 +242,9 @@ sorting the pilot into them, and tuning against the result would make the soluti
 one repository owner's memory. Keep the list held out and let it audit what autonomous
 discovery missed.
 
-1. Repeat the hierarchy critic and measure whether its operation targets and cited evidence
-   recur before allowing any proposal to revise the candidate map.
-2. Replace its static 55.8k-token evidence packet with bounded on-demand retrieval.
+1. Replace static hierarchy-review packets with bounded, staged retrieval and require full
+   selected-signal coverage before reconciliation.
+2. Repeat the focused hierarchy critic with a capable model under one unchanged fingerprint.
 3. Repeat the blind hierarchy and assignment experiment on a structurally different
    repository.
 4. Put per-commit readings and candidate hierarchies in the viewer with their interpretation
@@ -260,3 +260,11 @@ or mutating the map. From 83 supplied structural signals it proposed two candida
 add dependency-update automation beneath operations, and test splitting the growth/analytics
 umbrella into its existing children. Both are evidence-cited and still unapplied. A single
 run demonstrates the decision interface, not proposal correctness or stability.
+
+A focused-packet experiment then retained all recurring gaps and unmatched alternatives plus
+the 24 lowest-overlap boundary comparisons. Changing context changed the capable model's
+secondary proposals, confirming that retrieval policy is part of the semantic method. Three
+cheap-model repeats had only 24.9% mean operation-target F1 and failed signal coverage, even
+though dependency automation recurred 3/3 with identical evidence. The system now records
+that distinction: recurring proposals from an incomplete condition are not eligible to
+revise the map.

@@ -118,7 +118,12 @@ export function buildCapabilityHierarchyReviewDataset(
   alternatives,
   disagreementDataset,
   critics,
-  { samplesPerSet = 2, minimumGapRecurrence = Math.floor(critics.length / 2) + 1 } = {},
+  {
+    samplesPerSet = 2,
+    minimumGapRecurrence = Math.floor(critics.length / 2) + 1,
+    maxBoundarySignals = null,
+    nodeExemplarsPerNode = null,
+  } = {},
 ) {
   const source = assertCompatible(
     readings, baseline, alternatives, disagreementDataset, critics,
@@ -247,6 +252,32 @@ export function buildCapabilityHierarchyReviewDataset(
     }
   }
 
+  const availableBoundarySignals = boundarySignals.length
+  const selectedBoundarySignals = maxBoundarySignals == null
+    ? boundarySignals
+    : [...boundarySignals]
+      .sort((left, right) =>
+        (left.overlap?.jaccard ?? -1) - (right.overlap?.jaccard ?? -1) ||
+        left.id.localeCompare(right.id, undefined, { numeric: true }))
+      .slice(0, maxBoundarySignals)
+      .sort((left, right) => left.id.localeCompare(right.id, undefined, { numeric: true }))
+  const selectedNodeContext = nodeContext.map((entry) => ({
+    ...entry,
+    stableExemplarIds: nodeExemplarsPerNode == null
+      ? entry.stableExemplarIds
+      : sampleAcrossSpan(entry.stableExemplarIds, nodeExemplarsPerNode),
+  }))
+  const referencedEvidenceIds = new Set([
+    ...selectedNodeContext.flatMap((entry) => entry.stableExemplarIds),
+    ...gapSignals.flatMap((signal) => signal.evidenceIds),
+    ...selectedBoundarySignals.flatMap((signal) => [
+      ...signal.evidenceIds.shared,
+      ...signal.evidenceIds.baselineOnly,
+      ...signal.evidenceIds.alternativeOnly,
+    ]),
+    ...unmatchedAlternativeSignals.flatMap((signal) => signal.evidenceIds),
+  ])
+  const selectedEvidence = evidence.filter((entry) => referencedEvidenceIds.has(entry.id))
   const dataset = {
     schemaVersion: '0.1.0',
     method: 'evidence-bounded-capability-hierarchy-review',
@@ -260,18 +291,21 @@ export function buildCapabilityHierarchyReviewDataset(
       disagreementContentSha256: disagreementDataset.protocol?.contentSha256 ?? null,
     },
     hierarchy: compactHierarchy(baseline.capabilities),
-    nodeContext,
-    signals: { gapSignals, boundarySignals, unmatchedAlternativeSignals },
-    evidence,
+    nodeContext: selectedNodeContext,
+    signals: { gapSignals, boundarySignals: selectedBoundarySignals, unmatchedAlternativeSignals },
+    evidence: selectedEvidence,
     shape: {
       hierarchyNodes: baselineNodes.length,
-      nodeContexts: nodeContext.length,
+      nodeContexts: selectedNodeContext.length,
       gapSignals: gapSignals.length,
-      boundarySignals: boundarySignals.length,
+      boundarySignals: selectedBoundarySignals.length,
+      availableBoundarySignals,
       unmatchedAlternativeSignals: unmatchedAlternativeSignals.length,
-      evidenceReadings: evidence.length,
+      evidenceReadings: selectedEvidence.length,
       samplesPerSet,
       minimumGapRecurrence,
+      maxBoundarySignals,
+      nodeExemplarsPerNode,
     },
   }
   dataset.protocol = {

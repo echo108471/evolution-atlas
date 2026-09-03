@@ -61,6 +61,25 @@ test('hierarchy review packets combine recurring gaps with evidence-set boundary
   assert.ok(dataset.evidence.every((entry) => entry.reading.startsWith('Reading')))
 })
 
+test('focused review packets select the lowest-overlap boundaries without model output', () => {
+  const baselineNodes = [node('capability:0', 'Baseline', ['a', 'b'])]
+  const dataset = buildCapabilityHierarchyReviewDataset(
+    readings,
+    hierarchy(baselineNodes),
+    [
+      hierarchy([node('capability:0', 'Loose match', ['a', 'c'])]),
+      hierarchy([node('capability:0', 'Close match', ['a', 'b', 'c'])]),
+    ],
+    disagreementDataset(baselineNodes),
+    [critic(), critic()],
+    { maxBoundarySignals: 1, nodeExemplarsPerNode: 1 },
+  )
+  assert.equal(dataset.shape.availableBoundarySignals, 2)
+  assert.equal(dataset.shape.boundarySignals, 1)
+  assert.equal(dataset.signals.boundarySignals[0].overlap.jaccard, 1 / 3)
+  assert.equal(dataset.nodeContext[0].stableExemplarIds.length, 1)
+})
+
 test('hierarchy critic is a proposal-only evidence review without an owner target', () => {
   const baselineNodes = [node('capability:0', 'Baseline', ['a', 'b'])]
   const dataset = buildCapabilityHierarchyReviewDataset(
@@ -74,6 +93,7 @@ test('hierarchy critic is a proposal-only evidence review without an owner targe
   assert.match(HIERARCHY_CRITIC_SYSTEM_PROMPT, /suggestions only/)
   assert.match(HIERARCHY_CRITIC_SYSTEM_PROMPT, /No maintainer taxonomy/)
   assert.doesNotMatch(request.messages[1].content, /gold answer/)
+  assert.equal(buildHierarchyCriticRequest(dataset, { maxTokens: 12000 }).max_tokens, 12000)
 })
 
 test('hierarchy critic keeps supported proposals provisional and reports incomplete review', () => {
@@ -98,6 +118,10 @@ test('hierarchy critic keeps supported proposals provisional and reports incompl
         operation: 'remove_node', targetNodeIds: ['capability:0'], proposedParentId: null,
         name: null, summary: null, replacementNodes: [], evidenceIds: ['unknown'],
         signalIds: [], reason: 'Unsupported.', confidence: 'high',
+      }, {
+        operation: 'reparent_node', targetNodeIds: ['capability:0'], proposedParentId: null,
+        name: null, summary: null, replacementNodes: [], evidenceIds: [evidenceId],
+        signalIds: [], reason: 'Already top-level.', confidence: 'high',
       }],
       unresolvedSignalIds: [],
     }) } }],
@@ -106,7 +130,9 @@ test('hierarchy critic keeps supported proposals provisional and reports incompl
   const result = parseHierarchyCriticPayload(payload, dataset)
   assert.equal(result.proposals.length, 1)
   assert.equal(result.proposals[0].interpretationStatus, 'candidate')
+  assert.equal(result.shape.completeReview, false)
   assert.deepEqual(result.diagnostics.unsupportedProposals, [1])
+  assert.deepEqual(result.diagnostics.invalidProposals, [2])
   assert.deepEqual(result.diagnostics.omittedSignalIds, ['B0'])
 })
 

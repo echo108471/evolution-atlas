@@ -123,10 +123,13 @@ Bounded reading registry:
 ${evidence || '(none)'}`
 }
 
-export function buildHierarchyCriticRequest(dataset, { model = DEFAULT_MODEL } = {}) {
+export function buildHierarchyCriticRequest(
+  dataset,
+  { model = DEFAULT_MODEL, maxTokens = 30000 } = {},
+) {
   return {
     model,
-    max_tokens: 30000,
+    max_tokens: maxTokens,
     usage: { include: true },
     messages: [
       { role: 'system', content: HIERARCHY_CRITIC_SYSTEM_PROMPT },
@@ -214,6 +217,7 @@ export function parseHierarchyCriticPayload(payload, dataset) {
     ) || (
       proposal.operation === 'reparent_node' && targetNodeIds.length === 1 && hasParentField(proposal) &&
         parentIsValid && !targetNodeIds.includes(parent) &&
+        nodes.find((node) => node.id === targetNodeIds[0])?.parentId !== parent &&
         !(nodes.find((node) => node.id === targetNodeIds[0])?.children?.length > 0 && parent !== null)
     ) || (
       proposal.operation === 'remove_node' && targetNodeIds.length === 1
@@ -243,6 +247,8 @@ export function parseHierarchyCriticPayload(payload, dataset) {
     ...unresolvedSignalIds,
     ...proposals.flatMap((proposal) => proposal.signalIds),
   ])
+  const omittedNodeIds = [...nodeIds].filter((id) => !reviewedNodeIds.includes(id))
+  const omittedSignalIds = [...signalIds].filter((id) => !accountedSignals.has(id))
   return {
     reviewedNodeIds,
     proposals,
@@ -258,10 +264,11 @@ export function parseHierarchyCriticPayload(payload, dataset) {
       removals: proposals.filter((proposal) => proposal.operation === 'remove_node').length,
       signals: signals.length,
       accountedSignals: accountedSignals.size,
+      completeReview: omittedNodeIds.length === 0 && omittedSignalIds.length === 0,
     },
     diagnostics: {
-      omittedNodeIds: [...nodeIds].filter((id) => !reviewedNodeIds.includes(id)),
-      omittedSignalIds: [...signalIds].filter((id) => !accountedSignals.has(id)),
+      omittedNodeIds,
+      omittedSignalIds,
       invalidOperations,
       invalidProposals,
       unsupportedProposals,
@@ -273,13 +280,22 @@ export function parseHierarchyCriticPayload(payload, dataset) {
   }
 }
 
-export function fingerprintHierarchyCriticRequest(dataset, { model = DEFAULT_MODEL } = {}) {
-  return fingerprintInductionRequest(buildHierarchyCriticRequest(dataset, { model }))
+export function fingerprintHierarchyCriticRequest(
+  dataset,
+  { model = DEFAULT_MODEL, maxTokens = 30000 } = {},
+) {
+  return fingerprintInductionRequest(buildHierarchyCriticRequest(dataset, { model, maxTokens }))
 }
 
 export async function requestHierarchyCriticPayload(
   dataset,
-  { model = DEFAULT_MODEL, apiKey, fetchImpl = fetch, timeoutMs = REQUEST_TIMEOUT_MS } = {},
+  {
+    model = DEFAULT_MODEL,
+    maxTokens = 30000,
+    apiKey,
+    fetchImpl = fetch,
+    timeoutMs = REQUEST_TIMEOUT_MS,
+  } = {},
 ) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -288,7 +304,7 @@ export async function requestHierarchyCriticPayload(
     response = await fetchImpl(OPENROUTER_ENDPOINT, {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(buildHierarchyCriticRequest(dataset, { model })),
+      body: JSON.stringify(buildHierarchyCriticRequest(dataset, { model, maxTokens })),
       signal: controller.signal,
     })
   } catch (error) {

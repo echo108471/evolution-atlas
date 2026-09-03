@@ -18,6 +18,8 @@ Options:
   --critic <path>         Blind disagreement critic; repeat at least twice
   --out <path>            Write the deterministic review dataset here (required)
   --samples-per-set <n>    Evidence samples per comparison set (default: 2)
+  --max-boundary-signals <n> Keep the lowest-overlap boundary signals (default: all)
+  --node-exemplars <n>     Stable exemplars retained per current node (default: all)
   --compact               Emit compact JSON
   --help                  Show this help
 `
@@ -27,7 +29,7 @@ function parseArguments(argv) {
   const options = {
     readingsPath: null, hierarchyPath: null, alternativePaths: [],
     disagreementsPath: null, criticPaths: [], outputPath: null,
-    samplesPerSet: 2, pretty: true,
+    samplesPerSet: 2, maxBoundarySignals: null, nodeExemplarsPerNode: null, pretty: true,
   }
   const strings = {
     '--readings': 'readingsPath', '--hierarchy': 'hierarchyPath',
@@ -43,10 +45,13 @@ function parseArguments(argv) {
       options[argument === '--alternative' ? 'alternativePaths' : 'criticPaths'].push(value)
       continue
     }
-    if (argument === '--samples-per-set') {
-      options.samplesPerSet = Number.parseInt(argv[++index], 10)
-      if (!Number.isInteger(options.samplesPerSet) || options.samplesPerSet < 1) {
-        throw new Error('--samples-per-set must be a positive integer')
+    if (['--samples-per-set', '--max-boundary-signals', '--node-exemplars'].includes(argument)) {
+      const key = argument === '--samples-per-set'
+        ? 'samplesPerSet'
+        : argument === '--max-boundary-signals' ? 'maxBoundarySignals' : 'nodeExemplarsPerNode'
+      options[key] = Number.parseInt(argv[++index], 10)
+      if (!Number.isInteger(options[key]) || options[key] < 1) {
+        throw new Error(`${argument} must be a positive integer`)
       }
       continue
     }
@@ -77,7 +82,11 @@ function main() {
     options.alternativePaths.map(readJson),
     readJson(options.disagreementsPath),
     options.criticPaths.map(readJson),
-    { samplesPerSet: options.samplesPerSet },
+    {
+      samplesPerSet: options.samplesPerSet,
+      maxBoundarySignals: options.maxBoundarySignals,
+      nodeExemplarsPerNode: options.nodeExemplarsPerNode,
+    },
   )
   const outputPath = resolve(options.outputPath)
   mkdirSync(dirname(outputPath), { recursive: true })

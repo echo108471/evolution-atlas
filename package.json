@@ -15,6 +15,7 @@
     "build-capability-hierarchy-review": "node scripts/build-capability-hierarchy-review.mjs",
     "capabilities": "node scripts/capabilities.mjs",
     "compare-capability-critics": "node scripts/compare-capability-critics.mjs",
+    "compare-capability-hierarchy-critics": "node scripts/compare-capability-hierarchy-critics.mjs",
     "compare-capability-inductions": "node scripts/compare-capability-inductions.mjs",
     "critic-capability-disagreements": "node scripts/critic-capability-disagreements.mjs",
     "critic-capability-hierarchy": "node scripts/critic-capability-hierarchy.mjs",

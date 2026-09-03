@@ -326,6 +326,46 @@ and static inclusion of 178 readings already consumed a 55.8k-token prompt. Befo
 the hierarchy, repeat the critic and measure proposal recurrence. Before scaling to larger
 repositories, replace the static evidence bundle with bounded on-demand retrieval.
 
+### Focused packet and repeatability
+
+The first attempt to repeat the complete request was rejected before inference because its
+30,000-token completion ceiling exceeded the remaining provider credit; it incurred no
+additional model cost. Rather than change that request and call it a repeat, the builder now
+supports a separately fingerprinted focused condition. It keeps every recurring gap and
+unmatched alternative, retains one stable exemplar per current node, and selects the 24
+lowest-overlap boundary comparisons without looking at the first critic's proposals. This
+reduced the packet from 178 to 86 readings and from 203,781 to 90,697 prompt characters.
+
+One focused Grok 4.6 run was complete: it accounted for all 33 retained signals and cost
+$0.0871. It retained the dependency-automation addition, but replaced the full packet's
+growth/analytics split with two proposed merges. Because both the packet and output ceiling
+changed, this is a context-selection ablation rather than a repeatability sample. It shows
+that retrieval is part of the semantic method, not merely a way to reduce token cost.
+
+Three identical focused runs with Gemini 2.5 Flash Lite cost $0.0097 total. Their
+label-independent proposal-target agreement was poor:
+
+| measurement | minimum | mean | maximum |
+| --- | ---: | ---: | ---: |
+| operation-and-target F1 | 13.3% | 24.9% | 47.1% |
+| operation-and-target Jaccard | 7.1% | 15.2% | 30.8% |
+
+Only one change recurred in all three runs: add dependency automation beneath operations.
+All three gave it high confidence and cited exactly the same two readings and recurring gap
+signals. Three merge targets recurred in two runs, with 62.5–71.4% cited-evidence Jaccard.
+Those broader results are not eligible to revise the map: the cheap model accounted for only
+2–3 of 33 signals in each run, sometimes emitted unsupported fields or no-op reparenting,
+and therefore failed the complete-review quality gate every time. The parser now rejects
+no-op reparenting, while the comparison report preserves incomplete runs for measurement and
+marks them ineligible for automatic revision.
+
+The dependency gap is now unusually recurrent across assignment critics, alternative blind
+induction, both Grok packet conditions, and all three cheap-model repeats. It remains a
+candidate rather than an applied node because the only repeated hierarchy-critic condition
+failed its overall coverage contract. The next architecture should make evidence retrieval
+iterative and fail closed on incomplete review, then repeat a capable-model condition before
+materializing any change.
+
 ## What this establishes—and what it does not
 
 The experiments establish that autonomous discovery can produce a recognizably coarse and
@@ -340,5 +380,7 @@ automatically rewriting the map.
 
 The experiments do not establish that any generated membership or proposed hierarchy change
 is correct, that child boundaries are dependable, that two levels are enough, or that the
-result generalizes beyond this repository. The hierarchy proposals need repeated measurement
-against the pre-critic stability baseline, not a maintainer-authored target taxonomy.
+result generalizes beyond this repository. They do establish that proposal recurrence and
+protocol completion are separate gates: one stable proposal cannot make an incomplete critic
+reliable. Hierarchy changes still need a complete repeated condition measured against the
+pre-critic stability baseline, not a maintainer-authored target taxonomy.

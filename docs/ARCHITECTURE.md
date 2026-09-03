@@ -128,6 +128,15 @@ a candidate interpretation rather than applied. The first implementation preload
 bounded packet; its 55.8k-token pilot demonstrates the contract but also establishes the need
 for on-demand retrieval before substantially larger histories.
 
+The first focused-packet ablation confirmed that context selection affects the structural
+answer: the same capable model retained the strongest missing-node proposal but changed its
+secondary merge/split proposals when shown fewer boundary signals. Three cheap-model repeats
+then reached only 24.9% mean operation-target F1 and failed to account for most selected
+signals. Proposal recurrence and review completeness are therefore separate gates. The
+comparison layer matches operation targets without using proposed labels, compares cited
+evidence independently, and marks every proposal ineligible for automatic revision when any
+run in its condition is incomplete.
+
 Stable candidate identity belongs to reconciliation, not to the model's label. A renamed
 candidate should retain lineage; a split or merge should cite its predecessors. User edits
 remain useful review evidence, but the system must be able to run without them and they

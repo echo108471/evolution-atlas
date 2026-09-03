@@ -22,6 +22,7 @@ Options:
   --review <path>    Dataset from build-capability-hierarchy-review (required)
   --out <path>       Write the parsed critic document here (required)
   --model <id>       Critic model (default: ${DEFAULT_MODEL})
+  --max-tokens <n>   Maximum completion tokens (default: 30000)
   --response <path>  Parse an already-saved provider response; make no request
   --raw-out <path>   Save a new provider response here (default: <out>.response.json)
   --dry-run          Report request size and make no request
@@ -35,7 +36,7 @@ Requires ${API_KEY_ENV} unless --response or --dry-run is used.
 function parseArguments(argv) {
   const options = {
     reviewPath: null, outputPath: null, model: DEFAULT_MODEL,
-    responsePath: null, rawOutputPath: null, dryRun: false, pretty: true,
+    maxTokens: 30000, responsePath: null, rawOutputPath: null, dryRun: false, pretty: true,
   }
   const strings = {
     '--review': 'reviewPath', '--out': 'outputPath', '--model': 'model',
@@ -46,6 +47,13 @@ function parseArguments(argv) {
     if (argument === '--help') return { ...options, help: true }
     if (argument === '--dry-run') { options.dryRun = true; continue }
     if (argument === '--compact') { options.pretty = false; continue }
+    if (argument === '--max-tokens') {
+      options.maxTokens = Number.parseInt(argv[++index], 10)
+      if (!Number.isInteger(options.maxTokens) || options.maxTokens < 1) {
+        throw new Error('--max-tokens must be a positive integer')
+      }
+      continue
+    }
     if (strings[argument]) {
       const value = argv[++index]
       if (!value) throw new Error(`${argument} requires a value`)
@@ -72,7 +80,9 @@ async function main() {
   const options = parseArguments(process.argv.slice(2))
   if (options.help) { process.stdout.write(usage()); return }
   const dataset = JSON.parse(readFileSync(resolve(options.reviewPath), 'utf8'))
-  const request = buildHierarchyCriticRequest(dataset, { model: options.model })
+  const request = buildHierarchyCriticRequest(
+    dataset, { model: options.model, maxTokens: options.maxTokens },
+  )
   const prompt = request.messages.map((message) => message.content).join('\n')
   process.stderr.write(
     `${dataset.repository}: ${dataset.shape?.hierarchyNodes ?? 0} nodes, ` +
@@ -90,7 +100,9 @@ async function main() {
     const apiKey = process.env[API_KEY_ENV]
     if (!apiKey) throw new Error(`${API_KEY_ENV} is not set`)
     payload = await withRetry(
-      () => requestHierarchyCriticPayload(dataset, { model: options.model, apiKey }),
+      () => requestHierarchyCriticPayload(dataset, {
+        model: options.model, maxTokens: options.maxTokens, apiKey,
+      }),
       { onNotice: (notice) => process.stderr.write(`${notice}\n`) },
     )
     const rawPath = options.rawOutputPath ?? `${options.outputPath}.response.json`
@@ -106,7 +118,10 @@ async function main() {
     source: { hierarchyReviewContentSha256: dataset.protocol?.contentSha256 ?? null },
     protocol: {
       model: options.model,
-      requestSha256: fingerprintHierarchyCriticRequest(dataset, { model: options.model }),
+      maxTokens: options.maxTokens,
+      requestSha256: fingerprintHierarchyCriticRequest(dataset, {
+        model: options.model, maxTokens: options.maxTokens,
+      }),
     },
     ...criticized,
   }
@@ -115,7 +130,8 @@ async function main() {
     `${criticized.shape.proposals} supported proposals: ${criticized.shape.addNodes} add, ` +
     `${criticized.shape.merges} merge, ${criticized.shape.splits} split, ` +
     `${criticized.shape.reparents} reparent, ${criticized.shape.removals} remove; ` +
-    `${criticized.shape.accountedSignals}/${criticized.shape.signals} signals accounted\n` +
+    `${criticized.shape.accountedSignals}/${criticized.shape.signals} signals accounted; ` +
+    `review ${criticized.shape.completeReview ? 'complete' : 'INCOMPLETE'}\n` +
     `wrote ${outputPath}` +
     `${criticized.usage?.cost != null ? ` ($${criticized.usage.cost.toFixed(4)})` : ''}\n`,
   )
