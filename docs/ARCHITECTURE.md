@@ -120,6 +120,14 @@ Three repeated samples per condition support this boundary: exact decision agree
 This measures candidate-ID anchoring in the fixed pilot; it does not make the blind critic a
 ground-truth judge.
 
+Hierarchy critique uses a separate proposal-only interface. A deterministic builder matches
+blind maps by cited evidence, extracts recurring blind map gaps, samples bounded readings,
+and fingerprints the complete packet. The model may propose additions, merges, splits,
+reparenting, or removals, but every proposal must cite packet readings and is serialized as
+a candidate interpretation rather than applied. The first implementation preloads the
+bounded packet; its 55.8k-token pilot demonstrates the contract but also establishes the need
+for on-demand retrieval before substantially larger histories.
+
 Stable candidate identity belongs to reconciliation, not to the model's label. A renamed
 candidate should retain lineage; a split or merge should cite its predecessors. User edits
 remain useful review evidence, but the system must be able to run without them and they

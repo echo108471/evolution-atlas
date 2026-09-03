@@ -242,14 +242,21 @@ sorting the pilot into them, and tuning against the result would make the soluti
 one repository owner's memory. Keep the list held out and let it audit what autonomous
 discovery missed.
 
-1. Add a separate hierarchy critic that can merge, split, nest, or reject candidates against
-   the measured pre-critic stability baseline.
-2. Repeat the blind hierarchy and assignment experiment on a structurally different
+1. Repeat the hierarchy critic and measure whether its operation targets and cited evidence
+   recur before allowing any proposal to revise the candidate map.
+2. Replace its static 55.8k-token evidence packet with bounded on-demand retrieval.
+3. Repeat the blind hierarchy and assignment experiment on a structurally different
    repository.
-3. Put per-commit readings and candidate hierarchies in the viewer with their interpretation
+4. Put per-commit readings and candidate hierarchies in the viewer with their interpretation
    status and cited Git evidence visible.
 
 The assignment-disagreement critic now has three candidate-visible and three blind samples.
 Exact decisions agree by 85.9% within the visible arm, 71.6% within the blind arm, and 54.5%
 across arms. That separation confirms candidate-ID anchoring on this fixed experiment and
 keeps the blind critic as the default source of hierarchy-review signals.
+
+The first hierarchy critic now consumes those signals without receiving an owner taxonomy
+or mutating the map. From 83 supplied structural signals it proposed two candidate changes:
+add dependency-update automation beneath operations, and test splitting the growth/analytics
+umbrella into its existing children. Both are evidence-cited and still unapplied. A single
+run demonstrates the decision interface, not proposal correctness or stability.

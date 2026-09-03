@@ -294,20 +294,51 @@ set, and neither has been installed as the repository's canonical assignments. T
 also does not establish that the blind answers are more correct; it establishes that the
 visible answers are conditioned by IDs they were shown.
 
+## Hierarchy critic pilot
+
+`npm run build-capability-hierarchy-review` now creates a deterministic review packet from
+the current 37-node hierarchy, the other two blind hierarchy runs, the fixed-map
+disagreement dataset, and all three blind assignment critics. Matching between hierarchy
+runs uses cited evidence sets rather than labels. The packet contains two recurring map-gap
+signals, 74 same-depth boundary comparisons, seven unmatched alternative nodes, stable
+current-node exemplars, and 178 sampled commit readings. It does not contain a maintainer
+taxonomy.
+
+`npm run critic-capability-hierarchy` reviewed that packet without mutating the hierarchy.
+The request used 55,814 input tokens and cost $0.1710. Its response reviewed all 37 current
+nodes, accounted for all 83 structural signals, used only valid node, signal, and reading
+IDs, and produced two supported candidate changes:
+
+1. Add **Dependency update automation** beneath **Deployment and operations**, citing the
+   two Dependabot readings, both recurring blind map-gap signals, and the matching unmatched
+   node from another blind hierarchy. Confidence: high.
+2. Split **Growth loops and product analytics** by promoting its two existing children—
+   **Sharing, referrals, and email capture** and **Product analytics and experiments**—to
+   top-level capabilities. Both other blind hierarchies independently placed analytics at
+   the top level. Confidence: medium.
+
+The other 78 signals remained unresolved rather than being converted into changes. Neither
+proposal has been applied. This establishes that the LLM can make sparse, evidence-cited
+structural proposals from model-generated disagreements without an owner answer key. It does
+not establish that either proposal is correct or repeatable. The same model family produced
+and reviewed the maps, alternative candidate labels remain visible in this first packet,
+and static inclusion of 178 readings already consumed a 55.8k-token prompt. Before revising
+the hierarchy, repeat the critic and measure proposal recurrence. Before scaling to larger
+repositories, replace the static evidence bundle with bounded on-demand retrieval.
+
 ## What this establishes—and what it does not
 
 The experiments establish that autonomous discovery can produce a recognizably coarse and
 substantially recurring umbrella hierarchy without being told the answer or a target count,
 that a separate assignment pass makes cross-cutting membership more reproducible, and that
 hierarchy formation accounts for more of the remaining variance than assignment alone.
-The disagreement pipeline also establishes that a critic can account for every unstable
-input, preserve ambiguity, identify a recurring possible map gap without an owner-authored
-answer, and measure candidate anchoring separately from within-prompt variance. The
-experiments do not establish that any generated membership is correct, that child boundaries
-are dependable, that two levels are enough, or that the result generalizes beyond this
-repository.
+The disagreement pipeline establishes that a critic can account for every unstable input,
+preserve ambiguity, identify a recurring possible map gap without an owner-authored answer,
+and measure candidate anchoring separately from within-prompt variance. The hierarchy pilot
+establishes that those signals can drive sparse, validated structural proposals without
+automatically rewriting the map.
 
-The recurring blind-critic `map_insufficient` findings and residual cross-map splits,
-merges, and child-boundary disagreements should now feed a separate hierarchy critic. That
-critic should be measured against the pre-critic stability baseline, not a
-maintainer-authored target taxonomy.
+The experiments do not establish that any generated membership or proposed hierarchy change
+is correct, that child boundaries are dependable, that two levels are enough, or that the
+result generalizes beyond this repository. The hierarchy proposals need repeated measurement
+against the pre-critic stability baseline, not a maintainer-authored target taxonomy.

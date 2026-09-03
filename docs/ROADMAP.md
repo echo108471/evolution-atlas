@@ -139,14 +139,15 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-1. Add a separate hierarchy critic. Seed its investigation from recurring blind-critic map
-   gaps, and give it competing evidence sets plus bounded retrieval operations so proposed
-   merges, splits, and reparenting remain inspectable.
-2. Repeat discovery and assignment on a structurally different repository before treating
+1. Repeat the hierarchy critic against the unchanged review-packet fingerprint. Compare
+   operation and target recurrence plus cited-evidence overlap before applying any proposal.
+2. Replace the 55.8k-token static hierarchy-review packet with bounded on-demand retrieval,
+   preserving the same locally validated citation contract.
+3. Repeat discovery and assignment on a structurally different repository before treating
    the present hierarchy behavior as general.
-3. Expose per-commit readings and candidate hierarchies in the viewer with direct links to
+4. Expose per-commit readings and candidate hierarchies in the viewer with direct links to
    the underlying Git evidence.
-4. Re-read a `partial` promotion at a larger byte budget instead of escalating it to a
+5. Re-read a `partial` promotion at a larger byte budget instead of escalating it to a
    pricier model. The budgets are measured and `--max-bytes` exists; nothing yet acts on
    the promotion cause.
 
@@ -157,6 +158,13 @@ describes when its work changed character. Keep those axes separate until eviden
 useful relationship between them.
 
 ### Closed since
+
+- **Hierarchy-critic pilot.** Built a deterministic packet with the current 37-node map,
+  74 label-independent boundary comparisons, seven unmatched alternative nodes, two
+  recurring blind map gaps, and 178 bounded readings. One $0.1710 critic pass proposed a
+  high-confidence dependency-automation child and a medium-confidence split of growth from
+  analytics, with no invalid citations. The proposals remain unapplied; one run does not
+  establish their stability, and the 55.8k-token static packet does not yet scale.
 
 - **Repeated assignment-disagreement critic.** Built a deterministic dataset for all 116 unstable
   commits and a replayable critic with explicit assign, unassigned, ambiguous, and
