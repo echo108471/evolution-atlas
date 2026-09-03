@@ -96,22 +96,10 @@ function summarize(dataset, document, id) {
   }
 }
 
-export function compareCapabilityCritics(dataset, documents, { ids } = {}) {
-  if (documents.length !== 2) throw new Error('exactly two critic documents are required')
-  const expectedSource = dataset.protocol?.contentSha256 ?? null
-  for (const document of documents) {
-    if (document.repository !== dataset.repository || document.headSha !== dataset.headSha) {
-      throw new Error('critic and disagreement dataset must describe the same repository head')
-    }
-    if (document.source?.disagreementContentSha256 !== expectedSource) {
-      throw new Error('critic was produced from a different disagreement dataset')
-    }
-  }
-  const runIds = ids ?? ['left', 'right']
-  const summaries = documents.map((document, index) => summarize(dataset, document, runIds[index]))
-  const decisionMaps = documents.map((document) => new Map(
-    document.decisions.map((decision) => [decision.input, decision]),
-  ))
+function comparePair(dataset, documents, runIds) {
+  const decisionMaps = documents.map((document) => new Map(document.decisions.map(
+    (decision) => [decision.input, decision],
+  )))
   let sameVerdict = 0
   let exactDecision = 0
   let bothResolved = 0
@@ -140,24 +128,109 @@ export function compareCapabilityCritics(dataset, documents, { ids } = {}) {
   }
   const intersection = [...edgeSets[0]].filter((edge) => edgeSets[1].has(edge)).length
   const edgeDenominator = edgeSets[0].size + edgeSets[1].size
+  const visibility = documents.map((document) => document.protocol?.candidateUnionVisible)
+  const treatment = visibility[0] === visibility[1]
+    ? visibility[0] === true ? 'visible-within' : visibility[0] === false ? 'blind-within' : 'unspecified'
+    : 'cross-treatment'
   return {
-    schemaVersion: '0.1.0',
+    critics: runIds,
+    treatment,
+    decisions: dataset.disagreements.length,
+    sameVerdict,
+    sameVerdictShare: sameVerdict / dataset.disagreements.length,
+    exactDecision,
+    exactDecisionShare: exactDecision / dataset.disagreements.length,
+    bothResolved,
+    exactResolvedAssignment,
+    exactResolvedAssignmentShare: bothResolved === 0 ? null : exactResolvedAssignment / bothResolved,
+    selectedEdgeIntersection: intersection,
+    selectedEdgeF1: edgeDenominator === 0 ? 1 : 2 * intersection / edgeDenominator,
+  }
+}
+
+const distribution = (values) => {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((left, right) => left - right)
+  const middle = Math.floor(sorted.length / 2)
+  const median = sorted.length % 2 === 1
+    ? sorted[middle]
+    : (sorted[middle - 1] + sorted[middle]) / 2
+  return {
+    min: sorted[0],
+    median,
+    mean: sorted.reduce((sum, value) => sum + value, 0) / sorted.length,
+    max: sorted.at(-1),
+  }
+}
+
+const aggregatePairs = (pairs) => ({
+  comparisons: pairs.length,
+  sameVerdictShare: distribution(pairs.map((pair) => pair.sameVerdictShare)),
+  exactDecisionShare: distribution(pairs.map((pair) => pair.exactDecisionShare)),
+  exactResolvedAssignmentShare: distribution(
+    pairs.map((pair) => pair.exactResolvedAssignmentShare).filter((value) => value != null),
+  ),
+  selectedEdgeF1: distribution(pairs.map((pair) => pair.selectedEdgeF1)),
+})
+
+export function compareCapabilityCritics(dataset, documents, { ids } = {}) {
+  if (documents.length < 2) throw new Error('at least two critic documents are required')
+  if (ids && ids.length !== documents.length) {
+    throw new Error('critic ids must match the number of documents')
+  }
+  const expectedSource = dataset.protocol?.contentSha256 ?? null
+  const models = new Set()
+  const requestByTreatment = new Map()
+  for (const document of documents) {
+    if (document.repository !== dataset.repository || document.headSha !== dataset.headSha) {
+      throw new Error('critic and disagreement dataset must describe the same repository head')
+    }
+    if (document.source?.disagreementContentSha256 !== expectedSource) {
+      throw new Error('critic was produced from a different disagreement dataset')
+    }
+    const { candidateUnionVisible, model, requestSha256 } = document.protocol ?? {}
+    if (typeof candidateUnionVisible !== 'boolean' || !model || !requestSha256) {
+      throw new Error('critic comparison requires a complete experimental protocol')
+    }
+    models.add(model)
+    const treatment = candidateUnionVisible ? 'visible' : 'blind'
+    const existingRequest = requestByTreatment.get(treatment)
+    if (existingRequest && existingRequest !== requestSha256) {
+      throw new Error(`${treatment} critics changed their request fingerprint`)
+    }
+    requestByTreatment.set(treatment, requestSha256)
+  }
+  if (models.size !== 1) {
+    throw new Error('critic comparison requires one unchanged model')
+  }
+  const runIds = ids ?? documents.map((_, index) => `run-${index + 1}`)
+  const summaries = documents.map((document, index) => summarize(dataset, document, runIds[index]))
+  const pairwise = []
+  for (let left = 0; left < documents.length; left += 1) {
+    for (let right = left + 1; right < documents.length; right += 1) {
+      pairwise.push(comparePair(
+        dataset,
+        [documents[left], documents[right]],
+        [runIds[left], runIds[right]],
+      ))
+    }
+  }
+  const treatments = Object.fromEntries([
+    'visible-within', 'blind-within', 'cross-treatment', 'unspecified',
+  ].map((treatment) => [
+    treatment,
+    aggregatePairs(pairwise.filter((pair) => pair.treatment === treatment)),
+  ]))
+  return {
+    schemaVersion: '0.2.0',
     method: 'capability-disagreement-critic-comparison',
     repository: dataset.repository,
     headSha: dataset.headSha,
     source: { disagreementContentSha256: expectedSource },
     critics: summaries,
-    comparison: {
-      decisions: dataset.disagreements.length,
-      sameVerdict,
-      sameVerdictShare: sameVerdict / dataset.disagreements.length,
-      exactDecision,
-      exactDecisionShare: exactDecision / dataset.disagreements.length,
-      bothResolved,
-      exactResolvedAssignment,
-      exactResolvedAssignmentShare: bothResolved === 0 ? null : exactResolvedAssignment / bothResolved,
-      selectedEdgeIntersection: intersection,
-      selectedEdgeF1: edgeDenominator === 0 ? 1 : 2 * intersection / edgeDenominator,
-    },
+    pairwise,
+    aggregate: aggregatePairs(pairwise),
+    treatments,
+    ...(pairwise.length === 1 ? { comparison: pairwise[0] } : {}),
   }
 }

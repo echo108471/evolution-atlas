@@ -242,11 +242,14 @@ sorting the pilot into them, and tuning against the result would make the soluti
 one repository owner's memory. Keep the list held out and let it audit what autonomous
 discovery missed.
 
-1. Repeat the candidate-visible and blind disagreement critics to separate anchoring from
-   critic variance. Review persistent disagreements only after those blind decisions exist.
-2. Add a separate hierarchy critic that can merge, split, nest, or reject candidates against
+1. Add a separate hierarchy critic that can merge, split, nest, or reject candidates against
    the measured pre-critic stability baseline.
-3. Repeat the blind hierarchy and assignment experiment on a structurally different
+2. Repeat the blind hierarchy and assignment experiment on a structurally different
    repository.
-4. Put per-commit readings and candidate hierarchies in the viewer with their interpretation
+3. Put per-commit readings and candidate hierarchies in the viewer with their interpretation
    status and cited Git evidence visible.
+
+The assignment-disagreement critic now has three candidate-visible and three blind samples.
+Exact decisions agree by 85.9% within the visible arm, 71.6% within the blind arm, and 54.5%
+across arms. That separation confirms candidate-ID anchoring on this fixed experiment and
+keeps the blind critic as the default source of hierarchy-review signals.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-/** Compare two critics of the same fixed-map disagreement dataset. */
+/** Compare repeated critics of the same fixed-map disagreement dataset. */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, dirname, resolve } from 'node:path'
@@ -8,7 +8,7 @@ import { basename, dirname, resolve } from 'node:path'
 import { compareCapabilityCritics } from './lib/capability-critic-comparison.mjs'
 
 function usage() {
-  return `Usage: npm run compare-capability-critics -- [options] <critic.json> <critic.json>
+  return `Usage: npm run compare-capability-critics -- [options] <critic.json> <critic.json> [...]
 
 Options:
   --disagreements <path>  Source disagreement dataset (required)
@@ -32,7 +32,7 @@ function parseArguments(argv) {
   if (!options.disagreementsPath || !options.outputPath) {
     throw new Error('--disagreements and --out are required')
   }
-  if (options.inputs.length !== 2) throw new Error('exactly two critic documents are required')
+  if (options.inputs.length < 2) throw new Error('at least two critic documents are required')
   return options
 }
 
@@ -50,10 +50,11 @@ function main() {
   const outputPath = resolve(options.outputPath)
   mkdirSync(dirname(outputPath), { recursive: true })
   writeFileSync(outputPath, `${JSON.stringify(report, null, options.pretty ? 2 : 0)}\n`, 'utf8')
+  const format = (summary) => summary ? `${(summary.mean * 100).toFixed(1)}%` : 'n/a'
   process.stderr.write(
-    `${report.comparison.decisions} decisions; ` +
-    `${(report.comparison.exactDecisionShare * 100).toFixed(1)}% exact agreement, ` +
-    `${(report.comparison.selectedEdgeF1 * 100).toFixed(1)}% selected-edge F1\n` +
+    `${report.aggregate.comparisons} pairwise comparisons; ` +
+    `${format(report.aggregate.exactDecisionShare)} exact agreement, ` +
+    `${format(report.aggregate.selectedEdgeF1)} selected-edge F1\n` +
     `wrote ${outputPath}\n`,
   )
 }

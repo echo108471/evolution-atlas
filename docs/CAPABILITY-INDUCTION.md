@@ -243,7 +243,7 @@ larger source of disagreement. Assignment is nevertheless not deterministic: cro
 membership and a few child boundaries still need evidence review rather than silent
 majority voting.
 
-## Disagreement critic pilot
+## Disagreement critic experiment
 
 `npm run build-capability-disagreements` turns repeated assignments into a deterministic
 review dataset. For the fixed-map runs it found the same 116 unstable commits and selected
@@ -258,25 +258,41 @@ the unordered union of capability IDs previously proposed for each commit. A bli
 withheld that union as well. Both responses covered every input and cited only valid
 capabilities and exemplars.
 
-| critic input | assigned | unassigned | ambiguous | map insufficient | full candidate union | prior exact alternative | cost |
+Each arm was run three times with an unchanged request fingerprint. The four added responses
+cost $0.6617; all six responses cost $1.0247.
+
+| critic input | runs | assigned range | unassigned range | map-insufficient range | mean full candidate union | mean candidate-edge retention | total cost |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| candidate union visible | 104 | 11 | 1 | 0 | 69.6% | 83.5% | $0.1730 |
-| candidate union hidden | 90 | 23 | 1 | 2 | 40.7% | 60.2% | $0.1900 |
+| candidate union visible | 3 | 100–105 | 9–13 | 0–2 | 72.2% | 85.0% | $0.4991 |
+| candidate union hidden | 3 | 90–96 | 18–23 | 2–2 | 38.3% | 70.3% | $0.5255 |
 
-The two critics gave the same verdict on 83.6% of inputs, the same complete decision on
-54.3%, and reached 83.7% F1 over selected commit-to-capability edges. The visible-union arm
-retained 84.3% of candidate edges and chose the entire union for 80 of 115 resolved inputs.
-The blind arm retained 68.7%, chose the entire union for 46 of 113, and selected 25 existing
-capability edges outside the hidden union across 23 inputs. It also marked two Dependabot
-commits as `map_insufficient`, explaining that durable dependency automation had no suitable
-node.
+The repeated comparison separates prompt treatment from ordinary run variance. Each
+within-arm row contains three pairwise comparisons; the cross-arm row contains nine. These
+pairs share runs and therefore are descriptive measurements, not fifteen independent trials.
 
-This is evidence of an anchoring risk, not a measured causal effect: each condition has only
-one sample, so prompt treatment and critic randomness are still confounded. The architecture
-should nevertheless default to a blind critic because it can make a decision without prior
-candidate IDs. Earlier alternatives belong in the post-decision comparison, not in the
-critic's evidence. Neither critic output is a truth set, and neither has been installed as
-the repository's canonical assignments.
+| pair type | exact decision min | exact decision mean | exact decision max | selected-edge F1 mean | same-verdict mean |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| candidate visible, within arm | 84.5% | 85.9% | 87.9% | 95.1% | 92.8% |
+| candidate hidden, within arm | 68.1% | 71.6% | 75.9% | 90.4% | 91.1% |
+| visible versus hidden | 52.6% | 54.5% | 58.6% | 83.6% | 88.0% |
+
+The complete cross-arm agreement never reaches the least-agreeing blind-with-blind pair,
+and the same separation appears in selected-edge F1. Showing candidate IDs therefore has a
+repeatable anchoring effect on this model, repository, map, and disagreement set; the
+one-sample difference was not just critic randomness. The visible arm kept substantially
+more prior edges and selected the full prior union almost twice as often.
+
+Both Dependabot commits were marked `map_insufficient` in all three blind runs. They were
+also marked that way in one of three visible runs, while the other visible runs assigned
+them to an existing node. This is a stronger, still provisional signal that durable
+dependency automation may be absent from the hierarchy and is a concrete input for the
+hierarchy critic.
+
+The architecture should default to a blind critic. Earlier alternatives belong in the
+post-decision comparison, not in the critic's evidence. Neither critic output is a truth
+set, and neither has been installed as the repository's canonical assignments. The result
+also does not establish that the blind answers are more correct; it establishes that the
+visible answers are conditioned by IDs they were shown.
 
 ## What this establishes—and what it does not
 
@@ -285,12 +301,13 @@ substantially recurring umbrella hierarchy without being told the answer or a ta
 that a separate assignment pass makes cross-cutting membership more reproducible, and that
 hierarchy formation accounts for more of the remaining variance than assignment alone.
 The disagreement pipeline also establishes that a critic can account for every unstable
-input, preserve ambiguity, and identify a possible map gap without an owner-authored answer.
-The experiments do not establish that any generated membership is correct, that child
-boundaries are dependable, that two levels are enough, or that the result generalizes beyond
-this repository.
+input, preserve ambiguity, identify a recurring possible map gap without an owner-authored
+answer, and measure candidate anchoring separately from within-prompt variance. The
+experiments do not establish that any generated membership is correct, that child boundaries
+are dependable, that two levels are enough, or that the result generalizes beyond this
+repository.
 
-Before attributing the visible-versus-blind difference to anchoring, repeat each critic
-condition. Persistent blind-critic `map_insufficient` findings and residual cross-map splits,
-merges, and child-boundary disagreements can then feed a separate hierarchy critic. Neither
-step should use a maintainer-authored taxonomy as the discovery target.
+The recurring blind-critic `map_insufficient` findings and residual cross-map splits,
+merges, and child-boundary disagreements should now feed a separate hierarchy critic. That
+critic should be measured against the pre-critic stability baseline, not a
+maintainer-authored target taxonomy.

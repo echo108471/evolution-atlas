@@ -139,18 +139,14 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-1. Repeat the candidate-visible and blind disagreement critics so candidate anchoring can be
-   separated from critic run-to-run variance. Use persistent critic disagreements for a
-   held-out evidence audit, not as an owner-authored target taxonomy.
-2. Add a separate hierarchy critic. Seed its investigation from recurring blind-critic map
-   gaps and give it the
-   competing evidence sets and bounded retrieval operations so proposed merges, splits, and
-   reparenting remain inspectable.
-3. Repeat discovery and assignment on a structurally different repository before treating
+1. Add a separate hierarchy critic. Seed its investigation from recurring blind-critic map
+   gaps, and give it competing evidence sets plus bounded retrieval operations so proposed
+   merges, splits, and reparenting remain inspectable.
+2. Repeat discovery and assignment on a structurally different repository before treating
    the present hierarchy behavior as general.
-4. Expose per-commit readings and candidate hierarchies in the viewer with direct links to
+3. Expose per-commit readings and candidate hierarchies in the viewer with direct links to
    the underlying Git evidence.
-5. Re-read a `partial` promotion at a larger byte budget instead of escalating it to a
+4. Re-read a `partial` promotion at a larger byte budget instead of escalating it to a
    pricier model. The budgets are measured and `--max-bytes` exists; nothing yet acts on
    the promotion cause.
 
@@ -162,12 +158,13 @@ useful relationship between them.
 
 ### Closed since
 
-- **Assignment-disagreement critic.** Built a deterministic dataset for all 116 unstable
+- **Repeated assignment-disagreement critic.** Built a deterministic dataset for all 116 unstable
   commits and a replayable critic with explicit assign, unassigned, ambiguous, and
-  map-insufficient outcomes. A candidate-visible arm chose the full candidate union for
-  69.6% of resolved inputs versus 40.7% when blinded; the two arms agreed exactly on 54.3%
-  of decisions. One sample per arm identifies an anchoring risk but does not yet estimate
-  its size independently of critic variance.
+  map-insufficient outcomes. Across three runs per arm, candidate-visible critics agreed
+  exactly within-arm on 85.9% of decisions, blind critics on 71.6%, and cross-arm pairs on
+  only 54.5%. Candidate-edge retention averaged 85.0% when visible versus 70.3% when hidden.
+  Both Dependabot commits produced `map_insufficient` in every blind run, providing a
+  recurring hierarchy-critic input without making either arm a truth set.
 
 - **Fixed-map assignment repeatability.** Three assignments of one unchanged 37-node map
   reached 98.8% mean assigned-commit F1, 89.9% umbrella co-membership, 84.7% child

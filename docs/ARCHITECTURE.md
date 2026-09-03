@@ -115,6 +115,11 @@ ratifying or combining earlier answers. Instead it sees the fixed hierarchy, dis
 readings, and explicitly provisional exemplars drawn from recurring assignments. Competing
 answers are compared only after the critic has responded.
 
+Three repeated samples per condition support this boundary: exact decision agreement was
+85.9% within candidate-visible runs, 71.6% within blind runs, and 54.5% across conditions.
+This measures candidate-ID anchoring in the fixed pilot; it does not make the blind critic a
+ground-truth judge.
+
 Stable candidate identity belongs to reconciliation, not to the model's label. A renamed
 candidate should retain lineage; a split or merge should cite its predecessors. User edits
 remain useful review evidence, but the system must be able to run without them and they

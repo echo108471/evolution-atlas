@@ -23,7 +23,12 @@ const dataset = {
 const document = (visible, decisions) => ({
   repository: 'test', headSha: 'head',
   source: { disagreementContentSha256: 'dataset' },
-  protocol: { candidateUnionVisible: visible }, decisions,
+  protocol: {
+    candidateUnionVisible: visible,
+    model: 'test-model',
+    requestSha256: visible ? 'visible-request' : 'blind-request',
+  },
+  decisions,
 })
 
 test('critic comparison reports prompt anchoring without calling either answer correct', () => {
@@ -54,4 +59,54 @@ test('critic comparison reports prompt anchoring without calling either answer c
   assert.equal(report.comparison.sameVerdictShare, 0.5)
   assert.equal(report.comparison.exactDecisionShare, 0)
   assert.equal(report.comparison.selectedEdgeF1, 0.5)
+})
+
+test('critic comparison separates within-treatment and cross-treatment repeats', () => {
+  const visible = document(true, [{
+    input: 0, commitSha: 'a', verdict: 'assign',
+    selectedCapabilityIds: ['capability:0'], plausibleCapabilityIds: [],
+    unassignedPlausible: false, referenceExemplarIds: [],
+  }, {
+    input: 1, commitSha: 'b', verdict: 'assign',
+    selectedCapabilityIds: ['capability:1'], plausibleCapabilityIds: [],
+    unassignedPlausible: false, referenceExemplarIds: [],
+  }])
+  const blind = document(false, [{
+    input: 0, commitSha: 'a', verdict: 'unassigned',
+    selectedCapabilityIds: [], plausibleCapabilityIds: [],
+    unassignedPlausible: true, referenceExemplarIds: [],
+  }, {
+    input: 1, commitSha: 'b', verdict: 'assign',
+    selectedCapabilityIds: ['capability:1'], plausibleCapabilityIds: [],
+    unassignedPlausible: false, referenceExemplarIds: [],
+  }])
+  const report = compareCapabilityCritics(
+    dataset,
+    [visible, visible, blind, blind],
+    { ids: ['visible-1', 'visible-2', 'blind-1', 'blind-2'] },
+  )
+  assert.equal(report.pairwise.length, 6)
+  assert.equal(report.treatments['visible-within'].comparisons, 1)
+  assert.equal(report.treatments['blind-within'].comparisons, 1)
+  assert.equal(report.treatments['cross-treatment'].comparisons, 4)
+  assert.equal(report.treatments['visible-within'].exactDecisionShare.mean, 1)
+  assert.equal(report.treatments['cross-treatment'].exactDecisionShare.mean, 0.5)
+})
+
+test('critic comparison rejects prompt changes hidden inside one treatment', () => {
+  const decisions = [{
+    input: 0, commitSha: 'a', verdict: 'unassigned',
+    selectedCapabilityIds: [], plausibleCapabilityIds: [],
+    unassignedPlausible: true, referenceExemplarIds: [],
+  }, {
+    input: 1, commitSha: 'b', verdict: 'unassigned',
+    selectedCapabilityIds: [], plausibleCapabilityIds: [],
+    unassignedPlausible: true, referenceExemplarIds: [],
+  }]
+  const changed = document(false, decisions)
+  changed.protocol.requestSha256 = 'changed-request'
+  assert.throws(
+    () => compareCapabilityCritics(dataset, [document(false, decisions), changed]),
+    /changed their request fingerprint/,
+  )
 })
