@@ -243,18 +243,54 @@ larger source of disagreement. Assignment is nevertheless not deterministic: cro
 membership and a few child boundaries still need evidence review rather than silent
 majority voting.
 
+## Disagreement critic pilot
+
+`npm run build-capability-disagreements` turns repeated assignments into a deterministic
+review dataset. For the fixed-map runs it found the same 116 unstable commits and selected
+87 reference exemplars only from commits whose complete direct assignment was identical in
+all three runs. The saved dataset retains the exact alternatives and their frequencies for
+measurement after the fact.
+
+`npm run critic-capability-disagreements` gives an evidence-reading critic the fixed
+hierarchy, those provisional exemplars, and all 116 disputed readings. It receives no owner
+taxonomy, run identity, vote count, or exact assignment alternative. The first arm did show
+the unordered union of capability IDs previously proposed for each commit. A blinded control
+withheld that union as well. Both responses covered every input and cited only valid
+capabilities and exemplars.
+
+| critic input | assigned | unassigned | ambiguous | map insufficient | full candidate union | prior exact alternative | cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| candidate union visible | 104 | 11 | 1 | 0 | 69.6% | 83.5% | $0.1730 |
+| candidate union hidden | 90 | 23 | 1 | 2 | 40.7% | 60.2% | $0.1900 |
+
+The two critics gave the same verdict on 83.6% of inputs, the same complete decision on
+54.3%, and reached 83.7% F1 over selected commit-to-capability edges. The visible-union arm
+retained 84.3% of candidate edges and chose the entire union for 80 of 115 resolved inputs.
+The blind arm retained 68.7%, chose the entire union for 46 of 113, and selected 25 existing
+capability edges outside the hidden union across 23 inputs. It also marked two Dependabot
+commits as `map_insufficient`, explaining that durable dependency automation had no suitable
+node.
+
+This is evidence of an anchoring risk, not a measured causal effect: each condition has only
+one sample, so prompt treatment and critic randomness are still confounded. The architecture
+should nevertheless default to a blind critic because it can make a decision without prior
+candidate IDs. Earlier alternatives belong in the post-decision comparison, not in the
+critic's evidence. Neither critic output is a truth set, and neither has been installed as
+the repository's canonical assignments.
+
 ## What this establishes—and what it does not
 
 The experiments establish that autonomous discovery can produce a recognizably coarse and
 substantially recurring umbrella hierarchy without being told the answer or a target count,
 that a separate assignment pass makes cross-cutting membership more reproducible, and that
 hierarchy formation accounts for more of the remaining variance than assignment alone.
-They do not establish that any generated membership is correct, that child boundaries are
-dependable, that two levels are enough, or that the result generalizes beyond this
-repository.
+The disagreement pipeline also establishes that a critic can account for every unstable
+input, preserve ambiguity, and identify a possible map gap without an owner-authored answer.
+The experiments do not establish that any generated membership is correct, that child
+boundaries are dependable, that two levels are enough, or that the result generalizes beyond
+this repository.
 
-The next evidence review should sample the 116 commits whose exact direct assignments varied,
-especially one-run edges, unstable overlaps, and the `CI/CD and environments` boundary. A
-hierarchy critic can then focus on residual cross-map splits, merges, and child-boundary
-disagreements without being credited for assignment-stage noise. Neither step should use a
-maintainer-authored taxonomy as the discovery target.
+Before attributing the visible-versus-blind difference to anchoring, repeat each critic
+condition. Persistent blind-critic `map_insufficient` findings and residual cross-map splits,
+merges, and child-boundary disagreements can then feed a separate hierarchy critic. Neither
+step should use a maintainer-authored taxonomy as the discovery target.

@@ -139,11 +139,11 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-1. Draw an evidence-review sample from the 116 commits whose exact assignments varied on
-   one fixed hierarchy, emphasizing one-run edges, unstable overlaps, and the weakest child
-   boundary. The owner evaluates claims after discovery rather than supplying the taxonomy
-   the system is meant to discover.
-2. Add a separate hierarchy critic. Give it the
+1. Repeat the candidate-visible and blind disagreement critics so candidate anchoring can be
+   separated from critic run-to-run variance. Use persistent critic disagreements for a
+   held-out evidence audit, not as an owner-authored target taxonomy.
+2. Add a separate hierarchy critic. Seed its investigation from recurring blind-critic map
+   gaps and give it the
    competing evidence sets and bounded retrieval operations so proposed merges, splits, and
    reparenting remain inspectable.
 3. Repeat discovery and assignment on a structurally different repository before treating
@@ -161,6 +161,13 @@ describes when its work changed character. Keep those axes separate until eviden
 useful relationship between them.
 
 ### Closed since
+
+- **Assignment-disagreement critic.** Built a deterministic dataset for all 116 unstable
+  commits and a replayable critic with explicit assign, unassigned, ambiguous, and
+  map-insufficient outcomes. A candidate-visible arm chose the full candidate union for
+  69.6% of resolved inputs versus 40.7% when blinded; the two arms agreed exactly on 54.3%
+  of decisions. One sample per arm identifies an anchoring risk but does not yet estimate
+  its size independently of critic variance.
 
 - **Fixed-map assignment repeatability.** Three assignments of one unchanged 37-node map
   reached 98.8% mean assigned-commit F1, 89.9% umbrella co-membership, 84.7% child

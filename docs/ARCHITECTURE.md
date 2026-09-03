@@ -108,6 +108,13 @@ is:
 5. **Publish:** materialize a versioned candidate graph pinned to repository head, model,
    prompt, evidence inputs, and validation method.
 
+Assignment disagreements are extracted deterministically before critique. The review dataset
+may preserve competing assignments for measurement, but the critic should not see their run
+identity, frequency, or candidate-ID union by default. Those fields anchor the critic toward
+ratifying or combining earlier answers. Instead it sees the fixed hierarchy, disputed commit
+readings, and explicitly provisional exemplars drawn from recurring assignments. Competing
+answers are compared only after the critic has responded.
+
 Stable candidate identity belongs to reconciliation, not to the model's label. A renamed
 candidate should retain lineage; a split or merge should cite its predecessors. User edits
 remain useful review evidence, but the system must be able to run without them and they

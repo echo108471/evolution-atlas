@@ -242,11 +242,10 @@ sorting the pilot into them, and tuning against the result would make the soluti
 one repository owner's memory. Keep the list held out and let it audit what autonomous
 discovery missed.
 
-1. Review a small sample from the 116 commits whose assignments varied across three runs of
-   one fixed hierarchy, emphasizing one-run edges and unstable overlaps. This checks evidence
-   without defining the ontology first.
-2. Add a separate critic that can merge, split, nest, or reject candidates against the
-   measured pre-critic stability baseline.
+1. Repeat the candidate-visible and blind disagreement critics to separate anchoring from
+   critic variance. Review persistent disagreements only after those blind decisions exist.
+2. Add a separate hierarchy critic that can merge, split, nest, or reject candidates against
+   the measured pre-critic stability baseline.
 3. Repeat the blind hierarchy and assignment experiment on a structurally different
    repository.
 4. Put per-commit readings and candidate hierarchies in the viewer with their interpretation
