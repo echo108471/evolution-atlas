@@ -242,9 +242,10 @@ sorting the pilot into them, and tuning against the result would make the soluti
 one repository owner's memory. Keep the list held out and let it audit what autonomous
 discovery missed.
 
-1. Replace static hierarchy-review packets with bounded, staged retrieval and require full
-   selected-signal coverage before reconciliation.
-2. Repeat the focused hierarchy critic with a capable model under one unchanged fingerprint.
+1. Add proposal-to-map novelty review and one bounded follow-up evidence round to the staged
+   hierarchy critic.
+2. Repeat that unchanged staged condition and measure proposal/evidence recurrence before
+   reconciliation.
 3. Repeat the blind hierarchy and assignment experiment on a structurally different
    repository.
 4. Put per-commit readings and candidate hierarchies in the viewer with their interpretation
@@ -268,3 +269,11 @@ cheap-model repeats had only 24.9% mean operation-target F1 and failed signal co
 though dependency automation recurred 3/3 with identical evidence. The system now records
 that distinction: recurring proposals from an incomplete condition are not eligible to
 revise the map.
+
+The first staged-retrieval run then used a cheap model to plan every signal, a deterministic
+broker to reduce 69 requested readings to a 32-reading budget, and a capable model for the
+decision. Every signal retained evidence and the final review was complete. Peak input fell
+34% and cost fell 51%, while total two-stage input rose 25%. Dependency automation recurred;
+three new additions did not appear in the static run, and two overlap existing node
+descriptions. Staging is now operational, but it needs an explicit novelty/boundary gate
+before it can replace full-context review.

@@ -19,6 +19,7 @@
     "compare-capability-inductions": "node scripts/compare-capability-inductions.mjs",
     "critic-capability-disagreements": "node scripts/critic-capability-disagreements.mjs",
     "critic-capability-hierarchy": "node scripts/critic-capability-hierarchy.mjs",
+    "critic-capability-hierarchy-staged": "node scripts/critic-capability-hierarchy-staged.mjs",
     "induce-capabilities": "node scripts/induce-capabilities.mjs",
     "epochs": "node scripts/epochs.mjs",
     "survey": "node scripts/survey.mjs",

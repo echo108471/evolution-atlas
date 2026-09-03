@@ -139,12 +139,12 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-1. Replace static hierarchy-review packets with staged, bounded retrieval. A run must account
-   for every selected signal and pass citation validation before any recurring proposal can
-   enter reconciliation.
-2. Repeat the focused hierarchy critic with a capable model and an unchanged request when
-   provider credit permits. Compare operation targets and cited evidence; do not combine it
-   with the differently scoped full-packet pilot.
+1. Add proposal-to-map novelty review and one bounded follow-up retrieval round. Citation
+   validity and complete signal accounting are necessary but did not stop proposals whose
+   scope overlaps existing node descriptions.
+2. Repeat the unchanged staged condition after that gate exists. Compare operation targets,
+   cited evidence, retrieval selections, and unresolved signals; do not combine it with the
+   differently scoped static-packet pilots.
 3. Repeat discovery and assignment on a structurally different repository before treating
    the present hierarchy behavior as general.
 4. Expose per-commit readings and candidate hierarchies in the viewer with direct links to
@@ -174,6 +174,13 @@ useful relationship between them.
   runs cost $0.0097 but reached only 24.9% mean operation-target F1 and accounted for 2–3
   signals each, so the new completion gate rejects the condition for automatic revision.
   Dependency automation was the sole 3/3 proposal, with identical citations in every run.
+
+- **Staged hierarchy retrieval pilot.** A catalog-only cheap planner covered all 33 signals
+  but over-requested 69 of 86 readings. A deterministic broker capped the union at 32 while
+  retaining evidence for every signal, and a low-reasoning Grok decision completed all node
+  and signal coverage. Peak input fell 34.1% and cost fell 51.2%, but total input rose 25.4%.
+  Dependency automation recurred; two of three other additions overlap scope stated by
+  current nodes, establishing the need for a separate proposal-novelty gate.
 
 - **Repeated assignment-disagreement critic.** Built a deterministic dataset for all 116 unstable
   commits and a replayable critic with explicit assign, unassigned, ambiguous, and

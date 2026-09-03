@@ -366,6 +366,55 @@ failed its overall coverage contract. The next architecture should make evidence
 iterative and fail closed on incomplete review, then repeat a capable-model condition before
 materializing any change.
 
+### Staged retrieval pilot
+
+The first staged critic separates semantic choice from budget enforcement:
+
+1. A planner sees the complete provisional hierarchy, all 33 focused structural signals,
+   and a date-and-subject evidence catalog, but no reading interpretations.
+2. A deterministic broker validates every requested ID, schedules requests across signals,
+   and caps the retrieved union.
+3. The hierarchy critic sees only the broker-selected readings. Planner explanations and
+   rejected requests are deliberately omitted so the cheap planner cannot linguistically
+   anchor the structural judgment.
+4. The existing parser validates proposal citations and requires every current node and
+   signal to be accounted for. The hierarchy remains unchanged.
+
+The Gemini 2.5 Flash Lite planner covered all 33 signals with valid IDs but requested 69 of
+the 86 available readings despite a 32-reading limit. The initial fail-closed implementation
+stopped before the decision call. Replaying that saved response through the evidence broker
+selected 32 readings without another planner charge; shared readings meant every signal
+still received at least one selected reading. The over-request remains recorded rather than
+being hidden.
+
+The selected evidence supported a complete low-reasoning Grok 4.6 review:
+
+| measurement | static focused critic | staged critic |
+| --- | ---: | ---: |
+| readings exposed to decision | 86 | 32 |
+| peak input tokens | 24,428 | 16,096 |
+| total input tokens | 24,428 | 30,636 |
+| total cost | $0.0871 | $0.0425 |
+| nodes reviewed | 37/37 | 37/37 |
+| signals accounted | 33/33 | 33/33 |
+
+Staging therefore reduced peak context by 34.1% and cost by 51.2%, but increased total input
+work by 25.4%. It solves a context-window and model-tier problem; it is not yet more
+token-efficient overall.
+
+The decision proposed four additions. Dependency-update automation recurred again with the
+same two readings and three signals. The other additions were developer documentation,
+current-term teaching status and timelines, and user authentication. The latter two overlap
+scope already named in the current `Course list and detail views` and `Branding, navigation,
+and layout` descriptions; the documentation proposal rests on one selected commit. These are
+provisional warnings, not adjudicated false positives, but they show that valid citations and
+complete signal accounting do not establish novelty against the existing map. No proposal
+was applied.
+
+The next gate should explicitly review every proposal against its nearest existing nodes and
+allow the decision model to request a second evidence round when novelty or boundaries remain
+unclear. Only then should the staged condition be repeated for proposal stability.
+
 ## What this establishes—and what it does not
 
 The experiments establish that autonomous discovery can produce a recognizably coarse and

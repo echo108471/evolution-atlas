@@ -137,6 +137,15 @@ comparison layer matches operation targets without using proposed labels, compar
 evidence independently, and marks every proposal ineligible for automatic revision when any
 run in its condition is incomplete.
 
+The first staged-retrieval pilot makes the retrieval boundary concrete. A cheap planner sees
+signal metadata and an evidence catalog without reading interpretations. A deterministic
+broker—not the model—enforces the global reading budget, while preserving the planner's
+requested order and recording truncation. The decision model receives only selected readings
+and not the planner's prose. This reduced peak input and model cost, but increased total input
+across both calls and produced several additions that overlap existing node descriptions.
+Retrieval therefore needs a second semantic gate: proposal-to-map novelty review plus a
+bounded follow-up evidence round. Citation validity, coverage, and novelty are distinct.
+
 Stable candidate identity belongs to reconciliation, not to the model's label. A renamed
 candidate should retain lineage; a split or merge should cite its predecessors. User edits
 remain useful review evidence, but the system must be able to run without them and they

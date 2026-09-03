@@ -297,6 +297,16 @@ export async function requestHierarchyCriticPayload(
     timeoutMs = REQUEST_TIMEOUT_MS,
   } = {},
 ) {
+  return requestHierarchyCriticRequestPayload(
+    buildHierarchyCriticRequest(dataset, { model, maxTokens }),
+    { apiKey, fetchImpl, timeoutMs },
+  )
+}
+
+export async function requestHierarchyCriticRequestPayload(
+  request,
+  { apiKey, fetchImpl = fetch, timeoutMs = REQUEST_TIMEOUT_MS } = {},
+) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let response
@@ -304,7 +314,7 @@ export async function requestHierarchyCriticPayload(
     response = await fetchImpl(OPENROUTER_ENDPOINT, {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(buildHierarchyCriticRequest(dataset, { model, maxTokens })),
+      body: JSON.stringify(request),
       signal: controller.signal,
     })
   } catch (error) {
