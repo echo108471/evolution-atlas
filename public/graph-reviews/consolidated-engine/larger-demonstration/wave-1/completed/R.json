@@ -1,0 +1,10 @@
+{
+  "outputSha256": "4136e3d20ebf8518001244881fa1c8a60a6397aa9354a8c16aacf7dd2fcb6546",
+  "receipts": {
+    "receipts/R/R-001.json": "77d5726ac40bd9447f9d192d4b3fb77f85ac922e9f81b41f47d9770505c56ac1",
+    "receipts/R/R-002.json": "b69fe4af4ebefdf04fe3f94ba916f626f7c9018034e9c8ea0a26e6ae91439786",
+    "receipts/R/R-003.json": "bc7dfcf1b6094c6ef2bbd2ff52f0eb979c0e035dd76a38f9e9a18cb910c72ad3",
+    "receipts/R/R-004.json": "c69f0bc5f5617e1f6f07c4216ee22f077cfc1060bd8b06ad58e1117f70b7d5ea",
+    "receipts/R/R-005.json": "a8dc894d20d5aa32f95cdf7d5bba3b81f716c1db0738a179990346b1a23ee200"
+  }
+}

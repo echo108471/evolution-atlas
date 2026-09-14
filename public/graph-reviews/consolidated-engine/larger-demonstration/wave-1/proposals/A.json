@@ -1,0 +1,166 @@
+{
+  "agent": "A",
+  "scopeSummary": "Candidate responsibilities derived from bounded inspection of chat browser actions, attachment state and editing-session operations at the pinned VS Code snapshot. Both assigned regions were inspected; the local lint rule was treated as developer-tooling evidence rather than a source of an application capability.",
+  "coverage": {
+    "inspected": [
+      ".eslint-plugin-local/code-layering.ts",
+      "src/vs/workbench/contrib/chat/browser/actions/chatImportExport.ts",
+      "src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingActions.ts",
+      "src/vs/workbench/contrib/chat/browser/attachments/chatAttachmentModel.ts",
+      "src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingSession.ts",
+      "src/vs/workbench/contrib/chat/browser/actions/chatForkActions.ts",
+      "src/vs/workbench/contrib/chat/browser/actions/chatQueueActions.ts"
+    ],
+    "omissions": [
+      "Region region-0513, src/vs/workbench/contrib/chat/browser/: six files received source windows out of 667 routed files; several inspected files were only partially read. This is not exhaustive chat coverage.",
+      "Region region-0002, .eslint-plugin-local/: inspected the complete code-layering rule, which resolves configured allowed/disallowed import layers and reports violations. The other 52 routed files and rule activation configuration were not inspected. No application capability is inferred from this tooling rule.",
+      "Model-provider behavior, tool execution, speech, plugins, setup, accessibility, rendering and most session-host integrations were not inspected.",
+      "No queue dispatch implementation, attachment-to-request consumer, contributed-session fork provider, or editing entry I/O implementation was inspected. Delegation in callers is distinguished from completed runtime behavior.",
+      "No target execution, runtime tests, historical files, prior proposals, baseline, owner judgments or network sources were used."
+    ]
+  },
+  "crossPartitionLeads": [
+    "The routed local lint rule belongs to broker partition C and was inspected as A-001; it supports a developer-tooling responsibility if integration's scope includes repository maintenance, but its activation was not established.",
+    "src/vs/workbench/contrib/chat/common/chatService/chatServiceImpl.ts is a lead for actual queue dispatch and removal semantics; only directory navigation occurred and the attempted pendingRequest search was rejected by the byte cap.",
+    "src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts has attachmentModel.attachments locations from navigation receipt A-014; the attempted source window was rejected, so these locations support no claim.",
+    "The editing timeline, modified-file entry methods, chat model export validation and contributed chat-session provider methods are downstream evidence leads, not inspected implementations."
+  ],
+  "nodes": [
+    {
+      "id": "A_session_import_export",
+      "name": "Import and export chat sessions",
+      "summary": "Save the focused chat session as JSON and load validated exported chat data into a pinned editor or chat view.",
+      "actor": "Chat user",
+      "inputs": ["Focused chat session", "Optional output URI or selected save location", "JSON input URI or selected file", "Optional chatViewPane import target"],
+      "outcomes": ["Formatted model.toExport() JSON is passed to the file service for writing", "Parsed and revived session data is checked and extracted before opening a pinned session", "Imports target the active editor group by default or the chat view when requested"],
+      "conditions": ["Actions declare chat-enabled preconditions", "Export returns when the widget, view model or session is absent", "Canceled dialogs return without importing or exporting", "Invalid session data throws an error"],
+      "exclusions": ["Cross-version portability guarantees", "Exact serialized field coverage", "Actual file-service success or rendering verification"],
+      "implementations": ["src/vs/workbench/contrib/chat/browser/actions/chatImportExport.ts: registerChatExportActions"],
+      "uncertainty": ["toExport, validation helpers, session loading and editor internals were not inspected; supported assessment applies to the action's observable orchestration."],
+      "evidenceIds": ["A-002"],
+      "assessment": "supported",
+      "claims": [
+        {"text": "The export action obtains the last-focused session, serializes model.toExport() with two-space indentation and invokes writeFile on a supplied or selected URI.", "evidenceIds": ["A-002"], "assessment": "supported"},
+        {"text": "The import action reads JSON, revives it, rejects data failing isExportableSessionData, extracts exportable data and opens the chosen pinned chat surface.", "evidenceIds": ["A-002"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "A_review_chat_edits",
+      "name": "Review, keep and undo chat edits",
+      "summary": "Open suggested changes for review and keep or undo eligible modified files individually or as a set.",
+      "actor": "User reviewing chat-generated file changes",
+      "inputs": ["Editing session", "Selected file URIs or all session entries", "Keep or undo action", "Confirmation for undoing all modified entries"],
+      "outcomes": ["A selected file is opened and its editing integration is asked to show the diff", "Suggested Edits can open in a multi-diff editor", "Accept/reject operations invoke eligible entries' deferred methods and apply returned state transitions together", "Bulk undo returns without rejection when confirmation is declined"],
+      "conditions": ["Editing session and appropriate widget context must resolve", "Entries must still be Modified and not currently being modified", "All-entry operations apply when no URIs are supplied", "Session access rejects disposed sessions"],
+      "exclusions": ["Model correctness or edit quality", "Guarantees that every I/O operation succeeds", "Complete editor rendering behavior"],
+      "implementations": ["src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingActions.ts: OpenFileInDiffAction, AcceptAction, DiscardAction, ChatEditingAcceptAllAction, ChatEditingDiscardAllAction, discardAllEditsWithConfirmation", "src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingSession.ts: accept, reject, _operateEntry, show"],
+      "uncertainty": ["Underlying acceptDeferred and rejectDeferred implementations were not inspected. Entry errors are caught and logged, so the inspected caller does not establish universal completion."],
+      "evidenceIds": ["A-003", "A-005", "A-007"],
+      "assessment": "supported",
+      "claims": [
+        {"text": "Actions support selected-file keep/undo and bulk keep/undo; bulk undo asks for confirmation when modified entries exist.", "evidenceIds": ["A-003", "A-005"], "assessment": "supported"},
+        {"text": "The editing session filters operations to matching, idle Modified entries, calls deferred entry operations and applies successful returned state callbacks in one transaction.", "evidenceIds": ["A-007"], "assessment": "supported"},
+        {"text": "The inspected implementation can request a per-file diff or a Suggested Edits multi-diff editor.", "evidenceIds": ["A-003", "A-007"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "A_edit_checkpoints",
+      "name": "Retrieve and restore chat editing checkpoints",
+      "summary": "Expose request-associated edit snapshots as content or models and ask the editing timeline to restore a selected checkpoint.",
+      "actor": "Chat editing workflow through the editing-session service",
+      "inputs": ["Request ID", "Optional undo-stop ID", "File or snapshot URI"],
+      "outcomes": ["Create a timeline checkpoint for a request and optional undo stop", "Retrieve historical file content and snapshot URIs", "Construct a text model from snapshot content and subscribe to content changes", "Navigate the timeline to a matching checkpoint when restoring"],
+      "conditions": ["Restore only navigates if a checkpoint ID exists", "Snapshot model returns null for missing content", "Snapshot model retrieval waits for the file's baseline creation lock"],
+      "exclusions": ["Guaranteed filesystem restoration", "User-facing restore controls", "Persistence across restarts"],
+      "implementations": ["src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingSession.ts: createSnapshot, getSnapshotContents, getSnapshotModel, getSnapshotUri, restoreSnapshot"],
+      "uncertainty": ["The timeline implementation and user-facing invocations were not inspected; restoration is evidenced as delegation, not a verified end-to-end effect."],
+      "evidenceIds": ["A-007"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "The session maps requests and optional undo stops to checkpoints, content lookups and snapshot models; restoreSnapshot invokes navigateToCheckpoint when lookup succeeds.", "evidenceIds": ["A-007"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "A_chat_attachments",
+      "name": "Manage file, folder and image chat attachments",
+      "summary": "Maintain typed chat attachment entries, resolve special resources and remove local entries when their resources are deleted.",
+      "actor": "Chat composer through its attachment model",
+      "inputs": ["File or folder URI", "Optional file range", "Local or web image URI", "Typed context entries and IDs to remove"],
+      "outcomes": ["Files, directories, images and supported browser resources become typed attachment entries", "Duplicate additions are filtered by ID and changed entries are replaced", "Change events report added, updated and deleted entries", "Local-file deletion removes the corresponding attachment", "Directory image counts are resolved asynchronously"],
+      "conditions": ["Image extensions use image resolution instead of ordinary file entries", "Web image resolution depends on extracted image content", "Local watchers are installed only for file-scheme resources", "Normal clear preserves prompt-file entries; explicit sticky clearing removes all", "Asynchronous directory results update only a still-matching entry"],
+      "exclusions": ["Proof that attachment content reaches a language model", "UI picker availability", "Supported image size or quantity guarantees", "Web extraction success"],
+      "implementations": ["src/vs/workbench/contrib/chat/browser/attachments/chatAttachmentModel.ts: ChatAttachmentModel"],
+      "uncertainty": ["Resolver implementations and the attachment consumer in chatWidget were not inspected. The attempted consumer source retrieval was rejected by the byte limit."],
+      "evidenceIds": ["A-004", "A-008"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "The attachment model routes image extensions and browser-scheme files to resolvers, creates file/range and directory entries, and updates an ID-keyed attachment map with change events.", "evidenceIds": ["A-004", "A-008"], "assessment": "supported"},
+        {"text": "It preserves prompt files during ordinary clear, observes local resource deletion, and conditionally enriches directory entries with a resolved image count.", "evidenceIds": ["A-004", "A-008"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "A_fork_conversation",
+      "name": "Fork a chat conversation from its history",
+      "summary": "Create a separate local conversation from all current history or history preceding a selected request or including a selected response, with a provider route for contributed sessions.",
+      "actor": "Chat user",
+      "inputs": ["Source session URI or selected request/response item", "Existing serialized conversation history"],
+      "outcomes": ["Local history is cloned into a new session with fresh session, request and response identities", "Fork creation resets hidden/removal markers and marks copied responses complete", "The fork opens in the chat view", "Contributed sessions delegate forking to the session service"],
+      "conditions": ["Action declares chat-enabled and non-read-only preconditions", "Local full-history fork returns when no requests exist", "Checkpoint fork needs a resolvable target request", "Request-item selection uses the prior request index, clamped to zero; response-item selection includes that response's request", "Contributed forks deduplicate concurrent operations by source and selected request"],
+      "exclusions": ["Git branch or worktree creation", "Proof that provider-backed forks preserve equivalent state", "Claims that active work continues in the fork", "Agents-window override behavior"],
+      "implementations": ["src/vs/workbench/contrib/chat/browser/actions/chatForkActions.ts: ForkConversationAction"],
+      "uncertainty": ["The contributed provider implementation, action registration call site and 14 intervening lines of contributed-history matching were not inspected. Local fork orchestration was inspected."],
+      "evidenceIds": ["A-009", "A-011"],
+      "assessment": "supported",
+      "claims": [
+        {"text": "The local URI route clones all nonempty serialized history, assigns fresh identifiers and a fork title, loads a session and schedules opening it.", "evidenceIds": ["A-009"], "assessment": "supported"},
+        {"text": "The checkpoint route slices local history at an index determined by the selected request or response, clones it with fresh identifiers and opens the new session.", "evidenceIds": ["A-011"], "assessment": "supported"},
+        {"text": "Contributed-session forking delegates to forkChatSession and shares an in-flight promise for duplicate source/request keys.", "evidenceIds": ["A-011"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "A_queue_and_steer",
+      "name": "Queue or steer follow-up chat messages",
+      "summary": "Let chat users submit follow-up text with queued or steering intent during an active request and edit or remove pending messages.",
+      "actor": "Chat user with an active conversation",
+      "inputs": ["Nonblank composer text", "Queue or steer action", "Pending request context"],
+      "outcomes": ["Active-request input is submitted with a queued or steering kind", "With no active request, input follows the ordinary send path", "Remove action passes pending request identity to the chat service", "Edit action asks the matching widget to start editing the pending request"],
+      "conditions": ["A focused widget with a view model and nonblank input is required", "Steer uses queued kind when the last request is hidden from the transcript", "Keyboard defaults consider configuration and whether a queued/steering message is being edited", "Pending edit/remove paths check pending request context"],
+      "exclusions": ["Verified order or timing of downstream dispatch", "Guaranteed interruption or model yielding", "Actual pending-message storage behavior"],
+      "implementations": ["src/vs/workbench/contrib/chat/browser/actions/chatQueueActions.ts: ChatQueueMessageAction, ChatSteerWithMessageAction, ChatRemovePendingRequestAction, ChatEditPendingRequestAction"],
+      "uncertainty": ["The source establishes action-level routing. The queue dispatcher was not inspected because its broad search exceeded the evidence budget, so tooltip promises about timing are not promoted to established runtime behavior."],
+      "evidenceIds": ["A-010", "A-012"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "Queue submission selects Queued only while a request is in progress, otherwise calls ordinary acceptInput; steer uses Steering except for a hidden last request, where it uses Queued.", "evidenceIds": ["A-010", "A-012"], "assessment": "supported"},
+        {"text": "Pending-request actions delegate removal to the chat service and editing to the session's widget.", "evidenceIds": ["A-012"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "A_side_chat_question",
+      "name": "Ask a question in a side chat",
+      "summary": "Offer a separate side-chat submission route from the current composer when the conversation supports it, with input recovery on failure.",
+      "actor": "Chat user",
+      "inputs": ["Current session", "Nonblank composer question", "Captured chat selection"],
+      "outcomes": ["Supported requests call askInSideChat with source session, query and captured selection", "Unsupported conversations show a warning", "Failure logs and displays an error and restores query text if the composer remains empty"],
+      "conditions": ["A widget and session must exist", "canAskInSideChat must approve the source conversation", "Composer text is cleared before awaiting side-chat creation"],
+      "exclusions": ["Verified isolation of side-chat transcript or context", "Successful side-chat creation or response generation", "Availability across all chat providers"],
+      "implementations": ["src/vs/workbench/contrib/chat/browser/actions/chatQueueActions.ts: ChatAskInSideChatAction"],
+      "uncertainty": ["Only the action implementation was inspected. The side-chat service and selection capture implementation remain uninspected."],
+      "evidenceIds": ["A-012"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "The action checks support, captures selection, clears the composer and delegates to askInSideChat; on failure it reports an error and restores the query only if the composer is still empty.", "evidenceIds": ["A-012"], "assessment": "supported"}
+      ]
+    }
+  ],
+  "edges": [],
+  "limitations": [
+    "All responsibilities are candidate snapshot interpretations, not independently verified or executed behavior.",
+    "No exhaustive coverage, fixed node count or mandatory hierarchy is asserted. No inter-node edge is emitted merely because these functions share a chat surface or editing-session object.",
+    "Accepted retrieval totals: 11 source windows, 3 searches, 14 receipts, 71289 serialized receipt bytes. Source windows were at most 160 lines.",
+    "Failed retrieval: search src/vs/workbench/contrib/chat/common/chatService/chatServiceImpl.ts for pendingRequest was rejected with Evidence byte budget exceeded; request fewer lines. No search receipt or evidence was produced.",
+    "Failed retrieval: read src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts starting at line 2635 for 55 lines was rejected with Evidence byte budget exceeded; request fewer lines. No source receipt or evidence was produced.",
+    "The source search in chatSideChat.ts for async returned zero matches and was not treated as evidence that side-chat behavior is absent.",
+    "The local layering rule supplies concrete static-check logic, but no product-facing capability was forced from the secondary tooling region."
+  ]
+}

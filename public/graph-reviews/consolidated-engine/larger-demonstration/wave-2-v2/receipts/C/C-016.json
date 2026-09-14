@@ -1,0 +1,14 @@
+{
+  "id": "C-016",
+  "kind": "source",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "blobSha": "2cec653b7b7f950711d11673457010644121fa3e",
+  "path": "cli/src/commands/agent_relay.rs",
+  "startLine": 148,
+  "endLine": 176,
+  "totalLines": 345,
+  "partition": "C",
+  "crossPartition": false,
+  "text": "async fn relay_bidirectional<AR, AW, BR, BW>(\n\tmut a_read: AR,\n\tmut a_write: AW,\n\tmut b_read: BR,\n\tmut b_write: BW,\n) -> std::io::Result<()>\nwhere\n\tAR: AsyncRead + Unpin,\n\tAW: AsyncWrite + Unpin,\n\tBR: AsyncRead + Unpin,\n\tBW: AsyncWrite + Unpin,\n{\n\tlet a_to_b = tokio::io::copy(&mut a_read, &mut b_write);\n\tlet b_to_a = tokio::io::copy(&mut b_read, &mut a_write);\n\ttokio::pin!(a_to_b, b_to_a);\n\n\ttokio::select! {\n\t\tr = &mut a_to_b => { r?; }\n\t\tr = &mut b_to_a => { r?; }\n\t}\n\n\tOk(())\n}\n\n#[cfg(test)]\nmod tests {\n\tuse super::*;\n\tuse crate::async_pipe::{get_socket_name, listen_socket_rw_stream};\n\tuse tokio::io::{AsyncReadExt, AsyncWriteExt};",
+  "truncated": true
+}

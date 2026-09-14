@@ -1,0 +1,14 @@
+{
+  "id": "R-003",
+  "kind": "source",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "blobSha": "e5d7ca9872bdaaeedd3e76be16e967aab26683bc",
+  "path": "src/vs/workbench/contrib/chat/browser/chatSideChat.ts",
+  "startLine": 1,
+  "endLine": 35,
+  "totalLines": 35,
+  "partition": "A",
+  "crossPartition": false,
+  "text": "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/\n\nimport * as dom from '../../../../base/browser/dom.js';\nimport { IChatSideChatSelection } from '../common/chatSideChatService.js';\nimport { IChatWidget } from './chat.js';\n\n/**\n * Captures the user's current text selection within `widget`'s transcript so a\n * side chat can be anchored to it. Returns `undefined` when there is no\n * meaningful selection, when it falls outside the widget, or when it lives in\n * the input editor (which holds the question being asked, not the source text).\n */\nexport function captureSideChatSelection(widget: IChatWidget | undefined): IChatSideChatSelection | undefined {\n\tif (!widget) {\n\t\treturn undefined;\n\t}\n\tconst nativeSelection = dom.getActiveWindow().getSelection();\n\tconst selectedText = nativeSelection?.toString();\n\tif (!nativeSelection || !selectedText || !selectedText.trim()) {\n\t\treturn undefined;\n\t}\n\tconst { anchorNode, focusNode } = nativeSelection;\n\tif (!anchorNode || !focusNode || !dom.isAncestor(anchorNode, widget.domNode) || !dom.isAncestor(focusNode, widget.domNode)) {\n\t\treturn undefined;\n\t}\n\tconst inputEditorDomNode = widget.inputEditor.getDomNode();\n\tif (inputEditorDomNode && (dom.isAncestor(anchorNode, inputEditorDomNode) || dom.isAncestor(focusNode, inputEditorDomNode))) {\n\t\treturn undefined;\n\t}\n\treturn { text: selectedText };\n}\n",
+  "truncated": false
+}

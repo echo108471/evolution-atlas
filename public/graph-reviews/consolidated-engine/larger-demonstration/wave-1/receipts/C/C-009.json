@@ -1,0 +1,85 @@
+{
+  "id": "C-009",
+  "kind": "search",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "prefix": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+  "literal": "restore",
+  "searchedFiles": 1,
+  "totalMatches": 18,
+  "matches": [
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 62
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 63
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 337
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 345
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 348
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 350
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 356
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 368
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 369
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 370
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 371
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 378
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 379
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 388
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 391
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 392
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 425
+    },
+    {
+      "path": "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "line": 426
+    }
+  ],
+  "omittedMatches": 0,
+  "note": "locations only; not support until source window inspected"
+}

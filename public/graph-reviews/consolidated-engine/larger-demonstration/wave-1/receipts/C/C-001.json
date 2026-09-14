@@ -1,0 +1,14 @@
+{
+  "id": "C-001",
+  "kind": "source",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "blobSha": "4f11f5b82e00bdb819adfd5608a8670bb32e46b9",
+  "path": "resources/linux/bin/code.sh",
+  "startLine": 1,
+  "endLine": 64,
+  "totalLines": 64,
+  "partition": "C",
+  "crossPartition": false,
+  "text": "#!/usr/bin/env sh\n#\n# Copyright (c) Microsoft Corporation. All rights reserved.\n# Licensed under the MIT License. See License.txt in the project root for license information.\n\n# when run in remote terminal, use the remote cli\nif [ -n \"$VSCODE_IPC_HOOK_CLI\" ]; then\n\tREMOTE_CLI=\"$(which -a '@@APPNAME@@' | grep /remote-cli/)\"\n\tif [ -n \"$REMOTE_CLI\" ]; then\n\t\t\"$REMOTE_CLI\" \"$@\"\n\t\texit $?\n\tfi\nfi\n\n# test that VSCode wasn't installed inside WSL\nif grep -qi Microsoft /proc/version && [ -z \"$DONT_PROMPT_WSL_INSTALL\" ]; then\n\techo \"To use @@PRODNAME@@ with the Windows Subsystem for Linux, please install @@PRODNAME@@ in Windows and uninstall the Linux version in WSL. You can then use the \\`@@APPNAME@@\\` command in a WSL terminal just as you would in a normal command prompt.\" 1>&2\n\tprintf \"Do you want to continue anyway? [y/N] \" 1>&2\n\tread -r YN\n\tYN=$(printf '%s' \"$YN\" | tr '[:upper:]' '[:lower:]')\n\tcase \"$YN\" in\n\t\ty | yes )\n\t\t;;\n\t\t* )\n\t\t\texit 1\n\t\t;;\n\tesac\n\techo \"To no longer see this prompt, start @@PRODNAME@@ with the environment variable DONT_PROMPT_WSL_INSTALL defined.\" 1>&2\nfi\n\n# If root, ensure that --user-data-dir or --file-write is specified\nif [ \"$(id -u)\" = \"0\" ]; then\n\tfor i in \"$@\"\n\tdo\n\t\tcase \"$i\" in\n\t\t\t--user-data-dir | --user-data-dir=* | --file-write | tunnel | serve-web )\n\t\t\t\tCAN_LAUNCH_AS_ROOT=1\n\t\t\t;;\n\t\tesac\n\tdone\n\tif [ -z $CAN_LAUNCH_AS_ROOT ]; then\n\t\techo \"You are trying to start @@PRODNAME@@ as a super user which isn't recommended. If this was intended, please add the argument \\`--no-sandbox\\` and specify an alternate user data directory using the \\`--user-data-dir\\` argument.\" 1>&2\n\t\texit 1\n\tfi\nfi\n\nif [ ! -L \"$0\" ]; then\n\t# if path is not a symlink, find relatively\n\tVSCODE_PATH=\"$(dirname \"$0\")/..\"\nelse\n\tif command -v readlink >/dev/null; then\n\t\t# if readlink exists, follow the symlink and find relatively\n\t\tVSCODE_PATH=\"$(dirname \"$(readlink -f \"$0\")\")/..\"\n\telse\n\t\t# else use the standard install location\n\t\tVSCODE_PATH=\"/usr/share/@@APPNAME@@\"\n\tfi\nfi\n\nELECTRON=\"$VSCODE_PATH/@@APPNAME@@\"\nCLI=\"$VSCODE_PATH/resources/app/out/cli.js\"\nELECTRON_RUN_AS_NODE=1 \"$ELECTRON\" \"$CLI\" \"$@\"\nexit $?\n",
+  "truncated": false
+}

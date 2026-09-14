@@ -1,0 +1,18 @@
+{
+  "agent": "R",
+  "stage": "integration",
+  "runDirectory": "/Users/echo/Projects/evolution-atlas/public/graph-reviews/consolidated-engine/larger-demonstration/wave-1",
+  "output": "/Users/echo/Projects/evolution-atlas/public/graph-reviews/consolidated-engine/larger-demonstration/wave-1/reconciled.json",
+  "permittedInputs": [
+    "protocol.md",
+    "manifest.json",
+    "integration-input.json",
+    "snapshot/inventory.json",
+    "receipts/R/"
+  ],
+  "withheld": [
+    "history/",
+    "prior reviews and owner labels"
+  ],
+  "instruction": "Integrate the frozen packet once under the protocol. Additional source retrieval uses repository-engine.mjs broker with agent R. Save the first complete JSON once; no semantic retry."
+}

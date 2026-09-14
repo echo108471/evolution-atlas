@@ -1,0 +1,145 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>INTERPRETATION-FINDINGS</title><style>body{font:16px/1.65 system-ui;color:#23313b;background:#f6f8fa;margin:0;padding:24px}main{max-width:1120px;margin:auto}h1{font-size:32px}h2{margin-top:36px}a{color:#175db0}table{border-collapse:collapse;width:100%;font-size:14px;background:white}th,td{text-align:left;vertical-align:top;padding:12px;border:1px solid #d5dce2}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#e8edf1;padding:14px}code{overflow-wrap:anywhere}blockquote{border-left:4px solid #adb9c5;padding-left:18px}@media(max-width:700px){body{padding:12px}table{font-size:12px}th,td{padding:7px}}</style><main><h1 id="interpretation-findings">Interpretation findings</h1>
+<p>Measurements of what the interpretation stage actually produces, taken against two
+generated datasets. They are recorded here because none of them are visible from the
+viewer, several contradict what the pipeline appears to claim, and together they are the
+reason epoch detection exists.</p>
+<p>Everything below was measured on shipped output, not estimated.</p>
+<h2 id="the-atlas-covers-about-a-tenth-of-the-history">The atlas covers about a tenth of the history</h2>
+<pre><code>                      commits   cited by a feature   by an episode   union
+course-recommender       2,693                212             317     339   (12.6%)
+zod                      3,094                212             297     314   (10.1%)
+</code></pre>
+<p>Nine of every ten commits appear nowhere in the atlas. The product describes itself as a
+map of how a codebase grew; what it contains is a set of capabilities, each illustrated by
+a handful of commits.</p>
+<p>The cause is visible in the evidence-size distribution. On zod:</p>
+<pre><code>feature evidence sizes   2:6  3:6  4:4  5:2  6:7  7:4  8:6  9:1  10:2  12:1
+episode evidence sizes   1:48  2:41  3:35  4:7  5:5  6:2
+</code></pre>
+<p>Nothing above twelve; half the lifecycle episodes cite a single commit. The model is
+answering <em>show me this capability exists</em> — which a dozen citations do — where the
+product asks <em>show me how this capability was built</em>, which needs the rest.</p>
+<p>A worked example. zod&#39;s &quot;String format validators&quot; cites twelve commits, all correct:</p>
+<pre><code>2020-08-05  Add regexp validation for strings
+2021-05-15  feat: String cuid validation
+2023-02-16  feat: z.string().emoji()
+2024-12-10  feat: Add JWT string validator
+…
+</code></pre>
+<p>But 121 zod commits mention a string-format term, and the feature cites ten of them. Among
+the uncited are <code>Fixed uuid regex bug</code>, <code>Fixed regex bug</code>, and <code>Merged .regex implementation</code> — not noise, but the capability actually being built.</p>
+<p>Nothing in the pipeline reports this number.</p>
+<h2 id="feature-counts-are-set-by-the-flag-not-the-repository">Feature counts are set by the flag, not the repository</h2>
+<p><code>--max-features</code> defaults to 40. zod returned <strong>39</strong>. Lifecycle episodes returned 138
+against a cap of 160.</p>
+<p>Saturating the cap means the count of capabilities in a published atlas was decided by a
+constant in <code>scripts/interpret.mjs</code>. Raising it is the cheapest experiment available and
+has not been run.</p>
+<h2 id="model-confidence-is-repository-dependent-and-on-one-repository-it-is-inert">Model confidence is repository-dependent, and on one repository it is inert</h2>
+<p>Same model, same prompts, same two passes:</p>
+<pre><code>zod                  0.7, 0.8, 0.9 only        3 distinct values, none below 0.7
+course-recommender   0.62 … 0.94              22 distinct values
+</code></pre>
+<p>Lifecycle stages diverge the same way: course-recommender exercises all five, including
+<code>removed: 12</code> and <code>migrated: 17</code>; zod produced <code>removed: 0</code> and <code>migrated: 6</code>.</p>
+<p>The system prompt tells the model to use the full range and says that below 0.5 means a
+maintainer should probably reject the candidate. On zod it never went below 0.7 once. The
+viewer ranks and filters on this field.</p>
+<p>Two explanations remain open, and two data points cannot separate them. The dull one is
+that course-recommender genuinely has more turnover — <code>chrome-ext</code> to <code>chrome-ext-v2</code>,
+<code>etl</code> to <code>etl_pipelines</code>, the whole <code>demo/</code> prefix disappearing — so things really were
+removed and migrated. The uncomfortable one is that <strong>zod is a well-known repository and
+course-recommender is not</strong>: a model that recognizes zod&#39;s documented API can name
+capabilities confidently without reading the commits, which is exactly the flat
+high-confidence band observed.</p>
+<p>This is not idle speculation. The DeepCommit authors name pretraining contamination of
+popular repositories as a limitation of their own benchmark
+(<a href="https://arxiv.org/html/2603.13428">arXiv 2603.13428</a>). If it holds here, benchmarking on
+recognizable open source measures recall rather than analysis, and the private pilot is
+the more informative subject rather than merely the more convenient one.</p>
+<p><strong>Recommended check:</strong> compare confidence spread and evidence density across a
+better-known and a lesser-known repository of similar size, and inspect whether zod&#39;s
+feature labels track its published documentation more closely than its commit record.</p>
+<h2 id="the-corpus-discards-the-best-available-evidence">The corpus discards the best available evidence</h2>
+<p><code>buildCorpus</code> sends commit subjects truncated to 160 characters plus up to twelve paths.
+Commit <strong>bodies are never captured at all</strong> — <code>ChangeEpisode</code> has no field for them.</p>
+<p>708 zod commits carry a substantial body. One example in full:</p>
+<blockquote>
+<p><strong>subject</strong> <code>feat(v4): let z.nanoid() take a custom length (#4004)</code></p>
+<p><strong>body</strong> A nanoid is 21 characters only because that is the generator&#39;s default <code>size</code>;
+<code>nanoid(10)</code> and <code>nanoid(64)</code> are ordinary documented calls, so the fixed <code>{21}</code> regex
+rejected ids real producers emit. Only the count varies — the default alphabet is
+exactly the 64 characters the existing class already spells — so the length rides on the
+def and the character class is untouched.</p>
+</blockquote>
+<p>The subject says what changed. The body says why, what it relates to, and what was
+deliberately left alone. For a pass whose entire job is grouping commits into
+capabilities, that is the difference between inferring from filenames and reading the
+author&#39;s own account.</p>
+<h2 id="a-third-of-the-corpus-cannot-be-a-capability">A third of the corpus cannot be a capability</h2>
+<p>Pattern-matching zod&#39;s 3,094 subjects:</p>
+<pre><code>docs / readme / typos       501
+releases / version bumps    306
+merge commits               269
+chore / lint / ci           101
+reverts                      21
+dependency bumps             15
+────────────────────────────────
+union                     1,180   (38.1%)
+</code></pre>
+<p>Feature discovery reads all of it. More than a third of what it reads is structurally
+incapable of being a capability, and the deterministic layer could mark those before the
+model ever sees them.</p>
+<h2 id="deep-per-commit-analysis-is-cheaper-than-it-looks">Deep per-commit analysis is cheaper than it looks</h2>
+<p>zod&#39;s diffs, measured across 2,765 commits that have one:</p>
+<pre><code>p50           17 lines
+p75           72
+p90          243
+p99        7,956
+max      106,221
+
+total changed lines           846,253
+total with a 400-line cap     192,597   (−77%)
+</code></pre>
+<p><strong>Half of all commits change seventeen lines or fewer.</strong> Per-commit analysis is therefore
+nearly free for most of a history and expensive only for a handful of outliers, and the
+cap carries the entire cost argument: a small number of giant commits — lockfiles,
+generated output, rewrites — are three quarters of the volume.</p>
+<p>The p99 commits are also the interesting ones. A 7,956-line commit is usually a migration
+or a rewrite, precisely what lifecycle staging most wants to catch, and precisely what
+cannot be sent whole. Depth gating is therefore a fidelity control, not a cost control:
+small commits get their whole diff, large ones get a structured summary.</p>
+<p>There is also a property the current design cannot have at any price. Whole-corpus
+analysis is <strong>not incremental</strong> — one new commit re-pays for all of them, which is why
+gallery subjects are pinned to a frozen head and why <code>--reuse-interpretation</code> exists.
+Per-commit analysis is cacheable by SHA, so a new commit costs one request and an atlas
+can be kept current.</p>
+<h2 id="what-follows">What follows</h2>
+<p>Epoch detection (<a href="EPOCHS.html">Epochs</a>) was the first attempt: divide history so each unit
+fits a request. Priced against the alternative it turned out to be solving a problem that
+does not cost much, and a hard period boundary makes a capability built across it
+unfindable.</p>
+<p><a href="PER-COMMIT.html">Per-commit reading</a> is the answer that replaced it. It reads every
+substantive commit rather than sampling the corpus, reaching 95% of history against the
+10-12% measured above, for roughly what one segmentation pass cost. It also addresses
+items 1 and 5 below directly: coverage is reported by the run itself, and tier 0
+pre-classifies non-feature commits deterministically before any request is made.</p>
+<p>Still unaddressed, roughly in order of expected value:</p>
+<ol>
+<li><strong>Coverage is unmeasured and unreported.</strong> Whatever the pipeline does next, it should
+print what fraction of commits it accounted for.</li>
+<li><strong>No baseline exists.</strong> Nobody has compared these features against a deterministic
+clustering of commits by shared paths and subject tokens. Until that number exists, the
+interpretation stage&#39;s contribution over a simple script is unknown — and it is the
+most decision-relevant number in the project.</li>
+<li><strong>No gold set exists.</strong> Hand-grading the pilot&#39;s 37 features is what makes every later
+prompt change measurable rather than a matter of taste. The pilot is the right subject
+because its owner can check the answers.</li>
+<li><strong>Self-reported confidence could be replaced with a measured one.</strong> Running feature
+discovery several times and scoring a capability by how often it recurs converts the
+known non-reproducibility from a problem being worked around into the measurement
+itself.</li>
+<li><strong>Commit bodies and noise pre-classification</strong> are the two cheapest corpus
+improvements, and neither needs a new architecture.</li>
+</ol>
+</main></html>

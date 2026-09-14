@@ -19,4 +19,10 @@ coverage/
 /public/readings*.json
 *.cache.jsonl
 /public/capabilities*.json
-/public/graph-reviews/
+/public/graph-reviews/*
+!/public/graph-reviews/consolidated-engine/
+/public/graph-reviews/consolidated-engine/*
+!/public/graph-reviews/consolidated-engine/larger-demonstration/
+!/public/graph-reviews/consolidated-engine/larger-demonstration/**
+!/public/graph-reviews/experiment-summary/
+!/public/graph-reviews/experiment-summary/**

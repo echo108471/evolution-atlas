@@ -1,0 +1,157 @@
+{
+  "agent": "B",
+  "scopeSummary": "Candidate responsibilities discovered from pinned source in the routed Copilot prompt and test regions: background todo updates, context-budget-driven conversation compaction, code-block-to-edit mapping for text and notebook resources, and recorded UI scenario evidence. Definitions describe inspected implementation paths, not observed runtime success.",
+  "coverage": {
+    "inspected": [
+      "extensions/copilot/src/extension/prompts/node/agent/backgroundTodoAgent/backgroundTodoAgentProcessor.ts",
+      "extensions/copilot/src/extension/prompts/node/agent/backgroundSummarizer.ts",
+      "extensions/copilot/src/extension/prompts/node/codeMapper/codeMapperService.ts",
+      "extensions/copilot/src/extension/intents/node/agentIntent.ts",
+      "test/mcp/src/evidenceTools.ts",
+      "test/scenario/src/evidence.ts"
+    ],
+    "omissions": [
+      "Both assigned regions were inspected, but sampling is narrow relative to 220 prompt files and 157 test files in the supplied metadata.",
+      "Model-family prompt variants, inline editing prompts, other panel prompts, fixtures, and most prompt tests were not inspected.",
+      "Automation drivers, general MCP automation tools, smoke/sanity/unit suites, and scenario report-rendering helpers were not inspected.",
+      "The core CodeMapper algorithm, notebook edit generator, todo tool implementation, todo history store, and model endpoint implementation were not followed within the remaining byte budget.",
+      "A broad extension search was rejected at extensions/copilot/src/extension/byok/vscode-node/test/customEndpointProvider.spec.ts. That blob was not read or retried through another access path. Subsequent navigation used the unrelated intents directory and the exact agentIntent.ts path.",
+      "Source retrieval stopped after 13 windows and 70,883 serialized receipt bytes, leaving insufficient bytes for another substantial source window. Three successful search receipts and one rejected search attempt occurred."
+    ]
+  },
+  "crossPartitionLeads": [
+    "The supplied test-region routing crosses to inventory partition A: test/mcp/src/evidenceTools.ts exposes test/scenario/src/evidence.ts through start, step, and finish tools. The inspected adapter and service support one shared responsibility with multiple entry points.",
+    "CodeMapperService delegates existing-content mapping to ./codeMapper and notebook full rewrites to processFullRewriteNewNotebook and an alternative notebook edit generator; these are uninspected dependencies worth following before judging edit fidelity.",
+    "Background todo writes delegate through IToolsService to CoreManageTodoList with a session invocation token; persistence and rendered todo behavior remain outside the inspected boundary.",
+    "Scenario evidence capture delegates launch, tracing, screenshots and windows to ApplicationService and its driver. Driver/platform-specific reliability was not inspected."
+  ],
+  "nodes": [
+    {
+      "id": "BBackgroundTodos",
+      "name": "Maintain a conversation todo list from background agent activity",
+      "summary": "A session processor tracks a turn's prompt history, requests a background model pass on unprocessed activity, and forwards a selected todo-list update through the todo tool.",
+      "actor": "Copilot agent conversation processor acting for the chat user",
+      "inputs": ["Prompt context, turn ID and user query", "Tool invocation token and cancellation token", "Current and previous-turn todo context", "New turn-history rounds"],
+      "outcomes": ["A background request supplies current todos and activity history to a utility endpoint", "The last matching manage-todo-list tool call can replace the session todo list", "Successful or no-op passes retire the processed history delta; error responses retain it for later processing"],
+      "conditions": ["AgentIntent path with the background-todo gate enabled", "Explicit todo-tool requests and subagent invocations bypass this background pass", "A turn ID and tool invocation token must be present", "Non-final passes respect a backoff threshold and require new history"],
+      "exclusions": ["General task execution by the background model", "Acceptance of arbitrary returned tool calls", "Proof that generated todos correctly reflect user intent"],
+      "implementations": ["BackgroundTodoAgentProcessor.trackTurnRound, doWork, makeChatRequest and handleTodoToolCall", "AgentIntentInvocation._maybeStartBackgroundTodoAgentPass", "IToolsService invocation of CoreManageTodoList with operation pinned to write"],
+      "uncertainty": ["Enablement helper internals and installed configuration were not inspected", "Todo item validation and persistence are delegated to uninspected tool code", "Model output accuracy and live scheduling were not evaluated"],
+      "evidenceIds": ["B-001", "B-003", "B-004", "B-015"],
+      "assessment": "supported",
+      "claims": [
+        {"text": "The processor queues activity tracking, requires a turn ID and invocation token, clears todos when initially tracking a turn, and records prompt context.", "evidenceIds": ["B-001"], "assessment": "supported"},
+        {"text": "Background passes render current and previous todos with history, request the utility endpoint, and preserve unprocessed activity on non-success responses.", "evidenceIds": ["B-003", "B-004"], "assessment": "supported"},
+        {"text": "Only the last returned CoreManageTodoList call is selected; its arguments must contain a todoList array, which is forwarded with operation write.", "evidenceIds": ["B-003", "B-004"], "assessment": "supported"},
+        {"text": "The invocation bypasses background todo processing when the gate is disabled, the todo tool was explicitly enabled, or the request identifies a subagent.", "evidenceIds": ["B-015"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "BConversationCompaction",
+      "name": "Schedule conversation compaction as prompt context fills",
+      "summary": "Prompt construction uses measured context occupancy and cache state to start background summarization, tracks a single summary lifecycle, and has a foreground summarization fallback when budget recovery lacks a usable background result.",
+      "actor": "Copilot agent prompt construction service",
+      "inputs": ["Rendered prompt token count, tool tokens, last-turn prompt tokens and context budget", "Whether the current turn contains completed tool-call rounds", "Summary work callback, endpoint identity and cancellation token"],
+      "outcomes": ["A background summary can be started after rendering", "Completed summary work is available for consumption and reset", "Budget-exceeded recovery can fall back to synchronous summarization", "Foreground summary metadata is attached to the latest turn"],
+      "conditions": ["Summarization is enabled, a background summarizer exists, and the current iteration did not already summarize", "Background state must be idle or failed for kickoff", "Warm-cache kickoff uses a jittered ratio of 0.78 to below 0.82; cold-cache kickoff uses at least 0.90"],
+      "exclusions": ["Guaranteeing that a summary preserves every relevant fact", "General source-document summarization", "Historical repository evolution analysis"],
+      "implementations": ["shouldKickOffBackgroundSummarization and BackgroundSummarizer", "AgentIntentInvocation post-render kickoff and budget recovery paths"],
+      "uncertainty": ["Summary request construction and the complete application-to-history path were not inspected", "Latency reduction, context retention quality and actual model behavior were not measured"],
+      "evidenceIds": ["B-008", "B-010", "B-016"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "The threshold function distinguishes cold cache at 0.90 from a jittered warm-cache threshold beginning at 0.78 with a 0.04 span.", "evidenceIds": ["B-008"], "assessment": "supported"},
+        {"text": "Post-render kickoff uses the maximum of local prompt-plus-tool tokens and prior prompt usage, divided by the base budget, and checks summarizer state before starting work.", "evidenceIds": ["B-010"], "assessment": "supported"},
+        {"text": "The state holder starts work only from idle or failed, stores completion or error, exposes waiting, and clears state on consumption or cancellation.", "evidenceIds": ["B-016"], "assessment": "supported"},
+        {"text": "The inspected budget-recovery branch falls back to synchronous summarization when background compaction produced no usable result, and stores foreground summary metadata on the current turn.", "evidenceIds": ["B-010"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "BMapCodeBlocks",
+      "name": "Translate resource-addressed code blocks into mapped edits",
+      "summary": "A common mapping service serializes requests per resource and selects text-document or notebook handling before streaming mapped edits.",
+      "actor": "Chat editing caller supplying a code block for a target resource",
+      "inputs": ["Code block text and resource URI", "Optional preceding Markdown, working set and location", "Mapped-edits response stream and cancellation token"],
+      "outcomes": ["Per-resource requests enter an ordered queue", "Supported notebook resources use a notebook mapper; other resources use a document mapper", "Mapping yields streamed edits with optional error details, annotations and telemetry"],
+      "conditions": ["The target URI is used to select the resource queue", "NotebookService determines whether the resource is a supported notebook"],
+      "exclusions": ["Proof that streamed edits were applied or accepted by a user", "Proof of semantic correctness of generated code"],
+      "implementations": ["CodeMapperService.mapCode and _doMapCode", "DocumentCodeMapper", "NotebookCodeMapper"],
+      "uncertainty": ["The core CodeMapper algorithm and callers consuming edit streams were not inspected"],
+      "evidenceIds": ["B-011", "B-012", "B-013"],
+      "assessment": "supported",
+      "claims": [
+        {"text": "CodeMapperService maintains a queue per resource and chooses notebook versus document mapper using hasSupportedNotebooks.", "evidenceIds": ["B-011"], "assessment": "supported"},
+        {"text": "Shared request construction distinguishes nonempty existing documents from new resources and includes working-set documents for the latter.", "evidenceIds": ["B-013"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "BMapTextDocument",
+      "name": "Map code blocks against text-document contents",
+      "summary": "Text mapping loads an open or on-disk document snapshot, directly emits complete code for an empty or missing target when possible, and delegates other mapping cases.",
+      "actor": "Chat editing caller targeting a text document",
+      "inputs": ["Code block and text-document URI", "Existing open or disk document snapshot if available", "Cancellation token and response stream"],
+      "outcomes": ["An empty or missing target receives a direct insertion edit when the code has no existing-code marker", "Other cases delegate to the shared CodeMapper path", "Existing-document edits are collected for edit-survival reporting"],
+      "conditions": ["Cancellation stops mapping after document-context resolution", "Direct insertion requires missing or empty content and no EXISTING_CODE_MARKER", "Edit-survival tracking is initialized only with existing document context"],
+      "exclusions": ["Notebook cell-edit semantics", "User acceptance and persistence of streamed edits"],
+      "implementations": ["DocumentCodeMapper.mapCode", "DocumentCodeMapper._getDocumentContextForCodeBlock"],
+      "uncertainty": ["Context lookup failures return undefined, so missing context does not establish that a file is actually absent", "Core mapping behavior and edit-survival service behavior were not inspected"],
+      "evidenceIds": ["B-012"],
+      "assessment": "supported",
+      "claims": [
+        {"text": "The direct path streams an insertion at range 0,0 to 0,0 for missing or empty document context without an existing-code marker.", "evidenceIds": ["B-012"], "assessment": "supported"},
+        {"text": "Context lookup prefers an open text document, then checks disk existence and opens a snapshot, while catching lookup errors as undefined context.", "evidenceIds": ["B-012"], "assessment": "supported"},
+        {"text": "When context exists, the response stream is wrapped to collect AI edits and can start an edit-survival reporter after mapping returns telemetry.", "evidenceIds": ["B-012"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "BMapNotebook",
+      "name": "Map code blocks against notebook contents",
+      "summary": "Notebook mapping infers an alternative notebook content format for snapshots and routes a complete new-notebook block through notebook rewrite generation.",
+      "actor": "Chat editing caller targeting a supported notebook resource",
+      "inputs": ["Code block and notebook URI", "Inferred notebook content format", "Open or on-disk notebook snapshot if available"],
+      "outcomes": ["Existing notebook contents are represented by a format-aware snapshot for mapping", "Complete code for missing or empty notebook context is sent to the full-rewrite notebook generator", "Remaining cases use shared code mapping"],
+      "conditions": ["The common service selects this mapper only for supported notebook resources", "The rewrite shortcut requires missing or empty context and no existing-code marker"],
+      "exclusions": ["Text insertion as an equivalent notebook experience", "Guarantees about resulting cell layout or execution results"],
+      "implementations": ["NotebookCodeMapper.mapCode and _getDocumentContextForCodeBlock", "Delegated processFullRewriteNewNotebook and IAlternativeNotebookContentEditGenerator"],
+      "uncertainty": ["Full-rewrite and cell-edit generation internals were not inspected", "No generated notebook was opened or executed"],
+      "evidenceIds": ["B-011", "B-012", "B-013"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "Notebook context lookup infers a content format from the supplied code, snapshots an open notebook if found, or opens a disk-backed notebook snapshot.", "evidenceIds": ["B-013"], "assessment": "supported"},
+        {"text": "The complete-code shortcut calls processFullRewriteNewNotebook with the resource, code, response stream and alternative notebook edit generator.", "evidenceIds": ["B-013"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "BScenarioEvidence",
+      "name": "Record and finalize evidence for a UI validation scenario",
+      "summary": "A scenario evidence service launches an instrumented application run, records step screenshots with statuses, and finalizes video, logs, manifest and report artifacts. MCP tools expose the same lifecycle.",
+      "actor": "UI validation operator or automation client",
+      "inputs": ["Scenario ID, title, optional HTTP(S) source and scenario path", "Workspace, initial settings and application arguments", "Step ID, title, lifecycle status and optional details", "Overall passed, failed or aborted outcome and notes"],
+      "outcomes": ["A distinct evidence run directory and environment metadata", "Video-enabled launch, tracing, and initial screenshot capture", "Step screenshots associated with status, timestamp and current window URL", "Final video/log artifacts and a report referenced from the manifest", "MCP step responses include a screenshot image and its saved path"],
+      "conditions": ["No evidence run or existing application may already be active at start", "Step capture and finish require an active, non-busy run", "Starting a step requires completion of an earlier active step", "A started step must complete before non-aborted finish", "A failed step downgrades a requested passed outcome to failed"],
+      "exclusions": ["Independently determining whether a scenario assertion actually passed", "General-purpose application automation beyond evidence lifecycle", "Proof of complete video or trace fidelity on every platform"],
+      "implementations": ["EvidenceService.start, step and finish", "applyEvidenceStartTool and applyEvidenceTools", "ApplicationService and driver methods invoked for launch, tracing, window enumeration and capture"],
+      "uncertainty": ["The report writer, video saver, log copier and driver internals were not inspected", "Lifecycle behavior is supported by implementation inspection without running scenarios", "Step statuses are supplied by the caller and are not independent verification"],
+      "evidenceIds": ["B-002", "B-006", "B-007"],
+      "assessment": "supported",
+      "claims": [
+        {"text": "Start rejects an already active run or existing application, validates the optional source scheme, launches with recording enabled, attaches video listeners, starts tracing and captures an initial screenshot.", "evidenceIds": ["B-006"], "assessment": "supported"},
+        {"text": "Step handling enforces lifecycle transitions, captures and stores a screenshot with status and window URL, and rolls back a newly created step when its capture fails.", "evidenceIds": ["B-006", "B-007"], "assessment": "supported"},
+        {"text": "Finish prevents a non-aborted result while a step is active, downgrades passed when a step failed or the app closed, and invokes video, log and report finalization with manifest updates.", "evidenceIds": ["B-007"], "assessment": "supported"},
+        {"text": "MCP exposes start, step and finish operations; the step tool returns both a saved-path message and a base64 PNG image from EvidenceService.", "evidenceIds": ["B-002"], "assessment": "supported"}
+      ]
+    }
+  ],
+  "edges": [
+    {"from": "BMapCodeBlocks", "to": "BMapTextDocument", "type": "contains", "reason": "The common mapper explicitly dispatches non-notebook resources to DocumentCodeMapper, whose context and direct-insertion behavior implement this variant.", "evidenceIds": ["B-011", "B-012"], "assessment": "supported"},
+    {"from": "BMapCodeBlocks", "to": "BMapNotebook", "type": "contains", "reason": "The common mapper explicitly dispatches supported notebook resources to NotebookCodeMapper, which uses notebook snapshots and a notebook full-rewrite generator.", "evidenceIds": ["B-011", "B-013"], "assessment": "supported"}
+  ],
+  "limitations": [
+    "All nodes and edges are proposer candidate assessments. No independent verification or target execution occurred.",
+    "Source windows establish inspected code paths and boundaries; implementation presence does not establish installed availability, end-to-end runtime success, model quality, or performance.",
+    "Search receipts were used only for navigation. All substantive claims cite source receipts.",
+    "The byte budget constrained coverage before the source-window budget was exhausted; these nodes are not a complete map of either routed region or the repository.",
+    "No baseline, prior graph, owner feedback, other proposals, historical material or discovered-capability memories were used.",
+    "The six candidate nodes include a common edit-mapping responsibility and its distinct document/notebook variants. Shared prompt construction does not by itself justify containment or dependence relationships between todo maintenance and conversation compaction."
+  ]
+}

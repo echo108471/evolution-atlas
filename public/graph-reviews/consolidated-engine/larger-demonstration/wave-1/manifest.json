@@ -1,0 +1,25 @@
+{
+  "version": "repository-engine/1",
+  "mode": "expansion",
+  "displayName": "VS Code",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "partitions": [
+    "A",
+    "B",
+    "C"
+  ],
+  "budgets": {
+    "discovery": {
+      "windows": 20,
+      "searches": 8,
+      "evidenceBytes": 72000
+    },
+    "integration": {
+      "windows": 16,
+      "searches": 4,
+      "evidenceBytes": 64000
+    }
+  },
+  "interpretationStatus": "candidate",
+  "independentVerification": "not-performed"
+}

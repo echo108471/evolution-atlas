@@ -1,0 +1,160 @@
+{
+  "agent": "B",
+  "scopeSummary": "Bounded static discovery beginning in both assigned regions: the Copilot completions VS Code adapter and scripts. Followed the agent-host development launcher to the pinned standalone server and protocol request handlers. Candidate responsibilities describe inspected implementation branches, not proven runtime availability or exhaustive coverage.",
+  "coverage": {
+    "inspected": [
+      "scripts/code-agent-host.js",
+      "extensions/copilot/src/extension/completions-core/vscode-node/extension/src/vscodeInlineCompletionItemProvider.ts",
+      "extensions/copilot/src/extension/completions-core/vscode-node/extension/src/ghostText/ghostTextProvider.ts",
+      "extensions/copilot/src/extension/completions-core/vscode-node/extension/src/copilotPanel/copilotSuggestionsPanelManager.ts",
+      "extensions/copilot/src/extension/completions-core/vscode-node/extension/src/copilotPanel/copilotSuggestionsPanel.ts",
+      "extensions/copilot/src/extension/completions-core/vscode-node/extension/src/panelShared/baseSuggestionsPanel.ts",
+      "extensions/copilot/src/extension/completions-core/vscode-node/extension/src/codeReferencing/citationManager.ts",
+      "extensions/copilot/src/extension/completions-core/vscode-node/lib/src/snippy/handlePostInsertion.ts",
+      "src/vs/platform/agentHost/node/agentHostServerMain.ts",
+      "src/vs/platform/agentHost/node/protocolServerHandler.ts"
+    ],
+    "omissions": [
+      "Region region-0029 was sampled through editor completion delivery, panel interaction and code-reference handling. Prompt construction, model selection, completion generation, caches, configuration registration and tests remain uninspected.",
+      "Region region-0250 was sampled through scripts/code-agent-host.js only. Other launchers, simulations, policy tooling and test infrastructure remain uninspected; no capability is inferred from their filenames.",
+      "Cross-region server and protocol files were inspected in limited windows only. Transport authentication enforcement, provider implementations, state persistence and application UI registration remain uninspected.",
+      "modelPicker.ts reads for lines 1-160 and subsequently 1-80 were refused with Evidence byte budget exceeded; no source receipt or model-selection claim resulted."
+    ]
+  },
+  "crossPartitionLeads": [
+    "scripts/code-agent-host.js points to the compiled agentHostServerMain entry point. Corresponding source in partition C was inspected in B-009 and B-010, then protocolServerHandler.ts in B-012.",
+    "Further source inspection could test whether protocol session/chat operations reach concrete provider implementations and establish their observable behavior; this output stops at the inspected delegation boundary.",
+    "The inline adapter invokes GhostText.getInlineCompletions, and panel acceptance invokes a post-insertion callback. Their backend generation and post-insertion wiring were not followed completely."
+  ],
+  "nodes": [
+    {
+      "id": "B_inline_completions",
+      "name": "Offer code completions inside the editor",
+      "summary": "Adapt a document-and-cursor completion request into inline insertion candidates, apply automatic-trigger gates, and handle suggestion display and acceptance lifecycle events.",
+      "actor": "Person editing a text document through the VS Code inline-completion interface",
+      "inputs": ["Text document, cursor position and completion context", "Cancellation token and visible-editor formatting options", "Underlying GhostText completion results"],
+      "outcomes": ["Inline candidates with insertion text and replacement ranges, or an empty/absent result", "Shown, partially accepted, accepted, rejected and ignored completion events forwarded or recorded"],
+      "conditions": ["Automatic requests return early on metered connections, document completion disablement or extension error status", "The selected completion constraint may be removed according to respectSelectedCompletionInfo configuration", "The document wrapper and underlying completion producer must yield usable results"],
+      "exclusions": ["Model generation quality and network completion availability", "Next-edit prediction elsewhere in the document", "Proof of extension activation or editor rendering"],
+      "implementations": ["CopilotInlineCompletionItemProvider.provideInlineCompletionItems and _provideInlineCompletionItems", "GhostTextProvider.provideInlineCompletionItems and handleEndOfLifetime"],
+      "uncertainty": ["Static adapter implementation was inspected; registration and runtime execution were not", "Backend GhostText.getInlineCompletions implementation was not inspected"],
+      "evidenceIds": ["B-002", "B-003", "B-004", "B-015"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "Automatic requests are suppressed on metered connections and when the document is disabled or extension status is Error.", "evidenceIds": ["B-002"], "assessment": "supported"},
+        {"text": "The adapter calls GhostText.getInlineCompletions with wrapped document, cursor, formatting and trigger context, then maps results into insertion text and ranges.", "evidenceIds": ["B-015", "B-004"], "assessment": "supported"},
+        {"text": "Shown and partial acceptance handlers are forwarded; accepted, rejected and ignored end-of-life cases follow distinct handling branches.", "evidenceIds": ["B-003", "B-004"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "B_completion_panel",
+      "name": "Browse and insert suggestions from a panel",
+      "summary": "Present multiple completion candidates in a webview with highlighted snippets and progress, track the focused candidate, and apply a chosen candidate to its source document.",
+      "actor": "Person choosing a completion from the suggestions panel",
+      "inputs": ["Panel completion items with insertText, range and postInsertionCallback", "Source document and panel configuration", "Webview focusSolution or acceptSolution messages"],
+      "outcomes": ["Highlighted solution content and loading percentage sent to the webview", "Selected text replacement submitted as a workspace edit", "Panel closure and pending-operation cancellation after acceptance"],
+      "conditions": ["Acceptance requires a non-disposed panel and a solution range", "Configured batch mode defers candidate presentation until collected; optional shuffling applies to batch items", "Citation messages require supplied annotation details"],
+      "exclusions": ["Proof that all generated candidates are distinct or correct", "Suggestion generation backend", "Proof that workspace.applyEdit succeeded before later callbacks"],
+      "implementations": ["CopilotSuggestionsPanelManager creates CopilotListDocument and CopilotSuggestionsPanel", "CopilotSuggestionsPanel.handleCustomMessage", "BaseSuggestionsPanel.onItem, renderSolutions, acceptSolution and acceptFocusedSolution"],
+      "uncertainty": ["Panel creation/registration entry commands and the candidate producer were not inspected", "The acceptance implementation awaits applyEdit but the inspected code does not check its boolean result"],
+      "evidenceIds": ["B-005", "B-006", "B-007", "B-008"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "The Copilot panel specialization handles acceptSolution messages by candidate index and delegates to the shared acceptance implementation.", "evidenceIds": ["B-006"], "assessment": "supported"},
+        {"text": "The shared implementation replaces the source document range with the candidate text, awaits applyEdit, cancels pending operations, optionally closes the active editor and invokes the candidate callback.", "evidenceIds": ["B-008"], "assessment": "supported"},
+        {"text": "Solution rendering generates highlighted snippets and a progress-bearing message; supplied citation licenses are deduplicated and NOASSERTION is presented as unknown.", "evidenceIds": ["B-006", "B-008"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "B_code_references",
+      "name": "Surface similar-code references and licenses",
+      "summary": "Build matching context around inserted completion text, request matching snippets and license information, and surface supplied citations through completion output and panel annotations.",
+      "actor": "Person inspecting source references associated with completion code",
+      "inputs": ["Document URI, inserted completion text and insertion offset", "Matching-service snippet and license responses", "Document citations or panel item citation annotations"],
+      "outcomes": ["Citation records with document position, matching context, license labels and source URL", "Output log entries and notification invocation for qualifying citations", "Panel citation message with license labels and a source URL when annotations are present"],
+      "conditions": ["fetchCitations requires an existing document and enough lexical context", "Missing, failing or empty matching responses stop citation delivery", "Logging requires enabled code references, an initialized logger and nonempty citation details"],
+      "exclusions": ["Legal judgment about licensing or whether code may be reused", "Completeness or correctness of the external matching corpus", "Proof that panel annotations originate from this particular fetchCitations path"],
+      "implementations": ["fetchCitations in lib/src/snippy/handlePostInsertion.ts", "LoggingCitationManager.handleIPCodeCitation", "BaseSuggestionsPanel.renderSolutions"],
+      "uncertainty": ["Matching service and notification implementation were not executed or fully inspected", "Caller wiring from accepted completion to fetchCitations was not inspected", "Panel annotation and post-insertion lookup paths are grouped by their reference-disclosure outcome; their data-flow relationship is unresolved"],
+      "evidenceIds": ["B-013", "B-014", "B-008"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "fetchCitations adds preceding document context for short completion text, calls Match and FilesForMatch, and submits qualifying citation records to the citation manager.", "evidenceIds": ["B-014"], "assessment": "supported"},
+        {"text": "The logging citation manager checks enablement, logger presence and details before writing document-location and license/URL entries and invoking notify.", "evidenceIds": ["B-013"], "assessment": "supported"},
+        {"text": "The panel renderer independently handles supplied citation annotations, creating a similar-code message and retaining the first detail URL.", "evidenceIds": ["B-008"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "B_agent_gateway",
+      "name": "Expose an agent host to connected clients",
+      "summary": "Construct a standalone WebSocket server linked to agent services and protocol handlers, configure connection-token validation, and serve client state subscriptions and agent requests.",
+      "actor": "Client connecting to a standalone agent host; operator starting the host",
+      "inputs": ["Host/port and connection-token options", "Agent-service runtime, provider registrations and state manager", "Client protocol requests and subscription channels"],
+      "outcomes": ["WebSocket server and protocol handler wired together", "Client subscription snapshots or protocol errors", "Readiness reporting and shutdown that stops protocol ingress before draining services"],
+      "conditions": ["Token sources are mutually exclusive; token-free mode is explicit", "Without an explicit token source the option parser generates a token", "Provider registration depends on environment, build/SDK availability and configuration branches", "Successful runtime initialization and transport behavior are external to inspected windows"],
+      "exclusions": ["Proof of network accessibility or transport security", "An assertion that all providers are enabled by default", "A separate product capability inferred solely from a development script"],
+      "implementations": ["agentHostServerMain.parseServerOptions and WebSocketProtocolServer/ProtocolServerHandler construction", "ProtocolServerHandler._requestHandlers.subscribe", "scripts/code-agent-host.js as a development launch path"],
+      "uncertainty": ["Transport implementation and handshake enforcement were not inspected", "The launcher links to the compiled entry point, but no build or launch was performed", "The server initialization middle section was not inspected"],
+      "evidenceIds": ["B-001", "B-009", "B-010", "B-012"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "The development script forwards server options and spawns the compiled agent-host server entry point, watching READY output and forwarding lifecycle termination.", "evidenceIds": ["B-001"], "assessment": "supported"},
+        {"text": "The server parser rejects conflicting token sources, validates explicit token characters, and generates a token when no token or token-free option is given.", "evidenceIds": ["B-009"], "assessment": "supported"},
+        {"text": "Server construction supplies a token-equality validator when a token exists and attaches a ProtocolServerHandler to agent service, state manager and transport.", "evidenceIds": ["B-010"], "assessment": "supported"},
+        {"text": "The subscription handler distinguishes log, resource-watch and state channels; successful state subscriptions return snapshots and failed subscriptions are cleaned up.", "evidenceIds": ["B-012"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "B_agent_sessions",
+      "name": "Create and dispose agent sessions through the host protocol",
+      "summary": "Translate connected-client requests into provider-backed session creation and disposal, carrying working-directory and configuration context and validating an explicitly claimed client identity.",
+      "actor": "Connected agent client",
+      "inputs": ["Provider identifier and client-selected session channel URI", "Optional working directories, configuration, metadata, active-client identity and progress token", "Session channel to dispose"],
+      "outcomes": ["Agent-service createSession or disposeSession invocation", "Invalid-parameter or provider-not-found protocol error where applicable", "Warning if a provider returns a different session URI"],
+      "conditions": ["An explicitly supplied activeClient.clientId must match the connection's clientId", "Provider service must implement the requested session operation"],
+      "exclusions": ["Session storage persistence and restart recovery", "Proof that a requested provider successfully creates a session", "Model execution or tool approval behavior within a session"],
+      "implementations": ["ProtocolServerHandler._requestHandlers.createSession", "ProtocolServerHandler._requestHandlers.disposeSession"],
+      "uncertainty": ["Only protocol-to-service delegation was inspected; underlying provider and service implementations remain uninspected"],
+      "evidenceIds": ["B-012"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "createSession validates any claimed active-client identity, parses working directories and the session URI, and forwards provider, configuration and progress context to the agent service.", "evidenceIds": ["B-012"], "assessment": "supported"},
+        {"text": "Non-protocol creation failures become provider-not-found errors, differing returned session URIs produce a warning, and disposeSession delegates the parsed session URI to the service.", "evidenceIds": ["B-012"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "B_session_chats",
+      "name": "Create additional and branched chats within an agent session",
+      "summary": "Handle requests for additional chats in an existing session, including fork and side-chat source context, and route chat disposal through the owning session.",
+      "actor": "Connected client organizing conversations within an agent session",
+      "inputs": ["Existing session channel and new chat URI", "Optional fork or side-chat source chat and turn ID", "Optional side-chat selection"],
+      "outcomes": ["Additional chat creation delegated to the agent service", "Default-chat creation treated as a no-op", "Chat disposal delegated with parsed owning-session URI"],
+      "conditions": ["Session state must exist before creating a chat", "Source kind must be Fork or SideChat when specified", "An unparseable disposal chat URI returns without invoking disposal"],
+      "exclusions": ["Proof that transcript history is copied correctly", "UI for selecting a branch point or text selection", "Provider support for every branching mode"],
+      "implementations": ["ProtocolServerHandler._requestHandlers.createChat", "ProtocolServerHandler._requestHandlers.disposeChat"],
+      "uncertainty": ["Fork and side-chat requests are visible at the protocol boundary; service implementation and resulting conversation state were not inspected"],
+      "evidenceIds": ["B-012"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "The createChat handler rejects missing session state and treats the session's default chat URI as a no-op.", "evidenceIds": ["B-012"], "assessment": "supported"},
+        {"text": "Fork options carry source chat and turn ID; side-chat options carry the same identifiers plus optional selection before delegation to createChat.", "evidenceIds": ["B-012"], "assessment": "supported"},
+        {"text": "disposeChat parses its owning session from the chat URI and delegates session and chat identifiers to the agent service.", "evidenceIds": ["B-012"], "assessment": "supported"}
+      ]
+    }
+  ],
+  "edges": [
+    {"from": "B_agent_gateway", "to": "B_agent_sessions", "type": "contains", "reason": "The standalone server wires the protocol handler whose request map includes session creation and disposal.", "evidenceIds": ["B-010", "B-012"], "assessment": "supported"},
+    {"from": "B_agent_gateway", "to": "B_session_chats", "type": "contains", "reason": "Additional-chat and chat-disposal handlers are exposed by the protocol handler attached to the standalone server.", "evidenceIds": ["B-010", "B-012"], "assessment": "supported"},
+    {"from": "B_session_chats", "to": "B_agent_sessions", "type": "depends_on", "reason": "Additional chat creation checks existing session state, and chat disposal addresses an owning session.", "evidenceIds": ["B-012"], "assessment": "supported"},
+    {"from": "B_code_references", "to": "B_completion_panel", "type": "supports", "reason": "The panel's inspected rendering path adds reference and license information to supplied completion annotations. This does not establish that post-insertion lookup feeds the panel.", "evidenceIds": ["B-008"], "assessment": "supported"},
+    {"from": "B_inline_completions", "to": "B_completion_panel", "type": "overlaps", "reason": "Both expose insertion-text and replacement-range completion candidates, while the inspected editor lifecycle and multi-candidate webview acceptance paths are distinct interfaces.", "evidenceIds": ["B-004", "B-006", "B-008"], "assessment": "partial"}
+  ],
+  "limitations": [
+    "All responsibilities are candidate interpretations from pinned static source; no target execution, tests, network calls, independent validation or historical analysis occurred.",
+    "Coverage is bounded and non-exhaustive: both selected regions were inspected, but only ten unique source files and limited windows within longer files were read.",
+    "Fourteen source receipts and one navigation search were acquired. Two requested modelPicker windows were rejected by the serialized evidence-byte budget and produced no source evidence.",
+    "A source receipt's truncated flag can indicate a partial-file window; claims are limited to the lines actually returned.",
+    "No baseline, other proposals, prior map, owner labels, historical notes or aggregate coverage-routing artifact was consulted.",
+    "The source-backed relationships here do not imply complete runtime call chains, security guarantees, legal conclusions or contributor-performance judgments."
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "outputSha256": "afbf49b0c49eaabd53b7a668265d6839c2f78ece524d23e3ddfa51122968ba2e",
+  "receipts": {
+    "receipts/A/A-001.json": "65059ddb076b62fac41ad52a4556ddccc4ddc0f0f27640190c8c3b04a462f495",
+    "receipts/A/A-002.json": "7ca1c7f7ba95351d8dd753678a85ef52351bb0c2e65a099cee811b45391f3505",
+    "receipts/A/A-003.json": "9e485688eebe369f40fecd0e7cb87ed5d0683852b6f69e7fc3bb40e1bc051966",
+    "receipts/A/A-004.json": "97c8756ddc6b9c147f567ba84ee286eee92570d5f1fd9b581261fe974ddaf2d1",
+    "receipts/A/A-005.json": "089717a8ad124e63e8d1a5baa2d3c0c890c91e9ef46a6edd7e438040e1894a92",
+    "receipts/A/A-006.json": "df505d6f885c583604362bcd7c417862407dd6c4298ad164704f619c0d585b7c",
+    "receipts/A/A-007.json": "8ca95aa18d8e07cc1c728c817117e36ff6a8f73974dba77aef41b9c0d29240d6",
+    "receipts/A/A-008.json": "66efac80af35de27dd1b981ac6b9bda0188e1a6b36d6387b364c4caad70052b3",
+    "receipts/A/A-009.json": "447c386afd5b1cdf9be65b988a6ee60855917ded1c7498d71704b31e62c9f83f",
+    "receipts/A/A-010.json": "785802e2655676921a05750cc9dd0229f52dcca8c005b68c0fa4da78fe75a9bb",
+    "receipts/A/A-011.json": "a54b8141b33beff74f2bf8b2bdb8cfbabb46451ad79fd54eb1a0ce9d51b6f29c",
+    "receipts/A/A-012.json": "0a2aa0a49285f8c8e2c2c5048290084f00a5b88cb4f1c04b1b7bac4bce01c4f6",
+    "receipts/A/A-013.json": "6e4980f65da4140a41a48266f7d85b231fac03bfd3aa84aeaf2f0913e75c57f4",
+    "receipts/A/A-014.json": "98683fafbe52ce04e696ea184b750c8204c21dba2f3410d7d9176b10293714f2"
+  }
+}

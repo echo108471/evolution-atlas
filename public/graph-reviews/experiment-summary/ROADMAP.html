@@ -1,0 +1,242 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ROADMAP</title><style>body{font:16px/1.65 system-ui;color:#23313b;background:#f6f8fa;margin:0;padding:24px}main{max-width:1120px;margin:auto}h1{font-size:32px}h2{margin-top:36px}a{color:#175db0}table{border-collapse:collapse;width:100%;font-size:14px;background:white}th,td{text-align:left;vertical-align:top;padding:12px;border:1px solid #d5dce2}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#e8edf1;padding:14px}code{overflow-wrap:anywhere}blockquote{border-left:4px solid #adb9c5;padding-left:18px}@media(max-width:700px){body{padding:12px}table{font-size:12px}th,td{padding:7px}}</style><main><h1 id="roadmap">Roadmap</h1>
+<p>The roadmap is organized around reversible learning milestones rather than a
+promise to productize Evolution Atlas.</p>
+<h2 id="milestone-0-observed-history-vertical-slice">Milestone 0 — observed-history vertical slice</h2>
+<p>Status: in progress.</p>
+<ul>
+<li>Define the versioned evidence model.</li>
+<li>Extract commits, Git author associations, changed paths, renames, and
+provisional top-level code areas.</li>
+<li>Render the time-bounded evidence chronology and an evidence inspector.</li>
+<li>Keep feature candidates empty by default.</li>
+<li>Validate the extractor with a synthetic temporary repository.</li>
+</ul>
+<p>Exit signal: the local viewer can explore a real repository&#39;s committed
+history without making semantic claims.</p>
+<h2 id="milestone-1-course-recommender-calibration">Milestone 1 — Course Recommender calibration</h2>
+<ul>
+<li>Authorize access to the pilot repository under the workspace policy.</li>
+<li>Produce and manually review the raw dataset.</li>
+<li>Build a five-to-ten-item candidate feature set.</li>
+<li>Test the lifecycle vocabulary and record counterexamples.</li>
+<li>Review deterministic structural episodes, starting with the observed
+<code>demo/... -&gt; repository root</code> reorganization, and record false positives.</li>
+<li>Calibrate the implemented identity matcher against manually reviewed aliases;
+measure false merges, missed matches, and abstentions before adding signals.</li>
+<li>Review bots, merges, and generated paths that distort the first model.</li>
+</ul>
+<p>Exit signal: a repository owner recognizes useful trails and can explain or
+reject every candidate.</p>
+<h2 id="milestone-2-interpretation-layer">Milestone 2 — interpretation layer</h2>
+<ul>
+<li>Keep multi-commit semantic lifecycle episodes separate from raw commits and
+from persistent feature candidates. Implemented for the first model-assisted
+pass; pilot calibration remains.</li>
+<li>Add explicit inference records, confidence, alternatives, and corrections.</li>
+<li>Implement the smallest heuristics justified by the pilot.</li>
+<li>Decide whether optional model-assisted labeling adds enough value to keep.</li>
+</ul>
+<p>Exit signal: candidate features improve the map without weakening evidence
+traceability.</p>
+<h2 id="milestone-3-visual-language">Milestone 3 — visual language</h2>
+<ul>
+<li>Lead with a progressive Overview / Repository / Features / People hierarchy.
+Make Repository a checkpoint-based time machine; keep the full feature
+lifecycle exclusively in the selected-feature view in Features.</li>
+<li>Reconstruct observed directory snapshots from serialized path operations and
+explain candidate reorganizations between checkpoints with commit-level
+drill-down.</li>
+<li>Keep contributor associations in selected-feature detail rather than making
+contributor color the organizing principle of the entire history.</li>
+<li>Provide a contributor-trail mode as a repository-centric projection: retain
+whole-feature context around person-authored evidence, include observed work
+outside candidate features, and keep bots and recorded identities explicit.</li>
+<li>Provide Identity Review with evidence-bearing suggestions, reversible
+merge/keep-separate decisions, conflict constraints, and JSON import/export.</li>
+<li>Calibrate the first-class semantic lifecycle episode model, especially
+hardened-versus-expanded and migrated-versus-structural boundaries.</li>
+<li>Keep relationship graphs scoped to one selected feature and deterministic.</li>
+<li>Extend structural detection from same-commit renames to carefully bounded
+cross-commit moves; add merge, revert, migration, and removal treatments.</li>
+<li>Test DOM/SVG limits and move dense layers to Canvas only if measurements
+require it.</li>
+<li>Create a sanitized visual demo.</li>
+</ul>
+<p>Exit signal: the visualization communicates both repository evolution and
+uncertainty at a glance.</p>
+<h2 id="milestone-35-segmentation">Milestone 3.5 — segmentation</h2>
+<p>Status: first pass implemented and measured on the pilot; not yet validated on a second
+repository.</p>
+<p>Interpretation reads the whole history in one request, which caps the analyzable
+repository size and forces every compression in the corpus format. Segmentation replaces
+that ceiling with a rate.</p>
+<ul>
+<li>Divide history into periods using two passes that never see each other: a model reading
+raw commit windows, and deterministic path- and vocabulary-divergence detectors.
+Implemented.</li>
+<li>Record each boundary as the interval spanning both readings rather than one commit, and
+leave the commits inside it in no period. Implemented.</li>
+<li>Derive hierarchy depth from the history rather than fixing it, so a small repository
+gets no periods and only a large one grows a level above epochs. Implemented.</li>
+<li>Name every period, and treat a period the model declines to name as evidence rather
+than a failed request. Implemented. It immediately reported that nine of fourteen
+epochs were unnameable while every scored signal beside them looked healthy.</li>
+<li>Establish whether unnameable periods indicate bad boundaries or a repository without
+phases. <strong>Partly answered, negatively.</strong> Capping period size did not change the rate
+(64% before and after), and imposed cuts were no more nameable than found ones, so the
+pilot&#39;s middle history most likely has no single theme to find. A coherence rate looks
+like a property to report rather than a number to optimize.</li>
+<li>Feed periods back into feature and lifecycle discovery so each period can afford more
+evidence per commit. <strong>Not started — this is the point of the exercise.</strong></li>
+<li>Measure how much boundaries move between runs. The proposal pass is a model request and
+nothing yet quantifies the drift. <code>groupingStability</code> in the capability work is the
+instrument: it counts pairs rather than clusters, which matters, because counting
+clusters is what made consolidation look non-reproducible when it was not.</li>
+<li>Re-derive the 250-commit and 120-day period limits on a second repository. Both came
+from one subject, and the coherence argument originally used to justify them did not
+survive testing; they are kept only to bound the analysis unit.</li>
+<li>Test whether feature discovery scoped to a <em>nameable</em> period beats whole-history
+discovery by more than it does on an unnameable one. That comparison is what would
+show segmentation paying for itself.</li>
+</ul>
+<p>Exit signal: an interpretation run scoped to a period produces better-evidenced
+candidates than the same run over the whole history, measurably rather than apparently.</p>
+<h2 id="milestone-4-generalization-decision">Milestone 4 — generalization decision</h2>
+<ul>
+<li>Run the pipeline on one structurally different repository.</li>
+<li>Measure extraction time, graph size, and manual correction cost.</li>
+<li>Decide whether to add incremental storage, language-aware analysis, a local
+service, or repository adapters.</li>
+<li>Reassess whether the project should remain a personal artifact or become a
+reusable tool.</li>
+</ul>
+<p>Exit signal: evidence from two repositories supports the next architecture
+choice—or supports stopping with a successful experiment.</p>
+<h2 id="measurement-debt">Measurement debt</h2>
+<p><a href="INTERPRETATION-FINDINGS.html">Interpretation findings</a> records what the interpretation
+stage actually produces. Three results change what the roadmap should prioritize:</p>
+<ul>
+<li><strong>Coverage is about 10-13%.</strong> Roughly nine in ten commits appear in no feature or
+episode, on both measured repositories. The model cites exemplars where the product
+promises a history.</li>
+<li><strong>Feature counts saturate the <code>--max-features</code> flag.</strong> zod returned 39 against a cap of
+40, so the number of capabilities in a published atlas was set by a constant.</li>
+<li><strong>Confidence is inert on one repository and informative on the other.</strong> zod produced
+three distinct values and never went below 0.7; the pilot produced twenty-two across
+the full range. Contamination of a well-known repository is one live explanation.</li>
+</ul>
+<h2 id="immediate-next-steps">Immediate next steps</h2>
+<p><strong>Current priority: consolidate, then deliver.</strong> The encouraging discovery results justify
+one reusable workflow now; more small semantic comparisons are not the main workstream.
+The repository-neutral entry point is <code>scripts/repository-engine.mjs</code>; its current contract
+and operating sequence are in <a href="ARCHITECTURE.html#consolidated-repository-workflow">the architecture</a>.</p>
+<ol>
+<li>Bound cumulative integration work before another coverage expansion. The completed second
+larger wave delivered 113 nodes / 97 relationships across excerpts from 118 files. Version 2
+removed duplicate packaging and earlier runs still replay exactly, but integration still
+reads accumulated evidence. Keep the complete candidate map available while designing
+decision-scoped evidence retrieval with explicit omissions and revisable claims. Preserve
+owner review as broad usefulness feedback, not discovery labels or a fixed taxonomy.</li>
+<li>Address failures that prevent reliable operation or materially reduce map usefulness.
+Keep claim-local review qualifications separate from candidate-map availability.</li>
+<li>Consolidate generic review continuity and the host execution adapter, retaining the now
+versioned runtime/replay contract; expose results in the app. Coordinate launch recording
+before broker use, and keep host status checks from exposing prior outputs to blind workers.
+Confirm whether historical evolution is part of the temporary engine milestone
+before treating snapshot delivery as full success.</li>
+</ol>
+<h3 id="earlier-research-backlog-not-the-current-execution-plan">Earlier research backlog — not the current execution plan</h3>
+<p>The <a href="CAPABILITY-GRAPH.html">iterative graph experiment</a> now tests growing and revising a graph
+without a semantic depth cap, including source inspection and an investigation agenda.
+Its next checks are relationship support/novelty and repeatability; the earlier static
+and staged conditions below remain separate controls.</p>
+<ol>
+<li>Add proposal-to-map novelty review and one bounded follow-up retrieval round. Citation
+validity and complete signal accounting are necessary but did not stop proposals whose
+scope overlaps existing node descriptions.</li>
+<li>Repeat the unchanged staged condition after that gate exists. Compare operation targets,
+cited evidence, retrieval selections, and unresolved signals; do not combine it with the
+differently scoped static-packet pilots.</li>
+<li>Repeat discovery and assignment on a structurally different repository before treating
+the present hierarchy behavior as general.</li>
+<li>Expose per-commit readings and candidate hierarchies in the viewer with direct links to
+the underlying Git evidence.</li>
+<li>Re-read a <code>partial</code> promotion at a larger byte budget instead of escalating it to a
+pricier model. The budgets are measured and <code>--max-bytes</code> exists; nothing yet acts on
+the promotion cause.</li>
+</ol>
+<p>The original induction condition is capped at two generated levels—umbrella plus
+children. The newer graph condition permits uneven arbitrary depth and separate dependency
+edges. Capability hierarchy describes what the system does; epoch hierarchy
+describes when its work changed character. Keep those axes separate until evidence shows a
+useful relationship between them.</p>
+<h3 id="closed-since">Closed since</h3>
+<ul>
+<li><p><strong>Hierarchy-critic pilot.</strong> Built a deterministic packet with the current 37-node map,
+74 label-independent boundary comparisons, seven unmatched alternative nodes, two
+recurring blind map gaps, and 178 bounded readings. One $0.1710 critic pass proposed a
+high-confidence dependency-automation child and a medium-confidence split of growth from
+analytics, with no invalid citations. The proposals remain unapplied; one run does not
+establish their stability, and the 55.8k-token static packet does not yet scale.</p>
+</li>
+<li><p><strong>Focused hierarchy-critic ablation and cheap-model repeat.</strong> A deterministic focus rule
+reduced the packet to 86 readings and 33 signals. One complete Grok run changed its
+secondary proposals when context selection changed. Three identical Gemini 2.5 Flash Lite
+runs cost $0.0097 but reached only 24.9% mean operation-target F1 and accounted for 2–3
+signals each, so the new completion gate rejects the condition for automatic revision.
+Dependency automation was the sole 3/3 proposal, with identical citations in every run.</p>
+</li>
+<li><p><strong>Staged hierarchy retrieval pilot.</strong> A catalog-only cheap planner covered all 33 signals
+but over-requested 69 of 86 readings. A deterministic broker capped the union at 32 while
+retaining evidence for every signal, and a low-reasoning Grok decision completed all node
+and signal coverage. Peak input fell 34.1% and cost fell 51.2%, but total input rose 25.4%.
+Dependency automation recurred; two of three other additions overlap scope stated by
+current nodes, establishing the need for a separate proposal-novelty gate.</p>
+</li>
+<li><p><strong>Repeated assignment-disagreement critic.</strong> Built a deterministic dataset for all 116 unstable
+commits and a replayable critic with explicit assign, unassigned, ambiguous, and
+map-insufficient outcomes. Across three runs per arm, candidate-visible critics agreed
+exactly within-arm on 85.9% of decisions, blind critics on 71.6%, and cross-arm pairs on
+only 54.5%. Candidate-edge retention averaged 85.0% when visible versus 70.3% when hidden.
+Both Dependabot commits produced <code>map_insufficient</code> in every blind run, providing a
+recurring hierarchy-critic input without making either arm a truth set.</p>
+</li>
+<li><p><strong>Fixed-map assignment repeatability.</strong> Three assignments of one unchanged 37-node map
+reached 98.8% mean assigned-commit F1, 89.9% umbrella co-membership, 84.7% child
+co-membership, and 82.9% overlap F1. The equivalent cross-map figures were 98.0%, 79.8%,
+58.3%, and 68.5%, isolating hierarchy formation as the larger source of instability while
+retaining assignment disagreements for evidence review.</p>
+</li>
+<li><p><strong>Discovery versus evidence assignment.</strong> Separated and measured across the three blind
+maps. The assignment pass materially improved multiply assigned commit agreement from
+53.7% to 68.5% mean F1, but child co-membership moved only from 55.6% to 58.3%; the
+result motivated the fixed-map test above rather than attributing that residual to either
+stage prematurely.</p>
+</li>
+<li><p><strong>Blind hierarchy repeatability.</strong> Measured over three fresh, request-fingerprinted runs.
+Assigned-versus-unassigned decisions recur at 98.6% mean F1 and umbrella co-membership at
+79.3%; child co-membership and overlap are materially less stable at 55.6% and 53.7%.
+Labels are excluded from every comparison metric.</p>
+</li>
+<li><p><strong>Grouping on evidence rather than names.</strong> Built. Three arms share one clustering
+routine and differ only in evidence; agreement with the baseline is 0.104 for the
+deterministic reading arm and 0.112 for the model arm, indistinguishable.</p>
+</li>
+<li><p><strong>Consolidation variance.</strong> Measured. Three runs agree at F1 0.717 to 0.773 over commit
+pairs, which <em>corrects</em> the earlier claim that the arm does not reproduce: the cluster
+count is unstable, the membership is not.</p>
+</li>
+<li><p><strong>Giving the judge the readings.</strong> Done, along with a paths view and a second pass that
+measures the judge&#39;s own noise at up to 7 points.</p>
+</li>
+<li><p><strong>Commit bodies.</strong> Captured. 72.4% of the pilot&#39;s first-parent chain carries one. Mixed
+result — see <a href="CAPABILITIES.html">Capabilities</a>.</p>
+</li>
+<li><p><strong>Whitespace-only detection.</strong> Dropped on measurement: 2 of the pilot&#39;s 728 first-parent
+commits with a text diff, and 0 of this repository&#39;s 31.</p>
+</li>
+</ul>
+<p>Superseded: scoping interpretation to a single period. Per-commit reading covers 100% of
+substantive commits for roughly what one segmentation pass cost at 12%, and a hard period
+boundary makes a capability built across it unfindable.</p>
+</main></html>

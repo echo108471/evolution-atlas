@@ -1,0 +1,33 @@
+{
+  "purpose": "Broader coverage through the existing discovery-and-expansion workflow, not a comparison of semantic methods",
+  "repository": "/Users/echo/Projects/evolution-atlas/.gallery-cache/vscode-snapshot-1.git",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "baseline": "/Users/echo/Projects/evolution-atlas/public/graph-reviews/consolidated-engine/expansion/output.json",
+  "waveCount": 2,
+  "discoveryWorkersPerWave": 3,
+  "integrationsPerWave": 1,
+  "maxSourceWindows": 152,
+  "maxSearchReceipts": 56,
+  "maxNewSerializedReceiptBytes": 560000,
+  "budgetDerivation": "Six discovery jobs at 20 windows/8 searches/72000 bytes each plus two integration jobs at 16 windows/4 searches/64000 bytes each. Byte and count ceilings apply independently. No model API calls or reset credits.",
+  "routing": "Metadata-only directory regions selected before worker dispatch, with inspected/unread accounting and deterministic breadth preference. Each worker starts in two assigned regions; regions are navigation hints, not capability labels or containment boundaries. Cross-region dependency following remains allowed within the existing source budget.",
+  "integration": "Use the existing engine's frozen candidate baseline and global integration after each wave. Preserve all first raw outputs and original lineage requirements. No manual semantic rewriting or expected node count.",
+  "capacityGate": "Before each integration dispatch, measure the serialized frozen packet. If it exceeds 1500000 bytes, stop and report the capacity limitation instead of silently truncating evidence, dropping baseline nodes or adding a new inference method.",
+  "stoppingRule": "At most two waves. Stop earlier on saved-invalid output, failed evidence validation, integration capacity limit or unavailable host execution. Preserve partial evidence and first outputs; do not repurchase or restart completed jobs automatically.",
+  "reviewPolicy": "No prior owner verdicts or review notes in discovery or integration. Historical review notes may be attached only after inference with explicit provenance; changed wording does not imply resolved findings.",
+  "deliverable": "Complete first and second wave maps, explicit changes, cumulative and newly inspected coverage, omissions, retrieval failures and a summary of operating limits. Broader groupings remain model-authored. Do not claim exhaustive VS Code understanding from file counts.",
+  "coveragePlanner": {
+    "entryPoint": "scripts/plan-repository-coverage.mjs",
+    "maxRegionFiles": 200,
+    "maxDepth": 6,
+    "regionsPerAssignment": 2,
+    "provenance": "Each wave freezes coverage-routing.json with engine run plan, baseline projection, helper and wrapper SHA-256 values. Per-worker supplements expose only their selected unread paths and metadata, not prior candidate definitions.",
+    "limits": "Region depth is not graph depth. Top-level diversity may select developer tooling or tests. Oversized direct-file and depth-limited groups are explicit; merely selecting a region does not inspect it. Routing instructions are host supplements, not new broker access restrictions."
+  },
+  "validation": { "focusedTests": 12, "fullTests": 493, "build": "passed", "whitespace": "passed", "routingReplay": "passed" },
+  "wave1HostHandles": { "A": "/root/larger_wave1_a", "B": "/root/larger_wave1_b", "C": "/root/larger_wave1_c" },
+  "completedWaves": 1,
+  "actualUsage": { "newSourceWindows": 45, "newSearchReceipts": 9, "newSerializedReceiptBytes": 233616, "newFiles": 30 },
+  "wave2Capacity": { "minimumPacketBytes": 1641089, "ceilingBytes": 1500000, "jobsLaunched": 0 },
+  "status": "Finished at the predeclared capacity stop: wave 1 published at 92 nodes and 73 edges; wave 2 baseline alone exceeds the packet ceiling. No second-wave inference, evidence truncation, budget increase or engine change. Original accepted map unchanged."
+}

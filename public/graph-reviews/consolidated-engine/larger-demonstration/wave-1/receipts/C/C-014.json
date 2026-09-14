@@ -1,0 +1,14 @@
+{
+  "id": "C-014",
+  "kind": "source",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "blobSha": "14ed9e4f58646e74f7c450e55fa9b3e081edacd5",
+  "path": "src/vs/workbench/api/node/extHostCLIServer.ts",
+  "startLine": 161,
+  "endLine": 201,
+  "totalLines": 201,
+  "partition": "A",
+  "crossPartition": true,
+  "text": "\t\t\t\t// skip file:// uris, they refer to the file system of the remote that have no meaning on the local machine\n\t\t\t\tcontinue;\n\t\t\t}\n\t\t\tawait this._commands.executeCommand('_remoteCLI.openExternal', uriString); // always send the string, workaround for #112577\n\t\t}\n\t}\n\n\tprivate async manageExtensions(data: ExtensionManagementPipeArgs): Promise<string | undefined> {\n\t\tconst toExtOrVSIX = (inputs: string[] | undefined) => inputs?.map(input => /\\.vsix$/i.test(input) ? URI.parse(input) : input);\n\t\tconst commandArgs = {\n\t\t\tlist: data.list,\n\t\t\tinstall: toExtOrVSIX(data.install),\n\t\t\tuninstall: toExtOrVSIX(data.uninstall),\n\t\t\tforce: data.force\n\t\t};\n\t\treturn await this._commands.executeCommand<string | undefined>('_remoteCLI.manageExtensions', commandArgs);\n\t}\n\n\tprivate async getStatus(data: StatusPipeArgs): Promise<string | undefined> {\n\t\treturn await this._commands.executeCommand<string | undefined>('_remoteCLI.getSystemStatus');\n\t}\n\n\tdispose(): void {\n\t\tthis._disposed = true;\n\t\tthis._server?.close();\n\n\t\tif (this._ipcHandlePath && process.platform !== 'win32' && fs.existsSync(this._ipcHandlePath)) {\n\t\t\tfs.unlinkSync(this._ipcHandlePath);\n\t\t}\n\t}\n}\n\nexport class CLIServer extends CLIServerBase {\n\tconstructor(\n\t\t@IExtHostCommands commands: IExtHostCommands,\n\t\t@ILogService logService: ILogService\n\t) {\n\t\tsuper(commands, logService, createRandomIPCHandle());\n\t}\n}\n",
+  "truncated": true
+}

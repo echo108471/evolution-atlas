@@ -1,0 +1,20 @@
+{
+  "agent": "C",
+  "stage": "blind-discovery",
+  "runDirectory": "/Users/echo/Projects/evolution-atlas/public/graph-reviews/consolidated-engine/larger-demonstration/wave-2-v2",
+  "output": "/Users/echo/Projects/evolution-atlas/public/graph-reviews/consolidated-engine/larger-demonstration/wave-2-v2/proposals/C.json",
+  "permittedInputs": [
+    "protocol.md",
+    "manifest.json",
+    "inventory.json",
+    "receipts/C/"
+  ],
+  "withheld": [
+    "baseline-input.json",
+    "history/",
+    "snapshot/",
+    "other proposals",
+    "prior maps and owner labels"
+  ],
+  "instruction": "Fresh context. Follow the frozen protocol and only this task. Use node scripts/repository-engine.mjs broker /Users/echo/Projects/evolution-atlas/public/graph-reviews/consolidated-engine/larger-demonstration/wave-2-v2 C list|read|search ... sequentially. Save first complete JSON once; saved output is not acceptance."
+}

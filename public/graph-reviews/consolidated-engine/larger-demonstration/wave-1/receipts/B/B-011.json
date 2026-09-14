@@ -1,0 +1,29 @@
+{
+  "id": "B-011",
+  "kind": "search",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "prefix": "src/vs/platform/agentHost/node/protocolServerHandler.ts",
+  "literal": "createSession",
+  "searchedFiles": 1,
+  "totalMatches": 4,
+  "matches": [
+    {
+      "path": "src/vs/platform/agentHost/node/protocolServerHandler.ts",
+      "line": 1527
+    },
+    {
+      "path": "src/vs/platform/agentHost/node/protocolServerHandler.ts",
+      "line": 1532
+    },
+    {
+      "path": "src/vs/platform/agentHost/node/protocolServerHandler.ts",
+      "line": 1535
+    },
+    {
+      "path": "src/vs/platform/agentHost/node/protocolServerHandler.ts",
+      "line": 1552
+    }
+  ],
+  "omittedMatches": 0,
+  "note": "locations only; not support until source window inspected"
+}

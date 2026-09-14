@@ -1,0 +1,25 @@
+{
+  "id": "A-008",
+  "kind": "search",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "prefix": "src/vs/workbench/contrib/chat/browser/widget/chatFind/chatFindModel.ts",
+  "literal": "recompute",
+  "searchedFiles": 1,
+  "totalMatches": 3,
+  "matches": [
+    {
+      "path": "src/vs/workbench/contrib/chat/browser/widget/chatFind/chatFindModel.ts",
+      "line": 53
+    },
+    {
+      "path": "src/vs/workbench/contrib/chat/browser/widget/chatFind/chatFindModel.ts",
+      "line": 214
+    },
+    {
+      "path": "src/vs/workbench/contrib/chat/browser/widget/chatFind/chatFindModel.ts",
+      "line": 218
+    }
+  ],
+  "omittedMatches": 0,
+  "note": "locations only; not support until source window inspected"
+}

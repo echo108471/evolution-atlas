@@ -1,0 +1,53 @@
+{
+  "stage": "candidate-map-published",
+  "firstIntegrationSha256": "87a115516e0361c0c5dff8f4ca54ff275b5629c60ec0420152efd4c1f5fe7638",
+  "outputSha256": "de6863a4a4c82bf1372f4ada3035d5fd0789e9e9787c5e128e9e6dc82bb2aeb6",
+  "graphSha256": "5a770a44e019d70ca50d05bd21b8402688d189223e5e1d2f73ff02556ee2772b",
+  "result": { "nodes": 113, "edges": 97, "nodeLineageRecords": 113, "edgeLineageRecords": 87, "comparisons": 21, "retainedInputNodes": 107, "revisedInputNodes": 4, "mergedInputNodes": 2, "newGroupingNodes": 1, "retainedInputEdges": 86, "revisedInputEdges": 1 },
+  "finalCoverage": { "newFiles": 28, "cumulativeFiles": 118, "cumulativeUniqueLines": 19871, "eligibleFiles": 13325, "unreadFiles": 13207, "regionsWithSomeInspectedFiles": 41, "untouchedRegions": 690, "totalRegions": 731 },
+  "waveUsage": { "sourceWindows": 45, "searches": 9, "serializedReceiptBytes": 222413, "integrationSourceWindows": 2, "integrationSearches": 1, "integrationReceiptBytes": 12729 },
+  "twoWaveTotal": { "sourceWindows": 90, "searches": 18, "serializedReceiptBytes": 456029, "newFiles": 58 },
+  "preservation": "All four first outputs passed checkpoints without post-save repair. Earlier runs, source evidence and stopped v1 preparation remain unchanged. No third wave dispatched.",
+  "reviewContinuity": "Historical web-serving note manually attached after exact condition text and retain-lineage check; still unresolved, not a fresh audit or automatic approval transfer",
+  "validation": { "tests": 497, "build": "passed", "whitespace": "passed", "firstOutputCheckpoints": "all four passed without repair", "publicationReplay": "exact", "reviewCompanionReplay": "exact", "coverageRoutingReplay": "exact", "renderedQA": "Map organization, new CLI-operation definition, historical review qualification, result summary, architecture and roadmap visually checked" },
+  "integrationHostHandle": "/root/larger_wave2_integrate",
+  "integrationLaunchCoordination": "R read frozen inputs while root recorded launch, then received explicit confirmation that launch completed and lock was absent before any broker use",
+  "legacyReplay": "All three earlier consolidated maps (37, 70 and 92 nodes) reproduced exact output/report bytes through the stable dispatcher and archived v1 runtime; the 92-node review companion and original routing companions also replayed exactly",
+  "firstProposalSha256": { "A": "cd4421e70c81714de10e9510b3971f6963c77606f664eb09a29f9dd026633619", "B": "f3847ae5c8e07dde9bb9032b7a5c4c1b521e549e11cf98dbeb2b7ebea2cafee4", "C": "5cfa5c67dcd6faac8c6640ea9d4285ec88f742c3541918694f5372ce907d92f3" },
+  "firstOutputPolicy": "All three first complete discovery outputs checkpointed without repair or overwrite",
+  "integrationPacketSha256": "e6d4303c21353f807606b229e94dad33fab2f78139fce3a125013162db60d820",
+  "integrationPacketBytes": 1265004,
+  "equivalentDuplicatedPacketBytes": 1939284,
+  "ceilingBytes": 1500000,
+  "capacityGate": "passed on the exact frozen packet before R dispatch",
+  "packetAccounting": { "baselineNodes": 92, "newNodes": 21, "inputNodes": 113, "inputEdges": 87, "uniqueReceiptRecords": 197 },
+  "discoveryCoverage": { "newSourceWindows": 43, "newSearches": 8, "newSerializedReceiptBytes": 209684, "newFiles": 27, "cumulativeFiles": 117, "cumulativeUniqueLines": 19638 },
+  "events": [
+    {
+      "agent": "A and B",
+      "event": "A implementation path was ineligible; B broad search rejected customEndpointProvider.spec.ts",
+      "result": "No rejected blob bypassed or retried through another access path. A retained test-only boundaries; B retained the rejected search in coverage omissions. Generic blob rejection does not establish a specific cause such as an actual exposed secret."
+    },
+    {
+      "agent": "R",
+      "event": "Reported output-size truncation while reading/transferring packet and unavailable structuredClone helper",
+      "result": "Required packet records subsequently read completely in bounded chunks. In-memory construction used an available clone approach before first complete save. No output overwritten or target executed; technical setup corrections are not semantic retries of saved output."
+    },
+    {
+      "agent": "R",
+      "event": "After reading the complete packet, requested exact broker invocation syntax",
+      "result": "Root repeated the canonical entry point, run directory, agent R, read PATH START_LINE LINE_COUNT and navigation signatures. No target path, source range or semantic suggestion supplied."
+    },
+    {
+      "agent": "C",
+      "event": "Broker read collided with root's recordEngineLaunch operation on locks/C.lock",
+      "result": "EEXIST before retrieval; root command then completed, confirmed C.lock absent and the single C host handle. No lock deleted or receipt changed. Same worker explicitly authorized to resume the pending read within remaining budget."
+    },
+    {
+      "agent": "C",
+      "event": "While diagnosing the lock, a list_agents result exposed completed older task summaries",
+      "result": "Incidental prior semantic context exposure. No prior artifacts opened; worker instructed to use only this run's source evidence for decisions and disclose exposure in limitations. This assignment cannot be described as fully blind. No restart or replacement attempt used to erase the exposure."
+    }
+  ],
+  "scope": "Useful candidate discovery is separate from independent/blind evaluation; no semantic accuracy or fully isolated discovery claim follows from this run"
+}

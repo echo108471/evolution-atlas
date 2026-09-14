@@ -1,0 +1,14 @@
+{
+  "id": "C-019",
+  "kind": "source",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "blobSha": "da13465a3fe5a47a039ccc2f6f8971304a4a4464",
+  "path": "cli/src/commands/agent.rs",
+  "startLine": 368,
+  "endLine": 388,
+  "totalLines": 456,
+  "partition": "C",
+  "crossPartition": false,
+  "text": "\t\t\t\t\tscopes: None,\n\t\t\t\t\tmeta: None,\n\t\t\t\t},\n\t\t\t)\n\t\t\t.await\n\t\t\t.map_err(|e| {\n\t\t\t\twrap(\n\t\t\t\t\te,\n\t\t\t\t\tformat!(\"AHP authenticate failed for {}\", resource.resource),\n\t\t\t\t)\n\t\t\t})?;\n\t}\n\n\tOk(())\n}\n\n#[cfg(test)]\nmod tests {\n\tuse super::*;\n\tuse crate::async_pipe::{get_socket_name, listen_socket_rw_stream};\n",
+  "truncated": true
+}

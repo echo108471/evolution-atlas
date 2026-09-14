@@ -1,0 +1,25 @@
+{
+  "outputSha256": "c1765bf0cd2daf6d6c90765fcc61de664ee8cf748dc3bee8931fbc128816050a",
+  "receipts": {
+    "receipts/C/C-001.json": "13fa7f4d09ffd9c5d5ac95943ce1d6ecb9e58cb91a9a02ff655437957364e88f",
+    "receipts/C/C-002.json": "f87164aa7f007b25b4a037d5326cb0ae61d3b942f6a0daabb19c823a8e0d0392",
+    "receipts/C/C-003.json": "56afac3169ba9619767d1faae6b9f5886314e14327934ed828df3b88c94af7d5",
+    "receipts/C/C-004.json": "4a7c961f2cee6e9b96fc3bce286dca9ff79f21ee33d69ce5c1b12f8051644c74",
+    "receipts/C/C-005.json": "f0a1162889865b92cc10428a293960032b9945a05d67bb956a2095666184aee9",
+    "receipts/C/C-006.json": "1da74be761eb5579c09489288f97e88841b866abb810d05297493e77f425aef5",
+    "receipts/C/C-007.json": "ee2de06b81ebb79494d42bc1b4eaf3e773fae6b83f6bf8bed4a193c4af3a4fb2",
+    "receipts/C/C-008.json": "fbad4933c8cdb84680ef5025746d0d88c23c1b05154e4a844d38756b67177f36",
+    "receipts/C/C-009.json": "aecbf1c2c3952a51ac00f0a06f97c9c253b62fcd31fb805cd8e9508cbe50aede",
+    "receipts/C/C-010.json": "4717a7831002de50a872bdebad2e2fc9afbb585d5f554d25a5a0b99e9384b78e",
+    "receipts/C/C-011.json": "b6b1d9585f2bce0166871d9880425865aaff85f8b4422d990741eb6d95e722fd",
+    "receipts/C/C-012.json": "44bf29225802ec59afd21ed325db8d9b19ccd39d8ae7d243c1a729190cff68a8",
+    "receipts/C/C-013.json": "e2bb20407d8d430d496df085d45338a146558653d9026fb0042000bda0d70ad5",
+    "receipts/C/C-014.json": "f65fc37b29d774bf467c3f9400bf280c25d13217f140a485ad73ec2e5c43f4e3",
+    "receipts/C/C-015.json": "2f3598bf88559e5ce6901566cfb67ba5ec0d4d600bc6280bd458a29ddba88af1",
+    "receipts/C/C-016.json": "4e529196fdda783441f9e4ea49302997087e1a9a65cbd75489745abd3f8666fa",
+    "receipts/C/C-017.json": "9c8b06d801a0247d57db1bd4dd20eae2935fb211447f9043e30e047f4ce3fb08",
+    "receipts/C/C-018.json": "4cc38183369590395bdba5720c675cfacbe33b029fd5c995ecbb6878d2006798",
+    "receipts/C/C-019.json": "0b3ac9e12ee1caf078b94b3e57f7c595efba0be56f45fed1d2bcb87b260f44a9",
+    "receipts/C/C-020.json": "99eb0ce83b00fefefd22c03e0c0e0832a44125a8ca675d54e28dec516e89992f"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "C-003",
+  "kind": "source",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "blobSha": "5a4e90d70614634b38842d1cb62f91ee0cc54a59",
+  "path": "cli/src/commands.rs",
+  "startLine": 1,
+  "endLine": 24,
+  "totalLines": 24,
+  "partition": "C",
+  "crossPartition": false,
+  "text": "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/\n\nmod context;\n\npub mod agent;\npub mod agent_discovery;\npub mod agent_endpoints;\npub mod agent_host;\npub mod agent_kill;\npub mod agent_logs;\npub mod agent_ps;\npub mod agent_relay;\npub mod agent_stop;\npub mod args;\npub mod output;\npub mod serve_web;\npub mod tunnels;\npub mod update;\npub mod version;\npub use context::CommandContext;\n",
+  "truncated": false
+}

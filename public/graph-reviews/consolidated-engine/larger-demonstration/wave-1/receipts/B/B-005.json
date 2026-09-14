@@ -1,0 +1,14 @@
+{
+  "id": "B-005",
+  "kind": "source",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "blobSha": "435f61b339186fa07ea9aae79e1240bf69775c06",
+  "path": "extensions/copilot/src/extension/completions-core/vscode-node/extension/src/copilotPanel/copilotSuggestionsPanelManager.ts",
+  "startLine": 1,
+  "endLine": 41,
+  "totalLines": 41,
+  "partition": "B",
+  "crossPartition": false,
+  "text": "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/\n\nimport { TextDocument, WebviewPanel } from 'vscode';\nimport { IVSCodeExtensionContext } from '../../../../../../platform/extContext/common/extensionContext';\nimport { IInstantiationService } from '../../../../../../util/vs/platform/instantiation/common/instantiation';\nimport { IPosition, ITextDocument } from '../../../lib/src/textDocument';\nimport { solutionCountTarget } from '../lib/copilotPanel/common';\nimport { BaseSuggestionsPanelManager, ListDocumentInterface } from '../panelShared/baseSuggestionsPanelManager';\nimport { PanelCompletion } from './common';\nimport { CopilotListDocument } from './copilotListDocument';\nimport { CopilotSuggestionsPanel } from './copilotSuggestionsPanel';\nimport { copilotPanelConfig } from './panelConfig';\n\nexport class CopilotSuggestionsPanelManager extends BaseSuggestionsPanelManager<PanelCompletion> {\n\tconstructor(\n\t\t@IInstantiationService instantiationService: IInstantiationService,\n\t\t@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext,\n\t) {\n\t\tsuper(copilotPanelConfig, instantiationService, extensionContext);\n\t}\n\n\tprotected createListDocument(\n\t\twrapped: ITextDocument,\n\t\tposition: IPosition,\n\t\tpanel: CopilotSuggestionsPanel\n\t): ListDocumentInterface {\n\t\treturn this._instantiationService.createInstance(CopilotListDocument, wrapped, position, panel, solutionCountTarget);\n\t}\n\n\tprotected createSuggestionsPanel(\n\t\tpanel: WebviewPanel,\n\t\tdocument: TextDocument,\n\t\tmanager: this\n\t): CopilotSuggestionsPanel {\n\t\treturn this._instantiationService.createInstance(CopilotSuggestionsPanel, panel, document, manager);\n\t}\n}\n",
+  "truncated": false
+}

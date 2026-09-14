@@ -1,0 +1,145 @@
+{
+  "agent": "A",
+  "scopeSummary": "Blind source discovery from the two supplementary start regions at commit 33341eb227ab213b011868c9bc5c5f735aaaf875: desktop extension test configuration and selected chat tests, followed to eligible accessibility, transcript search, and automatic instruction implementations. All interpretations remain candidates.",
+  "coverage": {
+    "inspected": [
+      ".vscode-test.js",
+      "src/vs/workbench/contrib/chat/test/browser/actions/chatQueueActions.test.ts",
+      "src/vs/workbench/contrib/chat/test/browser/accessibility/chatResponseAccessibleView.test.ts",
+      "src/vs/workbench/contrib/chat/browser/accessibility/chatResponseAccessibleView.ts",
+      "src/vs/workbench/contrib/chat/test/browser/widget/chatFindModel.test.ts",
+      "src/vs/workbench/contrib/chat/browser/widget/chatFind/chatFindModel.ts",
+      "src/vs/workbench/contrib/chat/test/common/promptSyntax/computeAutomaticInstructions.test.ts",
+      "src/vs/workbench/contrib/chat/common/promptSyntax/computeAutomaticInstructions.ts"
+    ],
+    "omissions": [
+      "Both assigned start regions were inspected; the chat test directory was sampled rather than exhaustively covered.",
+      "The broker rejected src/vs/workbench/contrib/chat/browser/actions/chatQueueActions.ts as ineligible. It was not retried through another path; queue and steering claims remain limited to inspected test assertions.",
+      "No extension test runner implementation, launched installation, generated reports, or extension test outcomes were inspected.",
+      "Accessibility action registration, full response navigation, and screen-reader interaction were not inspected.",
+      "Transcript Find UI highlighting and getChatFindTextParts implementation were not inspected.",
+      "Prompt file enumeration, customizations index construction, and the complete referenced-file traversal were not inspected because the serialized receipt budget was nearly exhausted."
+    ]
+  },
+  "crossPartitionLeads": [
+    "The inspected .vscode-test.js is in partition C and configures desktop test launches through scripts/code.sh or scripts/code.bat or an installation override; those launcher implementations remain uninspected.",
+    "Automatic instruction attachment consumes results from the prompts service and mutates chat request variables; broader enumeration and request delivery responsibilities require separate evidence.",
+    "Accessible response text and transcript Find both consume chat response models but use different content-selection paths; avoid equating their treatment of thinking and tool content."
+  ],
+  "nodes": [
+    {
+      "id": "A_ExtensionTestConfiguration",
+      "name": "Configure desktop extension integration test runs",
+      "summary": "Build per-extension test configurations with workspace selection, test files, launch settings, and conditional CI reports.",
+      "actor": "Repository developer or CI test invoker",
+      "inputs": ["Opted-in extension configuration entries", "Environment overrides for launch arguments and installation path", "CI workspace or artifact staging environment"],
+      "outcomes": ["Exported test configurations for desktop extension suites", "Default test-file and development-path selection with per-suite overrides", "Conditional specification and JUnit report configuration"],
+      "conditions": ["The listed extension must have a configuration entry", "Desktop configurations receive launch arguments and an installation path", "CI reporting is configured when BUILD_ARTIFACTSTAGINGDIRECTORY or GITHUB_WORKSPACE is present"],
+      "exclusions": ["Web configurations are not implemented in the inspected branch", "Configuration does not establish that any suite executed or passed"],
+      "implementations": [".vscode-test.js: extensions.map passed to defineConfig"],
+      "uncertainty": ["Runner interpretation and actual launches were not observed"],
+      "evidenceIds": ["A-001"],
+      "assessment": "supported",
+      "claims": [
+        {"text": "The configuration derives desktop test file globs and extension development paths, while allowing suite entries to override them and supply workspaces and Mocha options.", "evidenceIds": ["A-001"], "assessment": "supported"},
+        {"text": "Desktop launches receive configured arguments, an environment-selectable installation path, and VSCODE_SKIP_PRELAUNCH; CI environments additionally configure spec and JUnit reporters with platform-specific report paths.", "evidenceIds": ["A-001"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "A_FollowUpSubmission",
+      "name": "Choose queued or steering chat follow-ups",
+      "summary": "Candidate input responsibility for sending follow-up text during an active chat request, with configurable keyboard choice and a hidden-request exception evidenced by test assertions.",
+      "actor": "Chat user entering a follow-up during an active request",
+      "inputs": ["Chat input text", "Request-in-progress and chat-input context", "Default action setting of steer or queue", "Whether the active request is hidden from the transcript"],
+      "outcomes": ["Expected Enter and Alt+Enter bindings select queue or steer according to the default", "Expected steering action submits queued mode behind a hidden active request"],
+      "conditions": ["Inspected keybinding tests enable input text, chat input focus, and request-in-progress context", "Inspected action tests use a stubbed widget and chat model"],
+      "exclusions": ["Queue ordering, processing, cancellation, and provider steering behavior are not established", "Side-chat action behavior was not inspected beyond its suite declaration"],
+      "implementations": ["src/vs/workbench/contrib/chat/test/browser/actions/chatQueueActions.test.ts: keybinding resolver and ChatSteerWithMessageAction assertions"],
+      "uncertainty": ["The imported action implementation was rejected by the broker", "Tests were read but not executed; assertions express expected behavior"],
+      "evidenceIds": ["A-002"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "The inspected tests assert that default=steer maps Enter to steering and Alt+Enter to queueing, and default=queue reverses those bindings.", "evidenceIds": ["A-002"], "assessment": "supported"},
+        {"text": "The inspected stubbed action test expects hidden active requests to receive Queued follow-ups and visible active requests to receive Steering follow-ups.", "evidenceIds": ["A-002"], "assessment": "supported"},
+        {"text": "These assertions suggest a user-facing follow-up mode choice with hidden-request protection, but implementation behavior remains unconfirmed.", "evidenceIds": ["A-002"], "assessment": "partial"}
+      ]
+    },
+    {
+      "id": "A_AccessibleChatResponse",
+      "name": "Read chat responses as accessible text",
+      "summary": "Provide ordered plaintext descriptions of response content and tool states to the accessible chat view, refreshing when response data or thinking inclusion settings change.",
+      "actor": "Chat user consuming the accessible response view",
+      "inputs": ["Focused chat response view model", "Response content parts and tool invocation states", "Stored thinking-content inclusion preference"],
+      "outcomes": ["Plaintext response content with blank lines removed", "Text descriptions of confirmations, authentication requests, post-approval results, references, and completed or active tools", "Content-change notifications and restoration of input or item focus on close"],
+      "conditions": ["The accessible provider returns empty content for non-response items", "Thinking text is included only when requested by the inclusion preference", "Some output branches depend on tool state and response completion"],
+      "exclusions": ["No proof of screen-reader announcements or rendered accessibility interaction", "No assertion that every response-part kind produces text"],
+      "implementations": ["src/vs/workbench/contrib/chat/browser/accessibility/chatResponseAccessibleView.ts: ChatResponseAccessibleProvider", "src/vs/workbench/contrib/chat/browser/accessibility/chatResponseAccessibleView.ts: getChatResponsePlaintextParts and getToolInvocationA11yDescription"],
+      "uncertainty": ["Accessible view registration and full previous/next navigation were outside inspected windows", "Underlying formatting helpers were not inspected"],
+      "evidenceIds": ["A-003", "A-005", "A-006"],
+      "assessment": "supported",
+      "claims": [
+        {"text": "The provider subscribes to response-model and thinking-preference changes, derives text from response parts, removes blank lines, and restores input or item focus on close.", "evidenceIds": ["A-005"], "assessment": "supported"},
+        {"text": "The plaintext extractor handles Markdown, optional thinking, notification accessibility labels, references, elicitation prompts, and tool confirmation, authentication, post-approval, and completion states.", "evidenceIds": ["A-006"], "assessment": "supported"},
+        {"text": "Tests assert precedence of user-edited over tool-edited over original terminal commands in descriptive text; the inspected extraction implementation delegates tool-specific descriptions to a helper.", "evidenceIds": ["A-003", "A-005"], "assessment": "partial"}
+      ]
+    },
+    {
+      "id": "A_TranscriptFind",
+      "name": "Find and navigate text in a chat transcript",
+      "summary": "Build query matches over logical request and response segments, order matches newest first, and preserve or choose an active location for navigation.",
+      "actor": "Chat user searching a transcript",
+      "inputs": ["Chat request and response items", "Query text and regex, case, and whole-word options", "Optional viewport anchor item", "Previous active match anchor"],
+      "outcomes": ["Ordered matches with item, part, occurrence, and text offsets", "Next and previous match navigation with wraparound", "Invalid-regex state or cleared matches for empty queries", "Preserved active match when its anchor survives recomputation"],
+      "conditions": ["Response segments are mapped to rendered content parts", "Match collection is capped and individual segment scans are bounded", "Viewport-relative initial selection is used when no surviving active match exists"],
+      "exclusions": ["Inspected tests exclude reasoning and tool invocations from searchable matches", "Actual DOM highlighting and scrolling were not inspected", "This is not evidence of repository-wide file search"],
+      "implementations": ["src/vs/workbench/contrib/chat/browser/widget/chatFind/chatFindModel.ts: buildSegments, findMatchesInSegment, ChatFindModel", "src/vs/workbench/contrib/chat/test/browser/widget/chatFindModel.test.ts"],
+      "uncertainty": ["getChatFindTextParts was called in inspected code but its own implementation was not read", "UI wiring and execution were not verified"],
+      "evidenceIds": ["A-007", "A-009", "A-010"],
+      "assessment": "supported",
+      "claims": [
+        {"text": "The inspected implementation creates bounded matches from logical transcript segments, records item and rendered-part coordinates, and gathers occurrences newest first.", "evidenceIds": ["A-009", "A-010"], "assessment": "supported"},
+        {"text": "Query compilation honors regex, case, and whole-word options; invalid expressions clear matches and set invalid-regex state. Next and previous navigation wrap, and recomputation can preserve an existing match anchor or seed from the viewport.", "evidenceIds": ["A-010"], "assessment": "supported"},
+        {"text": "Tests assert matches across request and response Markdown while excluding thinking and tool invocations; this narrows transcript Find relative to the accessible response text extractor.", "evidenceIds": ["A-007", "A-006"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "A_AutomaticInstructionAttachment",
+      "name": "Attach applicable instruction files to chat requests",
+      "summary": "Enrich chat request variables with applicable instruction-file references and agent instructions, using attached-file patterns, session type, and configuration gates.",
+      "actor": "Chat request preparation subsystem acting on user and workspace customizations",
+      "inputs": ["Existing chat request variables and attached file URIs", "Instruction candidates from the prompts service", "Instruction applyTo or paths patterns and session-type restrictions", "Configuration, chat mode, and cancellation token"],
+      "outcomes": ["Added instruction-file variables with reasons for automatic attachment", "Agent instruction variables included from prompts-service candidates", "Collection counts and diagnostic reasons for attached or skipped candidates"],
+      "conditions": ["Applying instructions are gated by configuration except in Edit mode", "Instructions without patterns, with incompatible session types, or already present in the input context are skipped", "Special wildcard patterns can attach instructions without attached files", "Matching is case-insensitive and supports comma-separated glob patterns"],
+      "exclusions": ["Attachment does not establish model compliance with instructions", "Instruction-file enumeration and trusted-source filtering were not inspected", "Complete recursive reference behavior and customization index content are not established"],
+      "implementations": ["src/vs/workbench/contrib/chat/common/promptSyntax/computeAutomaticInstructions.ts: collect, addApplyingInstructions, _getContext, _addAgentInstructions, _matches, beginning of _addReferencedInstructions"],
+      "uncertainty": ["The inspected test window primarily establishes setup and imports rather than successful behavioral assertions", "Reference traversal was inspected only through initialization and the beginning of reference parsing", "Downstream request dispatch was not inspected"],
+      "evidenceIds": ["A-011", "A-013", "A-014", "A-015"],
+      "assessment": "supported",
+      "claims": [
+        {"text": "Collection invokes applying-instruction selection, referenced-instruction processing, agent-instruction addition, and optional customization-index addition before recording collection diagnostics.", "evidenceIds": ["A-013"], "assessment": "supported"},
+        {"text": "Applying selection checks configuration and Edit mode, session type, pattern presence, and existing context, then adds instruction variables with match reasons. The matcher supports universal wildcards, relative patterns, comma-separated patterns, and case-insensitive attached-file matching.", "evidenceIds": ["A-013", "A-014"], "assessment": "supported"},
+        {"text": "Agent-instruction candidates returned by the prompts service are added as instruction variables; copilot instruction entries also pass through referenced-instruction processing.", "evidenceIds": ["A-014"], "assessment": "supported"},
+        {"text": "Referenced-instruction processing is configuration-gated except in Edit mode and initializes a deduplicated worklist from attached prompt-file variables; its complete traversal and attachment behavior remain outside the read window.", "evidenceIds": ["A-015"], "assessment": "partial"}
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "A_AccessibleChatResponse",
+      "to": "A_TranscriptFind",
+      "type": "overlaps",
+      "reason": "Both derive readable content from chat responses, but the accessible extractor includes optional thinking and detailed tool states while the inspected Find assertions exclude thinking and tool invocations. Shared response subject matter does not make the experiences identical or establish a direct implementation dependency.",
+      "evidenceIds": ["A-006", "A-007", "A-009"],
+      "assessment": "supported"
+    }
+  ],
+  "limitations": [
+    "Source inspection supports candidate implementation responsibilities, not independent verification or runtime guarantees.",
+    "No target code was executed, no network or paid APIs were used, and no workers were spawned.",
+    "Used 12 successful source windows and 3 searches. Retrieval stopped near the 72000-byte serialized receipt cap, before exhausting the window count.",
+    "One implementation read was rejected as ineligible and was not retried. Test assertions on that branch are explicitly distinguished from inspected implementation.",
+    "Search receipts were used only for navigation; all claims and relationships cite inspected source receipts.",
+    "The chat test directory has hundreds of files; inspected branches do not establish full regional coverage or the absence of other responsibilities.",
+    "No baseline, prior proposals, historical maps, owner feedback, or review labels were consulted. No fixed hierarchy or target capability count was imposed."
+  ]
+}

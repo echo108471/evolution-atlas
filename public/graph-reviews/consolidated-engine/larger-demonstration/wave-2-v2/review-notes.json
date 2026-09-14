@@ -1,0 +1,15 @@
+{
+  "graphSha256": "5a770a44e019d70ca50d05bd21b8402688d189223e5e1d2f73ff02556ee2772b",
+  "notes": [
+    {
+      "nodeId": "old:old:old:CWebServing",
+      "field": "conditions",
+      "index": 2,
+      "expectedText": "A supplied commit ID skips the update-checker branch and calls get_latest_release; exact release resolution remains delegated to an uninspected helper.",
+      "status": "unresolved",
+      "basis": "proposer-disclosed",
+      "message": "Historical review context, manually carried forward after inference by checking exact text and retain lineage. The initial integrator disclosed replacing the wrong condition and leaving an overbroad exact-release sentence; an earlier expansion removed that sentence without seeing review notes. Both larger waves retain this narrower condition. Retention and wording changes do not independently verify the uninspected helper or resolve the original qualification. No fresh source audit or automatic review migration is claimed. Prior review notes were withheld from this integrator; the original candidate graph is unchanged.",
+      "evidenceIds": ["old:old:old:C-009"]
+    }
+  ]
+}

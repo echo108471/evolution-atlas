@@ -1,0 +1,33 @@
+{
+  "id": "B-005",
+  "kind": "search",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "prefix": "test/scenario/src/evidence.ts",
+  "literal": "async ",
+  "searchedFiles": 1,
+  "totalMatches": 5,
+  "matches": [
+    {
+      "path": "test/scenario/src/evidence.ts",
+      "line": 89
+    },
+    {
+      "path": "test/scenario/src/evidence.ts",
+      "line": 193
+    },
+    {
+      "path": "test/scenario/src/evidence.ts",
+      "line": 281
+    },
+    {
+      "path": "test/scenario/src/evidence.ts",
+      "line": 395
+    },
+    {
+      "path": "test/scenario/src/evidence.ts",
+      "line": 406
+    }
+  ],
+  "omittedMatches": 0,
+  "note": "locations only; not support until source window inspected"
+}

@@ -1,0 +1,21 @@
+{
+  "purpose": "Continue the authorized larger demonstration after a versioned packaging upgrade, not a new semantic comparison",
+  "previousStop": "../wave-2/capacity-preflight.json remains unchanged and records the v1 capacity stop",
+  "authorization": "Owner: ok, lets keep going forward; continuing the proposed deduplication then expansion step",
+  "baseline": "../wave-1/output.json",
+  "baselineInputSha256": "acb9e8c69f49d8a8cabcf2b674573ec00af1d1c3d1a403c804a1c1c30004dbca",
+  "runPlanSha256": "3ea36d1d0340d939c2b04a82dee166123d68aed06862248fbf123f73880c99dd",
+  "coverageRoutingSha256": "5843ade9cefc83b684e64ed8f984bcd1632e2c33c5d6e3ca167c6859c1555c7e",
+  "runtime": "repository-engine/2; existing v1 runs use byte-identical archived runtime through the same entry point",
+  "change": "Integration baseline.receiptIds references the single top-level receipts collection. No omitted evidence, source compression, semantic protocol change, category labels, review feedback or budget increase. Same baseline-input.json bytes as the stopped v1 preparation.",
+  "preflight": { "v1BaselinePacketBytes": 1641089, "v2BaselinePacketBytes": 966809, "savedBytes": 674280, "integrationPacketCeilingBytes": 1500000, "remainingBeforeNewOutputs": 533191 },
+  "budget": { "discoveryWorkers": 3, "integrationWorkers": 1, "maxNewSourceWindows": 76, "maxNewSearches": 28, "maxNewSerializedReceiptBytes": 280000 },
+  "totalDemonstrationBudget": "This is the second executed discovery wave, not a third. Its maximum plus wave-1 actual usage stays within the original 152 windows, 56 searches and 560000 receipt bytes.",
+  "routing": "Same frozen generic planner and default parameters. Selected regions are navigation only; inspect each assigned region or explain omissions, follow dependencies as needed. The aggregate prior-coverage report is withheld from workers; per-worker unread-path supplements contain no prior definitions.",
+  "stoppingRule": "One wave only. Stop on saved-invalid output, evidence-validation failure, unavailable execution or the actual frozen integration packet exceeding 1500000 bytes. Measure actual packet after discovery and before R dispatch. No semantic retry, evidence truncation, limit increase, or runtime edits during this run.",
+  "reviewPolicy": "Previous owner feedback and review notes withheld from discovery and R. Historical claim qualifications may be attached only after inference with exact target/lineage checks, separately from candidates.",
+  "validationBeforeDispatch": { "tests": 497, "build": "passed", "whitespace": "passed", "legacyPublicationReplay": "passed", "legacyCoverageRoutingReplay": "passed", "archiveSourcePins": "all six byte-identical" },
+  "hostHandles": { "A": "/root/larger_wave2_a", "B": "/root/larger_wave2_b", "C": "/root/larger_wave2_c" },
+  "integrationHostHandle": "/root/larger_wave2_integrate",
+  "status": "Completed the second executed wave: 113-node / 97-edge candidate map published, all first outputs checkpointed without repair. Full packet passed the unchanged ceiling. Both waves together used 90 source windows, 18 searches and 456029 receipt bytes, within original caps. C's prior-summary exposure remains a blindness limitation. No third wave."
+}

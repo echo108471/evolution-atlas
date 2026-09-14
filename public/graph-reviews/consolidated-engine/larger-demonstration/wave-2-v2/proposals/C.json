@@ -1,0 +1,204 @@
+{
+  "agent": "C",
+  "scopeSummary": "Candidate responsibilities from both supplementary start regions: development-container preparation and CLI agent-host/session operations, followed into shared discovery, registry, connection, authentication and raw-relay implementations. Current pinned source only; this assignment cannot be described as fully blind because an agent-status lookup incidentally exposed older task summaries.",
+  "coverage": {
+    "inspected": [".devcontainer/install-vscode.sh", ".devcontainer/post-create.sh", "cli/src/commands.rs", "cli/src/bin/code/main.rs", "cli/src/commands/agent_ps.rs", "cli/src/commands/agent_stop.rs", "cli/src/commands/agent_kill.rs", "cli/src/commands/agent_logs.rs", "cli/src/commands/agent_discovery.rs", "cli/src/commands/agent_endpoints.rs", "cli/src/tunnels/agent_host_registry.rs", "cli/src/commands/agent_relay.rs", "cli/src/commands/agent.rs"],
+    "omissions": [
+      "Both supplementary regions were inspected, but the CLI region was sampled rather than exhausted; 18 source windows and 2 navigation searches produced 70,343 serialized receipt-file bytes, leaving insufficient bytes for another broad window.",
+      "Standalone host startup/supervision, desktop version selection, CLI update, web serving, tunnel commands and most CLI utilities were not followed beyond command dispatch references.",
+      "Registry enumeration was inspected, but registry publication, file validation, deduplication and endpoint reachability helper implementations were not inspected.",
+      "Session-list filtering/sorting and final JSON-builder bodies, event-action formatting tail, socket implementation, process-tree kill implementation and authentication serialization guard were not inspected.",
+      "Development-container invocation configuration and package-script definitions were not inspected; shell script presence alone does not establish automatic execution or successful provisioning."
+    ]
+  },
+  "crossPartitionLeads": [
+    "The two .devcontainer scripts are broker partition B and provide preparation steps; a later assignment could inspect their invocation configuration and package.json electron script to establish how they participate in developer setup.",
+    "CLI source connects to agent hosts using AHP initialize, listSessions, subscribe, authenticate and dispatched chat-turn cancellation actions. Host-side implementations of those operations are outside the inspected evidence and could establish end-to-end effects.",
+    "The CLI registry and relay accept editor and standalone endpoint variants. Editor-side publication and standalone host supervision are concrete dependencies to inspect later, not established behavior here."
+  ],
+  "nodes": [
+    {
+      "id": "C1", "name": "Prepare a development container for editor development",
+      "summary": "Shell scripts configure the Microsoft package repository, request an Insiders editor and native development libraries, then provide a post-create dependency and Electron preparation hook.",
+      "actor": "Developer or container setup runner",
+      "inputs": ["A package-manager-capable container", "Microsoft package signing key and repository", "The project's npm package scripts"],
+      "outcomes": ["Package repository/key setup and installation commands are issued", "npm dependency installation and the electron package script are requested"],
+      "conditions": ["Scripts must be invoked in a suitable environment with required permissions and network/package availability"],
+      "exclusions": ["Container launch configuration", "Proof installation succeeds", "Meaning or success of the uninspected electron package script"],
+      "implementations": [".devcontainer/install-vscode.sh", ".devcontainer/post-create.sh"],
+      "uncertainty": ["Only the two script bodies were inspected; their callers and external package behavior remain unknown."],
+      "evidenceIds": ["C-001", "C-002"], "assessment": "partial",
+      "claims": [
+        {"text": "The install script installs wget/gpg, installs a Microsoft signing key and apt source, and requests code-insiders plus libsecret, libxkbfile and Kerberos development packages.", "evidenceIds": ["C-001"], "assessment": "supported"},
+        {"text": "The post-create script invokes npm i followed by npm run electron.", "evidenceIds": ["C-002"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "C2", "name": "List sessions from selected or discovered agent hosts",
+      "summary": "The agent ps command queries one explicit host or concurrently queries discovered hosts, retrieves session pages and presents results with host provenance in the multi-host path.",
+      "actor": "CLI user inspecting agent sessions",
+      "inputs": ["Optional explicit address or tunnel", "Optional user-data directory", "JSON and all-session options", "Host session catalogs"],
+      "outcomes": ["Session-list output", "Per-host warnings for query failures", "Failure if no discovered host could be queried"],
+      "conditions": ["Hosts must support the session-list request and any required authentication", "No discovered endpoints produces NoRunningAgentHost"],
+      "exclusions": ["Starting sessions", "Stopping sessions", "An independently checked definition of active-session filtering"],
+      "implementations": ["cli/src/commands/agent_ps.rs", "cli/src/bin/code/main.rs"],
+      "uncertainty": ["The filtering/sorting and final JSON-builder functions were not inspected; emitted JSON details are only partly established.", "No live host requests were executed."],
+      "evidenceIds": ["C-004", "C-005", "C-006"], "assessment": "supported",
+      "claims": [
+        {"text": "An explicit address or tunnel takes a single-host path; otherwise discovered endpoints are queried through FuturesUnordered.", "evidenceIds": ["C-005"], "assessment": "supported"},
+        {"text": "The listSessions helper accumulates items and follows next_cursor until absent.", "evidenceIds": ["C-005"], "assessment": "supported"},
+        {"text": "Multi-host human output is emitted as outcomes arrive; JSON mode collects outcomes before invoking its output builder, and the command errors when none succeeded.", "evidenceIds": ["C-006"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "C3", "name": "Request cancellation of active turns in a session",
+      "summary": "The agent stop command subscribes to a session and its in-progress chats, then dispatches cancellation actions for chats that report an active turn.",
+      "actor": "CLI user stopping ongoing agent work",
+      "inputs": ["Session resource", "Explicit host selector or discovered session host", "Session/chat snapshots and active-turn start times"],
+      "outcomes": ["ChatTurnCancelled actions dispatched with turn ID and computed duration", "Per-turn messages or a no-active-turn message"],
+      "conditions": ["Chat catalog entries must have InProgress status", "A chat snapshot must contain an active turn", "The active-turn start timestamp must parse successfully"],
+      "exclusions": ["Killing host processes", "Deleting sessions", "Proof the remote worker actually stopped"],
+      "implementations": ["cli/src/commands/agent_stop.rs", "cli/src/bin/code/main.rs"],
+      "uncertainty": ["The implementation logs cancellation after dispatch; host-side application and acknowledgement semantics were not inspected."],
+      "evidenceIds": ["C-004", "C-007"], "assessment": "supported",
+      "claims": [
+        {"text": "The command obtains the session catalog, filters in-progress chats, subscribes to each, skips chats without an active turn and dispatches a ChatTurnCancelled action for each remaining turn.", "evidenceIds": ["C-007"], "assessment": "supported"},
+        {"text": "Invalid active-turn timestamps fail the request; zero dispatched cancellations produces a no-active-turn message.", "evidenceIds": ["C-007"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "C4", "name": "Terminate a selected standalone agent host",
+      "summary": "The agent kill command restricts selection to live standalone registry entries, resolves an instance explicitly or interactively, invokes process-tree termination and removes the selected registry entry.",
+      "actor": "CLI user managing standalone agent-host processes",
+      "inputs": ["Optional user-data directory", "Optional instance ID", "Live standalone endpoint candidates", "Interactive selection when ambiguous"],
+      "outcomes": ["Selected PID passed to process-tree termination", "Registry removal attempted after successful termination call", "Errors for absent, unknown or noninteractively ambiguous targets"],
+      "conditions": ["Only standalone entries are selected", "An explicit instance ID must match even when only one candidate exists", "Multiple candidates without an ID require an interactive terminal"],
+      "exclusions": ["Editor-owned host termination", "Session-level cancellation", "Proof all operating-system descendants are killed"],
+      "implementations": ["cli/src/commands/agent_kill.rs", "cli/src/tunnels/agent_host_registry.rs"],
+      "uncertainty": ["kill_tree itself was not inspected.", "Registry deletion failures other than missing files are logged rather than propagated by the inspected removal helper."],
+      "evidenceIds": ["C-008", "C-014"], "assessment": "supported",
+      "claims": [
+        {"text": "Candidate enumeration filters server_type to Standalone; explicit mismatches fail, a sole unqualified candidate is selected directly and multiple noninteractive candidates fail as ambiguous.", "evidenceIds": ["C-008", "C-014"], "assessment": "supported"},
+        {"text": "After kill_tree returns successfully, the command calls remove_agent_host_endpoint; removal tolerates an already missing file and warns on other filesystem errors.", "evidenceIds": ["C-008", "C-014"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "C5", "name": "Stream session state events to the terminal",
+      "summary": "The agent logs command subscribes to a selected session, prints its initial state and consumes action or notification events until interruption or subscription closure.",
+      "actor": "CLI user observing agent activity",
+      "inputs": ["Session resource", "Explicit host selector or discovered session host", "Initial subscription snapshot", "Subscription events"],
+      "outcomes": ["Initial session/chat summary", "Action and notification output", "Clean loop exit on Ctrl+C or closed subscription"],
+      "conditions": ["Connection and authenticated subscribe must succeed", "Events must arrive through the attached session subscription"],
+      "exclusions": ["Historical log-file retrieval", "Persisting an event archive", "Established delivery of every nested chat event"],
+      "implementations": ["cli/src/commands/agent_logs.rs"],
+      "uncertainty": ["The action formatter tail and server-side subscription propagation were not inspected; no guarantee of exhaustive nested events is inferred."],
+      "evidenceIds": ["C-009"], "assessment": "supported",
+      "claims": [
+        {"text": "The command performs authenticated subscribe, attaches to the session subscription, prints an initial state summary and selects between subscription receives and a Ctrl+C shutdown request.", "evidenceIds": ["C-009"], "assessment": "supported"},
+        {"text": "Action envelopes are passed to print_action, other notifications are printed diagnostically, and subscription closure or interruption breaks the loop before client shutdown.", "evidenceIds": ["C-009"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "C6", "name": "Enumerate reachable local agent-host endpoints",
+      "summary": "Shared registry lookup resolves the user-data location, reads entries, checks endpoint reachability and orders returned endpoints, with a standalone-only projection for process management.",
+      "actor": "CLI commands and local agent-host tooling",
+      "inputs": ["Resolved user-data directory", "Registry entries", "Endpoint reachability results", "Entry publication timestamps"],
+      "outcomes": ["Reachable endpoint list ordered newest first with deterministic ties", "Optional standalone-only endpoint list", "Empty result when registry reading fails"],
+      "conditions": ["Entries must pass the delegated reachability check to be returned"],
+      "exclusions": ["Endpoint publication", "Proof registry entries are trustworthy", "A guaranteed distinction between no hosts and registry-read failure"],
+      "implementations": ["cli/src/commands/agent_discovery.rs", "cli/src/tunnels/agent_host_registry.rs"],
+      "uncertainty": ["Registry parsing, identity deduplication, process checks and reachability criteria are delegated to uninspected helpers."],
+      "evidenceIds": ["C-010", "C-014"], "assessment": "supported",
+      "claims": [
+        {"text": "discover_live_endpoints resolves the user-data path and delegates to list_live_endpoints, which concurrently evaluates reachability, retains successful entries and sorts by descending publication time followed by server type and instance ID.", "evidenceIds": ["C-010", "C-014"], "assessment": "supported"},
+        {"text": "A read_registry error is debug-logged and converted to an empty vector; the standalone projection filters returned entries by server type.", "evidenceIds": ["C-014"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "C7", "name": "Find a session's host among local endpoints",
+      "summary": "For commands without an explicit host, concurrent endpoint probes inspect returned session catalogs and return the first client whose catalog contains the requested resource.",
+      "actor": "Session-targeted CLI commands",
+      "inputs": ["Session resource", "Live endpoint candidates", "Per-host listSessions results"],
+      "outcomes": ["Connected client from the first matching host", "Distinct no-host, no-match and incomplete-search errors"],
+      "conditions": ["Discovery is used when the caller has no explicit address or tunnel", "A matching catalog item must equal the requested session resource"],
+      "exclusions": ["Guaranteed exhaustive search of paginated catalogs", "Guaranteed uniqueness when several hosts claim one session", "Fallback discovery outside the local registry"],
+      "implementations": ["cli/src/commands/agent_discovery.rs"],
+      "uncertainty": ["Each inspected probe requests listSessions once with cursor None and does not follow next_cursor; the host protocol's pagination guarantees were not inspected.", "Returning the first match does not establish ownership uniqueness."],
+      "evidenceIds": ["C-010", "C-011"], "assessment": "supported",
+      "claims": [
+        {"text": "The resolver builds concurrent probes over discovered endpoints; each successful probe compares session-resource membership in one listSessions response, returning the first matching client.", "evidenceIds": ["C-010", "C-011"], "assessment": "supported"},
+        {"text": "If none matches, any unreachable probe leads to IncompleteSessionSearch; otherwise it returns SessionNotFoundOnAnyHost, while an initially empty endpoint set produces NoRunningAgentHost.", "evidenceIds": ["C-010", "C-011"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "C8", "name": "Export live endpoint connection metadata as JSON",
+      "summary": "The agent endpoints command serializes the resolved user-data location and discovered endpoint metadata into one unpaged JSON document for other tooling.",
+      "actor": "Tool consuming local agent-host endpoint metadata",
+      "inputs": ["Optional user-data directory", "Discovered endpoint metadata"],
+      "outcomes": ["A JSON document containing userDataPath and endpoints, including full endpoint metadata", "An empty endpoints array when discovery returns no entries"],
+      "conditions": ["The caller must already be trusted to receive endpoint connection metadata; the inspected command supplies no additional authorization gate"],
+      "exclusions": ["A slim session-status projection", "Interactive paging", "Distinguishing discovery emptiness from registry-read failure"],
+      "implementations": ["cli/src/commands/agent_endpoints.rs"],
+      "uncertainty": ["Serialization reuses AgentHostEndpointMetadata; the inspected test source explicitly asserts connectionToken inclusion, but runtime output was not exercised.", "The helper inspected in C-014 returns empty on registry-read failure despite the endpoint module's broader comment about read-error distinction."],
+      "evidenceIds": ["C-012", "C-014"], "assessment": "supported",
+      "claims": [
+        {"text": "The command disables its context logger, resolves the user-data path, serializes an EndpointsDocument with the complete endpoint metadata and directly prints the JSON without the pager.", "evidenceIds": ["C-012"], "assessment": "supported"},
+        {"text": "The document uses full AgentHostEndpointMetadata and the included serialization test asserts that a connectionToken field is retained; it is not the reduced session-list host projection.", "evidenceIds": ["C-012", "C-006"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "C9", "name": "Relay standard input and output to an exact agent endpoint",
+      "summary": "The agent relay command selects exactly one live instance ID, opens its TCP or socket connection and copies bytes between that endpoint and standard input/output.",
+      "actor": "Remote bridge or CLI caller transporting an agent-host connection",
+      "inputs": ["Exact instance ID", "Optional user-data directory", "Standard input bytes", "Endpoint response bytes"],
+      "outcomes": ["Bidirectional byte relay", "Failure for unknown or ambiguous instance ID", "Termination when either copy direction completes or fails"],
+      "conditions": ["The target must be present among discovered reachable endpoints", "A raw TCP or socket/named-pipe connection must succeed"],
+      "exclusions": ["Interpreting WebSocket frames", "Performing AHP authentication", "Restricting relay targets to standalone hosts", "Maintaining the other copy direction after the first completes"],
+      "implementations": ["cli/src/commands/agent_relay.rs"],
+      "uncertainty": ["Platform socket helpers and remote bridge callers were not inspected; no live relay was exercised."],
+      "evidenceIds": ["C-015", "C-016"], "assessment": "supported",
+      "claims": [
+        {"text": "Selection matches instance_id exactly and rejects zero or multiple matches; connect_raw branches between TCP and socket streams without an AHP or WebSocket handshake.", "evidenceIds": ["C-015"], "assessment": "supported"},
+        {"text": "relay_bidirectional starts a copy in each direction and uses select to return after the first direction completes, propagating that direction's error.", "evidenceIds": ["C-016"], "assessment": "supported"}
+      ]
+    },
+    {
+      "id": "C10", "name": "Connect and authenticate CLI requests to agent hosts",
+      "summary": "Shared client helpers select explicit or registry-derived transports, perform an AHP initialization handshake and retry a protected request after supplying authentication credentials.",
+      "actor": "CLI agent-session commands",
+      "inputs": ["Explicit address/tunnel or registry endpoint", "Connection token", "Method and parameters", "AuthRequired error metadata", "Cached credential or login result"],
+      "outcomes": ["Initialized host client", "Original request result or one post-authentication retry result", "Authentication failure when protected-resource metadata is absent"],
+      "conditions": ["Registry TCP connections add the token query parameter only when nonempty", "Authentication handling is triggered by the AHP AUTH_REQUIRED error code", "Each reported protected resource receives an authenticate request"],
+      "exclusions": ["Authorization enforcement inside the host", "Proof external login or credential storage succeeds", "Unbounded automatic request retries", "Treating initialization as completed resource authentication"],
+      "implementations": ["cli/src/commands/agent.rs"],
+      "uncertainty": ["Tunnel transport, socket handshake details, authentication mutex implementation and external Auth provider behavior were not inspected.", "Provider identification uses substring matching in authorization-server strings; no stronger provider-validation guarantee is inferred."],
+      "evidenceIds": ["C-018", "C-019", "C-020"], "assessment": "supported",
+      "claims": [
+        {"text": "Explicit connections prefer an address over a tunnel; registry connections choose TCP WebSocket or socket transport, and both paths call initialize with code-cli and the protocol version.", "evidenceIds": ["C-020"], "assessment": "supported"},
+        {"text": "request_with_auth attempts the request once, invokes serialized authentication on AUTH_REQUIRED and then retries once outside that authentication guard; other errors propagate.", "evidenceIds": ["C-018"], "assessment": "supported"},
+        {"text": "Authentication parses protected-resource metadata, rejects an empty result, reuses an agent-host namespace credential when present or calls a login helper, then sends an authenticate request for each resource.", "evidenceIds": ["C-018", "C-019"], "assessment": "supported"}
+      ]
+    }
+  ],
+  "edges": [
+    {"from": "C2", "to": "C6", "type": "depends_on", "reason": "The no-explicit-host session-list path obtains candidates from discover_live_endpoints.", "evidenceIds": ["C-005", "C-010"], "assessment": "supported"},
+    {"from": "C2", "to": "C10", "type": "depends_on", "reason": "Session-list paths connect through shared client helpers and send listSessions through request_with_auth.", "evidenceIds": ["C-005", "C-018", "C-020"], "assessment": "supported"},
+    {"from": "C3", "to": "C7", "type": "depends_on", "reason": "Turn cancellation resolves a session host when no address or tunnel is supplied.", "evidenceIds": ["C-007", "C-011"], "assessment": "supported"},
+    {"from": "C3", "to": "C10", "type": "depends_on", "reason": "Cancellation obtains session and chat snapshots through authenticated subscribe requests.", "evidenceIds": ["C-007", "C-018"], "assessment": "supported"},
+    {"from": "C4", "to": "C6", "type": "depends_on", "reason": "Host termination selects from the registry's live standalone projection.", "evidenceIds": ["C-008", "C-014"], "assessment": "supported"},
+    {"from": "C5", "to": "C7", "type": "depends_on", "reason": "Event streaming resolves the session host automatically when no explicit connection is supplied.", "evidenceIds": ["C-009", "C-011"], "assessment": "supported"},
+    {"from": "C5", "to": "C10", "type": "depends_on", "reason": "The event-stream command uses shared connection helpers and request_with_auth for its initial subscription.", "evidenceIds": ["C-009", "C-018", "C-020"], "assessment": "supported"},
+    {"from": "C7", "to": "C6", "type": "depends_on", "reason": "Session-host probing begins with discover_live_endpoints.", "evidenceIds": ["C-011", "C-014"], "assessment": "supported"},
+    {"from": "C7", "to": "C10", "type": "depends_on", "reason": "Each session-host probe connects to its endpoint and performs an authenticated listSessions request.", "evidenceIds": ["C-010", "C-018", "C-020"], "assessment": "supported"},
+    {"from": "C8", "to": "C6", "type": "depends_on", "reason": "Endpoint JSON export serializes the results of discover_live_endpoints.", "evidenceIds": ["C-012", "C-014"], "assessment": "supported"},
+    {"from": "C9", "to": "C6", "type": "depends_on", "reason": "Raw relay selects its exact instance from discovered endpoint metadata before connecting.", "evidenceIds": ["C-015", "C-014"], "assessment": "supported"}
+  ],
+  "limitations": [
+    "All interpretations are candidate assessments of pinned source; no target code, tests, network, paid APIs or live host behavior was executed.",
+    "The first attempt to read agent_logs.rs failed with EEXIST on locks/C.lock. Root determined the collision was with its launch-record operation, confirmed the lock was absent and authorized the same pending read to resume. The resumed read succeeded as C-009; no lock was deleted by this worker.",
+    "During that collision, list_agents unexpectedly returned completed older task summaries alongside live worker status. This incident exposed prior-output text outside the intended blind inputs. No prior artifacts were opened and candidate decisions cite only this run's inspected source, but the assignment must not be reported as fully blind.",
+    "Directory routing is coverage guidance rather than a semantic ownership boundary. This proposal covers concrete sampled responsibilities and does not imply complete CLI or repository coverage.",
+    "Source comments were treated as navigation and hypotheses; explicit implementation limits such as empty-on-registry-error, single-page session-host probes and dispatch-only cancellation are retained where comments imply broader behavior.",
+    "Search receipts C-013 and C-017 were navigation only and support no semantic claims."
+  ]
+}

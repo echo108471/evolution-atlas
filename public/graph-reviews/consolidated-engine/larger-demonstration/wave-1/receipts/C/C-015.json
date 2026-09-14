@@ -1,0 +1,14 @@
+{
+  "id": "C-015",
+  "kind": "source",
+  "commitSha": "33341eb227ab213b011868c9bc5c5f735aaaf875",
+  "blobSha": "040656c01ecce168f166401eabc4035598e3ab05",
+  "path": "src/vs/server/node/server.cli.ts",
+  "startLine": 148,
+  "endLine": 170,
+  "totalLines": 532,
+  "partition": "B",
+  "crossPartition": true,
+  "text": "\t\tlet file: string;\n\t\tswitch (parsedArgs['locate-shell-integration-path']) {\n\t\t\t// Usage: `[[ \"$TERM_PROGRAM\" == \"vscode\" ]] && . \"$(code --locate-shell-integration-path bash)\"`\n\t\t\tcase 'bash': file = 'shellIntegration-bash.sh'; break;\n\t\t\t// Usage: `if ($env:TERM_PROGRAM -eq \"vscode\") { . \"$(code --locate-shell-integration-path pwsh)\" }`\n\t\t\tcase 'pwsh': file = 'shellIntegration.ps1'; break;\n\t\t\t// Usage: `[[ \"$TERM_PROGRAM\" == \"vscode\" ]] && . \"$(code --locate-shell-integration-path zsh)\"`\n\t\t\tcase 'zsh': file = 'shellIntegration-rc.zsh'; break;\n\t\t\t// Usage: `string match -q \"$TERM_PROGRAM\" \"vscode\"; and . (code --locate-shell-integration-path fish)`\n\t\t\tcase 'fish': file = 'shellIntegration.fish'; break;\n\t\t\tdefault: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');\n\t\t}\n\t\tconsole.log(join(getAppRoot(), 'out', 'vs', 'workbench', 'contrib', 'terminal', 'common', 'scripts', file));\n\t\treturn;\n\t}\n\tif (cliPipe) {\n\t\tif (parsedArgs['openExternal']) {\n\t\t\tawait openInBrowser(parsedArgs['_'], verbose);\n\t\t\treturn;\n\t\t}\n\t}\n\n\tlet remote: string | null | undefined = parsedArgs.remote;",
+  "truncated": true
+}

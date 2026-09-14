@@ -1,0 +1,148 @@
+{
+  "agent": "C",
+  "scopeSummary": "Candidate responsibilities discovered by starting in resources/ launch scripts and test/ CLI and editor-restart scenarios, then following remote command dispatch and working-copy backup implementation. This is a bounded source inspection of the pinned snapshot, not exhaustive coverage or runtime verification.",
+  "coverage": {
+    "inspected": [
+      "resources/linux/bin/code.sh",
+      "resources/server/bin/remote-cli/code-linux.sh",
+      "resources/server/bin/helpers/browser-linux.sh",
+      "test/sanity/src/cli.test.ts",
+      "test/smoke/src/areas/workbench/data-loss.test.ts",
+      "src/vs/server/node/server.cli.ts",
+      "src/vs/workbench/api/node/extHostCLIServer.ts",
+      "src/vs/workbench/services/workingCopy/common/workingCopyBackupTracker.ts",
+      "src/vs/workbench/services/workingCopy/electron-browser/workingCopyBackupTracker.ts",
+      "src/vs/workbench/services/workingCopy/browser/workingCopyBackupTracker.ts"
+    ],
+    "omissions": [
+      "Both selected regions were inspected: resources/ through three Linux entry scripts, and test/ through one complete CLI sanity test plus the first 160 lines of editor data-loss smoke scenarios. Other files in both regions remain unread.",
+      "Only selected windows of the remote CLI and common/native backup trackers were inspected; browser backup tracker and CLI pipe-server implementation were read completely.",
+      "The CLI sanity test only checks packaged CLI commit output and is not evidence of remote editor commands working.",
+      "No macOS or Windows launcher implementation, complete editor-tab restoration implementation, backup storage backend, working-copy-specific content restoration, or main-thread remote command handler was inspected.",
+      "Source retrieval exhausted practically all serialized receipt bytes before the window limit: 16 source windows and 4 successful search receipts total 71931 serialized bytes. Searches were navigation only."
+    ]
+  },
+  "crossPartitionLeads": [
+    "resources/server/bin/remote-cli/code-linux.sh led to src/vs/server/node/server.cli.ts (partition B); its PipeCommand import led to src/vs/workbench/api/node/extHostCLIServer.ts (partition A).",
+    "test/smoke/src/areas/workbench/data-loss.test.ts (partition A) supplied restart scenarios; scoped workingCopy navigation led to common, desktop, and browser backup trackers (partition C).",
+    "The CLI pipe server forwards to _remoteCLI.windowOpen, _remoteCLI.openExternal, _remoteCLI.manageExtensions and _remoteCLI.getSystemStatus. Scoped listing located mainThreadCLICommands.ts, but its contents could not be retrieved within the remaining byte budget. These downstream behaviors remain leads, not inspected support."
+  ],
+  "nodes": [
+    {
+      "id": "C_remote_open",
+      "name": "Open editor resources from a remote terminal",
+      "summary": "Translate remote terminal file, folder and standard-input requests into workbench opening commands, carrying window, comparison, line-location and wait options.",
+      "actor": "Developer invoking the editor command from a remote integrated terminal or a configured WSL terminal",
+      "inputs": ["Positional paths, file and folder URIs, or '-' for non-TTY standard input", "Remote CLI environment and supported window, diff, merge, goto and wait arguments"],
+      "outcomes": ["Paths and standard-input temporary files become file/folder URI opening requests", "Pipe requests are converted to _remoteCLI.windowOpen arguments", "A wait request keeps the CLI polling until its marker file disappears"],
+      "conditions": ["The CLI returns without action if neither VSCODE_IPC_HOOK_CLI nor VSCODE_CLIENT_COMMAND is set", "The pipe wait path requires at least one file URI", "Supported options differ between direct client-command and pipe routes"],
+      "exclusions": ["Remote agent command execution is explicitly rejected", "Actual window creation, diff/merge editing, and wait-marker deletion were not traced", "Packaged CLI version checks do not establish this behavior"],
+      "implementations": ["Linux remote-cli shell entry invokes server-cli.js with product information and arguments", "server.cli.ts maps input paths, reads standard input, invokes a configured client command or posts an open request to the CLI pipe", "extHostCLIServer.ts classifies workspace files and dispatches _remoteCLI.windowOpen"],
+      "uncertainty": ["Static implementation supports the request path; downstream workbench opening and end-to-end operation were not independently checked", "The client-command WSL branch was inspected but its invoked desktop CLI was not"],
+      "evidenceIds": ["C-001", "C-003", "C-006", "C-007", "C-010", "C-013"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "The remote CLI requires a pipe or client command environment, filters supported arguments and rejects the agent command.", "evidenceIds": ["C-006"], "assessment": "supported"},
+        {"text": "For non-TTY input with '-', the CLI prepares a temporary file for opening, skips recent-history addition, and can remain alive while input streams.", "evidenceIds": ["C-007"], "assessment": "supported"},
+        {"text": "The pipe route forwards file/folder URIs, comparison, window and line options; the server constructs window-open arguments, while --wait polls its marker file.", "evidenceIds": ["C-010", "C-013"], "assessment": "supported"},
+        {"text": "The complete remote terminal interaction opens the intended workbench resources and releases wait when editing ends.", "evidenceIds": ["C-010", "C-013"], "assessment": "partial"}
+      ]
+    },
+    {
+      "id": "C_remote_external",
+      "name": "Request external URL opening from a remote terminal",
+      "summary": "Route browser-helper and remote CLI URL requests through the connected workbench, excluding remote file URLs at the receiving CLI server.",
+      "actor": "Developer or remote process launching a URL through the provided browser helper",
+      "inputs": ["Locations supplied to the browser helper or --openExternal", "Connected CLI pipe"],
+      "outcomes": ["Valid locations become an openExternal URI request", "Non-file URIs are forwarded to _remoteCLI.openExternal", "Invalid URLs are reported and remote file URIs are skipped"],
+      "conditions": ["The server CLI selects this path when the CLI pipe is present and openExternal is set", "URI normalization must succeed"],
+      "exclusions": ["Local opening of remote file:// resources", "Browser choice, URL security decisions and final external application behavior"],
+      "implementations": ["resources/server/bin/helpers/browser-linux.sh invokes server-cli.js with --openExternal", "server.cli.ts openInBrowser normalizes locations and sends an openExternal message", "extHostCLIServer.ts skips file-scheme URIs and dispatches the remaining URI strings"],
+      "uncertainty": ["The downstream _remoteCLI.openExternal implementation and actual browser launch were not inspected or executed"],
+      "evidenceIds": ["C-004", "C-010", "C-013", "C-014", "C-015"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "The Linux browser helper selects the remote CLI's --openExternal route, which creates a normalized URI request on the CLI pipe.", "evidenceIds": ["C-004", "C-015", "C-010"], "assessment": "supported"},
+        {"text": "The receiving CLI server skips file-scheme URIs and forwards other URI strings to _remoteCLI.openExternal.", "evidenceIds": ["C-013", "C-014"], "assessment": "supported"},
+        {"text": "The request ultimately opens the URL in an external application on the connected workbench side.", "evidenceIds": ["C-014"], "assessment": "partial"}
+      ]
+    },
+    {
+      "id": "C_remote_extensions",
+      "name": "Request extension management from a remote terminal",
+      "summary": "Accept extension listing, installation and removal arguments in a remote terminal and route their parameters to the extension-management command path.",
+      "actor": "Developer managing extensions through the remote editor CLI",
+      "inputs": ["Extension IDs or VSIX references for install or uninstall", "Listing options for versions/category and a force flag"],
+      "outcomes": ["The CLI sends an extensionManagement request over its pipe", "The CLI server converts VSIX references into URIs and dispatches _remoteCLI.manageExtensions", "Command results are printed and request errors are reported"],
+      "conditions": ["CLI environment and option support gates apply", "The direct client-command branch invokes server-main separately for extension-management requests"],
+      "exclusions": ["Proving installation, update or uninstall completion", "Marketplace resolution, download, compatibility checks and extension activation", "Pipe-based extension update semantics are not established: the observed update flag enters the branch but is not a field in its outgoing management payload"],
+      "implementations": ["server.cli.ts extension-management argument routing", "extHostCLIServer.ts manageExtensions dispatch with VSIX conversion"],
+      "uncertainty": ["The downstream management handler was located but not read", "The installed-extension target and locality are not established by the inspected dispatch layer"],
+      "evidenceIds": ["C-006", "C-007", "C-014"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "The pipe request carries list, install, uninstall and force fields; listing includes category and showVersions options.", "evidenceIds": ["C-007"], "assessment": "supported"},
+        {"text": "The receiving server converts .vsix references to URIs and forwards arguments to _remoteCLI.manageExtensions.", "evidenceIds": ["C-014"], "assessment": "supported"},
+        {"text": "The complete request performs the intended extension change or listing.", "evidenceIds": ["C-007", "C-014"], "assessment": "partial"}
+      ]
+    },
+    {
+      "id": "C_unsaved_recovery",
+      "name": "Back up and reopen unsaved editor work",
+      "summary": "Track modified working-copy content for backup and associate retained backups with editors after startup so unsaved work can be recovered.",
+      "actor": "Editor user with modified files, untitled content or another registered working-copy type",
+      "inputs": ["Working-copy dirty/content changes and content versions", "Backup content and metadata provided by working copies", "Stored backup identifiers and compatible editor handlers"],
+      "outcomes": ["Modified content schedules a cancellable backup with version and metadata", "Clean working copies discard their backups", "Handled retained backups acquire editors, opened inactive and pinned while preserving focus, then unresolved non-visible editors are resolved"],
+      "conditions": ["New content reschedules pending backup work and suspended tracking does not schedule changes", "Backup delay follows working-copy overrides or untitled/auto-save policy", "Backup enumeration waits for lifecycle Restored; restoration requires a handler that accepts the identifier"],
+      "exclusions": ["General saved-file history/version browsing", "Proof of persistent-storage durability or crash-loss bounds", "Complete restoration of ordinary unmodified editor tabs"],
+      "implementations": ["common/workingCopyBackupTracker.ts change tracking, backup scheduling/discard and editor restoration", "Native shutdown tracker can reuse a matching-version backup or obtain and store a fresh one", "data-loss.test.ts defines restart checks for dirty saved-file and untitled content"],
+      "uncertainty": ["Backup storage and concrete working-copy resolve implementations were not read", "Smoke-test expectations were inspected without running tests; they do not establish passing behavior at this snapshot"],
+      "evidenceIds": ["C-005", "C-012", "C-016", "C-017"],
+      "assessment": "partial",
+      "claims": [
+        {"text": "Dirty and modified-content changes schedule cancellable versioned backups; clean working copies discard backups.", "evidenceIds": ["C-016"], "assessment": "supported"},
+        {"text": "After lifecycle restoration, retained backup identifiers are matched to editor handlers; missing editors are opened without taking focus and non-visible associated editors are resolved.", "evidenceIds": ["C-012"], "assessment": "supported"},
+        {"text": "Defined restart smoke scenarios expect both dirty file content and untitled content to survive, including immediate restart and a delayed restart.", "evidenceIds": ["C-005"], "assessment": "supported"},
+        {"text": "Unsaved content is successfully recovered end to end after restart.", "evidenceIds": ["C-005", "C-012", "C-016", "C-017"], "assessment": "partial"}
+      ]
+    },
+    {
+      "id": "C_shutdown_decisions",
+      "name": "Resolve unsaved changes before leaving the editor",
+      "summary": "Decide whether shutdown can proceed by auto-saving eligible content, applying hot-exit backup policy, or asking the user to save, discard or cancel; browser shutdown uses synchronous backup checks.",
+      "actor": "User closing, quitting, reloading or changing the workspace with modified editors",
+      "inputs": ["Modified working copies", "Shutdown reason, platform/window context and hot-exit/auto-save settings", "Backup/save results and user confirmation"],
+      "outcomes": ["Native shutdown first auto-saves eligible non-untitled copies", "Qualifying modified copies are backed up and successful complete backup permits shutdown", "Remaining changes trigger save/discard/cancel decisions, with failed or canceled saves vetoing shutdown", "Browser shutdown is vetoed when hot exit is disabled or a matching content-version backup is absent"],
+      "conditions": ["Hot-exit decisions differ for quit, reload, window close and workspace load", "Window-close decisions depend on workspace state, settings, platform and window count", "Scratchpads have specific backup handling during workspace/window changes", "Extension-development mode has exceptional backup/error behavior"],
+      "exclusions": ["Guaranteeing prevention of all data loss", "Equivalent desktop and browser shutdown behavior", "General auto-save scheduling outside shutdown"],
+      "implementations": ["electron-browser/workingCopyBackupTracker.ts shutdown auto-save, backup policy, confirmation and save/revert orchestration", "browser/workingCopyBackupTracker.ts synchronous final-shutdown veto"],
+      "uncertainty": ["Native error-dialog choices were only partly inspected", "No lifecycle integration or user interaction was executed", "Backing-store failures and forced shutdown can limit protection"],
+      "evidenceIds": ["C-011", "C-017", "C-019"],
+      "assessment": "supported",
+      "claims": [
+        {"text": "Native shutdown attempts auto-save for eligible non-untitled modified copies, then uses configured hot-exit backup or confirmation for remaining changes.", "evidenceIds": ["C-011"], "assessment": "supported"},
+        {"text": "The backup policy distinguishes quit/reload from close/load and conditions close/load behavior on workspace, platform, window count, settings and scratchpad status.", "evidenceIds": ["C-011"], "assessment": "supported"},
+        {"text": "The save/discard/cancel path permits completed saving or reverting, but vetoes on canceled or insufficient saves and on user cancellation.", "evidenceIds": ["C-017"], "assessment": "supported"},
+        {"text": "The browser final-shutdown path vetoes modified content when hot exit is disabled or any working copy lacks a backup matching its content version.", "evidenceIds": ["C-019"], "assessment": "supported"}
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "C_shutdown_decisions",
+      "to": "C_unsaved_recovery",
+      "type": "depends_on",
+      "reason": "The hot-exit branch of shutdown protection consults matching-version backups or creates them; browser shutdown likewise permits modified copies only when matching backups exist. Other shutdown branches can save or discard instead.",
+      "evidenceIds": ["C-011", "C-017", "C-019"],
+      "assessment": "supported"
+    }
+  ],
+  "limitations": [
+    "All capability boundaries and relationships are candidate interpretations from static source at commit 33341eb227ab213b011868c9bc5c5f735aaaf875; no target code, tests, network or paid APIs were executed.",
+    "Inspected shell resources establish entry routing; no separate product capability was inferred merely from packaging or test tooling.",
+    "Remote CLI responsibilities share dispatch infrastructure, but their resource-opening, external-URL and extension-management requests have distinct inputs and downstream commands; no unsupported encompassing hierarchy was imposed.",
+    "A search for _remoteCLI.openExternal under src/vs/workbench was rejected on source blob src/vs/workbench/api/browser/mainThreadLanguageModels.ts and yielded no usable evidence. Subsequent scoped searches under contrib/remote and mainThreadCommands.ts returned no matches.",
+    "Reads of mainThreadCLICommands.ts at 1/160 and 20/50 were rejected because the evidence-byte budget would be exceeded; a 161/60 read was rejected because its start was beyond the file. The handler was never inspected and no claims cite it.",
+    "No proposal was used as independent verification, and no prior maps, baseline labels, other proposals, owner feedback, vault history or historical repository evidence were accessed."
+  ]
+}

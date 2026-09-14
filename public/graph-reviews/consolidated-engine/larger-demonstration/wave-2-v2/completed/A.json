@@ -1,0 +1,20 @@
+{
+  "outputSha256": "cd4421e70c81714de10e9510b3971f6963c77606f664eb09a29f9dd026633619",
+  "receipts": {
+    "receipts/A/A-001.json": "1f878c13474a862ab3f945dcd142324f6f0cad9cc75adf2e8ee80546e41507af",
+    "receipts/A/A-002.json": "669a5d13f4150137ea16a2a9019865d7531533689f6541d48e94b64d6f4d81e7",
+    "receipts/A/A-003.json": "09ef449978c3cce04497c8eec452495a44197f658edf98c6eeb3693b1d60e0c2",
+    "receipts/A/A-004.json": "ed0f5bfa1b9247f8fa4315b6ddd68dbc646229b13d74c09fdf77ddc32f1e4e84",
+    "receipts/A/A-005.json": "207e84d8228d1073429e684113a10efef9fcfbf66deff7abe6999d8d552ae8f1",
+    "receipts/A/A-006.json": "1a17b1a56479e64c6960206a58e479d060ed3aa45098696a4519fbdec4c6683d",
+    "receipts/A/A-007.json": "aeb827075dc0262d81712543e2bcdde4ecf9c410c6c02798f00c16b006f76944",
+    "receipts/A/A-008.json": "cb40461f0c9b5e1acafefae8e414de788eda9e2cfef01a50280a9c978c764c68",
+    "receipts/A/A-009.json": "2cab808280b6fce733bd5d7e3d8c869a72bf2ba7d499b0e5b0be6949ac58a0a3",
+    "receipts/A/A-010.json": "dbc936f63e934eb1588818f359a47e8bac2b29cea106090886c8da1001ee9724",
+    "receipts/A/A-011.json": "1af006d4a01e4e1beea307a2f0b0b289302d447762efbff83a569684e4d30514",
+    "receipts/A/A-012.json": "3eae7e51f55768a7eebcf2064456a6a7a8ed00f491698a9798e587d5e497d021",
+    "receipts/A/A-013.json": "fb8e642b627f17296479332de22b12a0d9a791fe4b2b2db64364a2bec921db79",
+    "receipts/A/A-014.json": "308033287a15a603d36bc7c6827fdb451585f944a0dd3d049607695470e30a9e",
+    "receipts/A/A-015.json": "a00508378e6f319df29e964ba86efc0ffadb48cbc5f105040ccf7b8dac4afcc5"
+  }
+}
