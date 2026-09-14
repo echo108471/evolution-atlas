@@ -1,0 +1,35 @@
+#!/usr/bin/env node
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+export function renderConditionalRelationships(data, packets, retrieval, audit = null) {
+  const names = new Map(data.graph.nodes.map((n) => [n.id, n.name]))
+  const evidence = new Map([...(packets.original ?? []), ...(packets.enriched ?? [])].map((e) => [e.id, e]))
+  const cells = [['original', 'forward'], ['original', 'reverse'], ['enriched', 'forward'], ['enriched', 'reverse']]
+  const refs = (ids) => ids.map((id) => `<a href="#${esc(id)}">${esc(id)}</a>`).join(' · ')
+  const decision = (claim, condition, order) => {
+    const r = data.reviews.find((r) => r.condition === condition && r.order === order)
+    if (!r || r.status !== 'valid') return `<td data-label="${esc(condition)} · ${esc(order)}">Unavailable: ${esc(r?.error ?? 'not run')}</td>`
+    const d = r.value.decisions.find((d) => d.id === claim.id), relation = d.relationship
+    return `<td data-label="${esc(condition)} · ${esc(order)}"><strong>${esc(d.decision)}</strong>${relation ? `<p>${esc(relation.type)}</p><p class="condition">${relation.condition ? `Only when: ${esc(relation.condition.text)}` : 'Unqualified at the pinned revision'}</p>` : ''}<details><summary>Reason and evidence</summary><p>${esc(d.reason)}</p><p>${refs(d.evidenceIds)}</p>${relation?.condition ? `<p>Condition evidence: ${refs(relation.condition.evidenceIds)}</p>` : ''}${d.missingEvidence.map((m) => `<p class="muted">Gap: ${esc(m)}</p>`).join('')}</details></td>`
+  }
+  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Conditional relationships · evidence follow-up</title>
+<style>body{font:16px/1.55 system-ui;color:#202a33;background:#f7f8fa;margin:0;padding:32px}main{max-width:1400px;margin:auto}h1{font-size:30px}h2{margin-top:36px}a{color:#175aba}table{border-collapse:collapse;width:100%;background:white}th,td{border:1px solid #d4dbe1;padding:16px;text-align:left;vertical-align:top}th{background:#edf1f5}td{min-width:180px}.scroll{overflow:auto}.notice{padding:18px;background:#e9f1f9;border-left:4px solid #4f759b}.condition{font-weight:550}.muted{color:#596571}details{margin:10px 0}summary{cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#edf0f3;padding:16px;font-size:13px}code{overflow-wrap:anywhere}article{padding:12px;background:white;border-bottom:1px solid #d4dbe1}p{margin:10px 0}@media(max-width:700px){body{padding:16px}}</style>
+<style>@media(max-width:1000px){.scroll{overflow:visible}table,tbody,tr,td,th{display:block}thead{display:none}tr{margin-bottom:24px}td{min-width:0;overflow-wrap:anywhere}td:before{content:attr(data-label);display:block;color:#596571;font-size:13px;margin-bottom:8px}th{border-bottom:2px solid #4f759b}}</style>
+<main><h1>Conditional relationships</h1><p>Three disputed connections · original vs model-requested evidence · two reviews each</p>
+<div class="notice">These are candidate interpretations, not changes to the accepted map. Conditions are descriptive predicates, not executable rules. All 47 baseline capabilities and their original relationships remain untouched. Agreement between reviews is not proof of correctness.</div>
+${audit ? `<h2>Evidence check — separate from the model verdicts</h2><div class="notice"><p>The embedding condition is promising. The professor-page rejections are less conclusive: missing page wiring does not settle broader capability membership.</p><details><summary>Read the evidence checks and remaining limits</summary>${audit.notes.map((n) => `<p><strong>${esc(n.claimIds.join(', '))}:</strong> ${esc(n.finding)}</p>`).join('')}<p><a href="audit.json">Full audit notes</a>. These observations were not supplied to the experiment calls.</p></details></div>` : ''}
+<p>Recorded inference cost: <strong>${data.cost === null ? 'unavailable' : '$' + data.cost.toFixed(4)}</strong>. Pinned revision: <code>${esc(data.manifest.headSha)}</code>.</p>
+<h2>Full comparison</h2><p>Contains means part of an outcome; supports means contributes to it; depends_on means requires it in the stated circumstances. Blank relationships are deferred or rejected, not silently deleted.</p>
+<div class="scroll"><table><thead><tr><th>Original claim</th>${cells.map(([c, o]) => `<th>${esc(c)} evidence<br>${esc(o)} order</th>`).join('')}</tr></thead><tbody>${data.claims.map((c) => `<tr><th>${esc(c.id)} · ${esc(names.get(c.from))}<br>→ ${esc(names.get(c.to))}<p>${esc(c.type)}</p></th>${cells.map(([condition, order]) => decision(c, condition, order)).join('')}</tr>`).join('')}</tbody></table></div>
+<h2>What the model requested</h2><p>${esc(data.plan.value?.reason ?? data.plan.error)}</p><p>${retrieval?.sourceCount ?? 0} source windows, ${retrieval?.readingCount ?? 0} readings retrieved; ${(packets.enriched?.length ?? 0) - (packets.original?.length ?? 0)} additional evidence items after deduplication.</p><details><summary>Retrieval requests and omissions</summary><pre>${esc(JSON.stringify({ plan: data.plan, omitted: retrieval?.omitted }, null, 2))}</pre></details>
+<h2>Remaining questions from each review</h2>${data.reviews.map((r) => `<details><summary>${esc(r.condition)} · ${esc(r.order)}</summary>${r.status === 'valid' ? r.value.unresolved.map((s) => `<p>${esc(s)}</p>`).join('') || '<p>None reported.</p>' : esc(r.error)}</details>`).join('')}
+<h2>Source and reading evidence</h2><p>Revision and line ranges are shown for every observed source. Historical and current snapshots are not interchangeable.</p>${[...evidence.values()].map((e) => `<article id="${esc(e.id)}"><details><summary>${esc(e.id)} · ${esc(e.path ?? e.subject ?? e.kind)}${e.kind === 'source' ? ` · lines ${esc(e.startLine)}–${esc(e.endLine)} / ${esc(e.totalLines)}` : ''}</summary><p>${esc(e.kind)} · ${esc(e.commitSha)} · ${esc(e.interpretationStatus)}</p><pre>${esc(e.text ?? JSON.stringify(e, null, 2))}</pre></details></article>`).join('')}
+<h2>Limits and raw output</h2><p>${esc(data.manifest.limitations)}</p><p>No graph composition or transitive reduction was performed: a conditional path must not silently stand in for an unconditional one.</p><p><a href="output.json">Full results</a> · <a href="packets.json">Evidence packets</a> · <a href="retrieval.json">Retrieval record</a> · <a href="manifest.json">Protocol</a></p></main></html>`
+}
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const dir = dirname(resolve(process.argv[2])), read = (name) => JSON.parse(readFileSync(`${dir}/${name}.json`, 'utf8'))
+  writeFileSync(`${dir}/index.html`, renderConditionalRelationships(read('output'), read('packets'), read('retrieval'), existsSync(`${dir}/audit.json`) ? read('audit') : null))
+  process.stdout.write(`${dir}/index.html\n`)
+}

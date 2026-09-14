@@ -9,6 +9,10 @@ capabilities. A flat partition cannot represent either fact.
 set of saved per-commit readings and ask it to infer a hierarchy directly. It receives no
 maintainer taxonomy, no desired capability count, and none of the earlier clusters.
 
+The September 6 [iterative graph experiment](CAPABILITY-GRAPH.md) builds on the saved leaf
+discoveries to test arbitrary depth, dependencies, source retrieval, and downward revision.
+The two-level results below remain the original experimental condition.
+
 ## Experimental contract
 
 The induction prompt makes five choices explicit:

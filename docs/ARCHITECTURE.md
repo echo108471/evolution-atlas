@@ -34,8 +34,9 @@ The division of responsibility is:
   lifecycle event sits, and where the work changes temporal character;
 - **the evidence system supplies context** at the needed resolution and lets the model ask
   for more rather than forcing a decision from one underspecified slice;
-- **deterministic code governs the decision** by resolving citations, rejecting unsupported
-  claims, preserving observed facts, recording provenance, and measuring recurrence;
+- **deterministic code governs the decision** by resolving citations, rejecting invalid
+  evidence references, preserving observed facts, recording provenance, and measuring
+  recurrence; semantic support still requires examination of the claim and evidence;
 - **the candidate graph preserves change** so a later run can add, merge, split, rename, or
   reparent an interpretation without silently rewriting the earlier one.
 
@@ -151,13 +152,221 @@ candidate should retain lineage; a split or merge should cite its predecessors. 
 remain useful review evidence, but the system must be able to run without them and they
 must not be smuggled into later blind evaluations.
 
-### Current two-layer boundary
+### From two-layer induction to iterative graphs
 
 Capability induction currently permits one umbrella layer and one optional child layer.
 That keeps the first stability experiment interpretable. The serialized shape is recursive
 so a later decision session may propose broader umbrellas or deeper children without a
 schema migration. The viewer can continue projecting two levels even if the underlying
 candidate graph later becomes deeper.
+
+The [iterative graph experiment](CAPABILITY-GRAPH.md) now tests that extension separately:
+start from prior leaf discoveries without their old parents, retrieve bounded readings and
+revision-pinned source, and apply versioned candidate patches. Containment forms a DAG with
+no fixed depth; dependencies are separate edges. A later round may revise earlier nodes,
+not only stack parents above them. The agenda records reviewed and outstanding areas so
+finishing a local investigation does not imply finishing discovery. Evidence budgets and
+round limits bound computation without imposing a semantic size or depth limit. This remains
+an experimental projection, with existing induction and the viewer unchanged.
+
+### Snapshot workflow: saved work and live execution are separate
+
+The subscription-agent snapshot experiments now have a resumable wrapper in
+`scripts/snapshot-workflow.mjs`. It supports initial discovery and unread-file expansion,
+then an evidence-backed integration and complete local report. It reuses the frozen source
+broker and graph validators rather than changing the model's capability-selection policy.
+That frozen wrapper's source inventory and mechanical partitions remain VS Code-specific.
+The consolidated repository-neutral entry point below supersedes it for new workflow work;
+the old implementation remains intact for exact experiment replay.
+
+The wrapper freezes source inputs, instructions, budgets and relevant implementation hashes
+before dispatch. Discovery receives saved assignment packets without previous definitions;
+integration receives the checkpointed proposals, baseline and source evidence. Every raw
+response is saved before acceptance, and graph validation is distinct from semantic support.
+Completed assignments pin both the response bytes and full receipt set. Baseline excerpts
+are also checked against immutable source blobs. Namespace collisions cannot silently replace
+an original during lineage accounting.
+
+Artifact states distinguish ready work, partial evidence, a saved response, invalid output,
+checkpointed output and complete report. A recorded agent handle with no result means
+**check the host**, not “running” and not “rerun.” The parent still dispatches subscription
+agents through host tools; the wrapper does not purchase API inference or infer live status.
+An explicitly resumed interrupted assignment retains all earlier receipts and the remaining
+budget. A per-assignment exclusive lock prevents overlapping wrapper broker requests. An
+abandoned lock requires checking the recorded process before recovery; it is never expired
+or deleted solely because time passed. Direct use of the older broker can bypass wrapper
+locking, so agent access discipline remains instruction-enforced rather than a sandbox.
+
+Once discovery is checkpointed, integration pins the complete input set—not just files that
+existed at an earlier check. Added receipts, changed instructions or changed task packets are
+rejected. Once a valid graph is checkpointed, report creation can resume from saved inference.
+Repeated creation verifies exact bytes and refuses conflicting files. Corrupt partial files
+remain failures requiring explicit recovery; writes are create-only, not crash-atomic.
+
+The companion wording-revision transaction requires exact old text and graph preconditions,
+applies a proposal atomically in memory and records changed assertions. Source-review records
+bind to exact reviewed content in a separate sidecar; neither schema success nor proposer
+confidence grants independent verification. Main-app integration
+and historical-evolution reasoning remain separate work. Current experimental outcomes and
+limitations are owned by [the experiment summary](EXPERIMENT-SUMMARY.md).
+
+### Consolidated repository workflow
+
+New runs use **`scripts/repository-engine.mjs`**, not another experiment-specific runner.
+Its commands are `prepare`, `status`, `broker`, `launch`, `terminal`, `checkpoint`,
+`integrate` and `publish`. It combines repository-neutral inventory, bounded immutable-source
+retrieval, saved responses, global integration, explicit lineage and a complete local report.
+It does **not** launch models itself: the host dispatches fresh-context workers from the saved
+task files and records their handles. This is one artifact workflow with external model
+execution, not a standalone one-command model service.
+
+An initial configuration contains `mode: "discovery"`, an absolute local `repo` path,
+`displayName`, optional `revision` (default `HEAD`), `partitionCount` (1–6, default 3) and
+`maxFileBytes` (at most 1 MiB). Expansion uses `mode: "expansion"` and `baseline`, the path
+to a previous `output.json`, on the **same pinned commit**. The discovery inventory is
+reconstructed from the complete commit tree, then excludes every cumulatively inspected
+baseline file. It never substitutes a previous reduced inventory for the full one.
+Assignments balance source-directory groups; they impose no capability count or depth.
+
+Operational sequence, with `RUN` an ignored local output directory:
+
+```text
+node scripts/repository-engine.mjs prepare RUN CONFIG.json
+node scripts/repository-engine.mjs status RUN
+# Host dispatches fresh workers using RUN/tasks/A.json, B.json, ...
+node scripts/repository-engine.mjs launch RUN A HOST_HANDLE
+# Workers use: broker RUN A list|read|search ...
+# Workers save their first complete raw JSON once to the task's output path.
+# After the host observes that the worker has completed:
+node scripts/repository-engine.mjs terminal RUN A HOST_HANDLE completed
+node scripts/repository-engine.mjs checkpoint RUN A
+# Repeat checkpoint for each assignment, without rerunning completed work.
+node scripts/repository-engine.mjs integrate RUN
+# Host dispatches RUN/tasks/R.json and records its actual handle.
+node scripts/repository-engine.mjs launch RUN R HOST_HANDLE
+# After the host observes completion:
+node scripts/repository-engine.mjs terminal RUN R HOST_HANDLE completed
+node scripts/repository-engine.mjs checkpoint RUN R
+node scripts/repository-engine.mjs publish RUN
+```
+
+Broker argument order is explicit: `broker RUN AGENT read PATH START_LINE LINE_COUNT`
+(the final number is a count, **not an end line**),
+`broker RUN AGENT search PATH_PREFIX LITERAL`, and
+`broker RUN AGENT list PREFIX OFFSET`. Omitted read range arguments default to line 1
+and 120 lines; list defaults to the worker's assignment and offset 0. An explicit list
+prefix can navigate across assignments. Search locations alone do not support claims.
+
+The host must observe a terminal state before recording
+`terminal RUN AGENT HOST_HANDLE completed|interrupted|failed`. A saved handle is not proof
+that a process is live or dead. On interruption, inspect status and resume the original job
+with remaining receipts/budget; do not automatically start over. Invalid raw output is kept
+and blocks automatic semantic retry. Status reads never recreate missing files. Explicit
+preparation may reconstruct missing deterministic setup files but rejects conflicting bytes.
+Writes are create-only, not crash-atomic; abandoned locks require a real process check.
+
+Run plans pin the workflow's source-file bytes as well as their inputs. The stable entry point
+selects the runtime from an existing run's declared version; new directories use
+`repository-engine/2`. Version 1's six exact source files are retained, unmodified, under
+`scripts/versions/repository-engine-v1/`. Version 2 lives in `scripts/repository-engine-v2.mjs`
+and pins itself, the dispatcher and its source dependencies. Unknown versions or mismatched
+pins fail closed. Existing directories are never migrated automatically; upgrading means
+preparing a new directory against the same previous output, which is independently rebound
+to its pinned source tree. The archive is for original-version replay/recovery, not a second
+experiment-specific inference method. Changes to any pinned version require another explicit
+version and preservation policy; this is not arbitrary historical-version compatibility.
+
+The metadata adapter accepts worktrees, linked worktrees and bare repositories, pins a real
+commit, and excludes unsafe/sensitive/instruction paths, generated/dependency directories,
+non-regular entries, oversized blobs and unsupported extensions. It does not execute target
+code or fetch missing objects. Source retrieval validates path/blob membership against that
+tree, checks blob digests, enforces line and byte caps, and screens complete blobs before
+reads or searches. Receipt verification reconstructs search locations as well as source
+bytes and metadata. Path/content screening is conservative and heuristic, not a guarantee
+that all secrets or adversarial instructions have been excluded. Worker access discipline
+outside the broker remains instruction-enforced.
+
+Baseline history is retained verbatim in `history/baseline-output.json`, withheld from blind
+discovery. Integration receives an explicit candidate-field projection and source-only
+receipt aliases, not embedded prior review labels. Source aliases bind exact path, commit,
+blob, range and bytes. Fresh model graph fields reject independent-verification labels.
+The consolidated validator checks malformed values, citation membership, acyclic multi-parent
+containment, exact retention and actual revision, distinct split successors, shared explicit
+merge predecessors, removal cardinality and every original relationship disposition. These
+checks establish accounting, **not semantic correctness**. Source-based comparison decisions
+remain model-authored and revisable. Compound split-and-merge transactions require separate
+versions under this contract.
+
+`output.json` and `index.html` contain the complete candidate map, definitions, relationships,
+evidence, integration decisions, retained/changed/removed inputs and coverage limits. All
+independent verification starts as `not-performed`; earlier review histories are preserved
+but are not yet automatically projected onto new generic runs. The full discovery–expansion
+workflow is tested with synthetic local Git repositories and has completed a host-assisted
+VS Code delivery run through the same unchanged entry point, including controlled stop/resume,
+expansion and exact report replay. This establishes working delivery mechanics, not
+exhaustive discovery, usefulness or unattended reliability on an unfamiliar real repository.
+The live run's outputs, interventions and remaining review gaps are recorded in
+[the experiment summary](EXPERIMENT-SUMMARY.md#live-delivery-check-not-another-method-comparison).
+
+Claim-local notes use the reusable companion `scripts/review-repository-map.mjs`:
+`node scripts/review-repository-map.mjs RUN NOTES.json`. The note packet binds the exact
+serialized graph hash, node, field (`summary`, `conditions`, or individual claim text),
+optional index and expected old text. It records `qualified`, `disputed` or `unresolved`
+assertions with an explicit basis (`proposer-disclosed`, `source-review` or `owner-feedback`)
+and source IDs. It creates separate `reviewed-output.json` and `reviewed.html`, attaching
+notes to the affected capability without changing its candidate graph or granting independent
+verification. Stale targets and conflicting companion files fail closed. This is a mechanical
+presentation layer, not an automatic audit, correction, or cross-version review migration.
+
+#### Coverage routing
+
+Coverage-led runs may first call `node scripts/plan-repository-coverage.mjs RUN`. This
+host-side supplement uses the verified full inventory and cumulative baseline receipts to
+freeze metadata-only directory regions and per-worker unread file lists. Its pure helper
+splits oversized directory groups (default 200 files, maximum directory depth six), preserves
+direct sibling groups, and prioritizes untouched regions subject to top-level subtree
+diversity. Region depth is a retrieval parameter, not a semantic graph-depth restriction.
+Oversized indivisible regions and remaining unread counts stay explicit.
+
+`coverage-routing.json` pins the engine run plan, candidate baseline projection and coverage
+planner source bytes. `coverage-tasks/` supplies additional host-authorized navigation inputs;
+the original engine tasks and semantic protocol remain unchanged. The supplement must be
+created before discovery starts; exact replay can restore missing companions but refuses
+changed files. Workers may follow cross-region evidence using the ordinary broker. Routing
+is instruction-enforced, not a broker access restriction or a claim of region completeness.
+These regions are not capability categories, and file/line counts are not semantic coverage.
+
+The larger demonstration exposed a separate integration packaging limit in version 1:
+baseline source receipts appeared inside both `baseline.receipts` and top-level `receipts`.
+Version 2 instead gives integration `baseline: { graph, receiptIds }`; those IDs reference
+the single top-level receipts collection. Exact receipt identity, content, source provenance,
+candidate definitions, semantic protocol and retrieval budgets remain unchanged. This removes
+duplicate occurrences of the same receipt ID, not distinct IDs with coincidentally equal text
+or overlapping source windows. Historical baseline files remain complete and withheld from
+discovery. Packet validation recomputes the complete expected bytes, including the references,
+so removed or changed evidence and reference lists fail closed.
+
+Under a frozen run-specific byte ceiling, a prepared baseline gives a conservative lower
+bound before discovery dispatch; measure the actual complete packet again before integration.
+Count real serialized bytes, not an informal compressed equivalent. Removing duplicate bytes
+does not alone bound cumulative graph/evidence growth or establish semantic scaling.
+
+### Review history survives graph changes without transferring approval
+
+Historical source reviews now have a separate post-discovery projection in
+`scripts/snapshot-review-history.mjs` and `scripts/lib/review-continuity.mjs`. It verifies the
+exact reviewed graph, regenerates the prior review sidecar from its frozen packets/reviews,
+and checks explicit node lineage and byte-equivalent source-receipt aliases. It never guesses
+identity from a name or strips all namespace prefixes. Definition/claim content matching and
+changes to incident relationships are reported separately. A matched earlier assertion is
+still only an earlier review, not approval of the current graph context.
+
+Removed nodes retain archived findings; split or merged successors keep their predecessor
+histories with explicit correspondence warnings. Changed wording does not automatically resolve
+an earlier qualification. This layer creates a separate review-aware report after inference;
+it leaves frozen candidate outputs, discovery inputs and model decisions unchanged. The current
+adapter joins one verified wording-recheck sidecar to its immediate snapshot expansion, not an
+arbitrary multi-version review database or semantic review-transfer policy.
 
 ## Initial stack
 

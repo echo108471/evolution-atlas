@@ -19,3 +19,4 @@ coverage/
 /public/readings*.json
 *.cache.jsonl
 /public/capabilities*.json
+/public/graph-reviews/

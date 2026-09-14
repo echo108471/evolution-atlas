@@ -139,6 +139,32 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
+**Current priority: consolidate, then deliver.** The encouraging discovery results justify
+one reusable workflow now; more small semantic comparisons are not the main workstream.
+The repository-neutral entry point is `scripts/repository-engine.mjs`; its current contract
+and operating sequence are in [the architecture](ARCHITECTURE.md#consolidated-repository-workflow).
+
+1. Bound cumulative integration work before another coverage expansion. The completed second
+   larger wave delivered 113 nodes / 97 relationships across excerpts from 118 files. Version 2
+   removed duplicate packaging and earlier runs still replay exactly, but integration still
+   reads accumulated evidence. Keep the complete candidate map available while designing
+   decision-scoped evidence retrieval with explicit omissions and revisable claims. Preserve
+   owner review as broad usefulness feedback, not discovery labels or a fixed taxonomy.
+2. Address failures that prevent reliable operation or materially reduce map usefulness.
+   Keep claim-local review qualifications separate from candidate-map availability.
+3. Consolidate generic review continuity and the host execution adapter, retaining the now
+   versioned runtime/replay contract; expose results in the app. Coordinate launch recording
+   before broker use, and keep host status checks from exposing prior outputs to blind workers.
+   Confirm whether historical evolution is part of the temporary engine milestone
+   before treating snapshot delivery as full success.
+
+### Earlier research backlog — not the current execution plan
+
+The [iterative graph experiment](CAPABILITY-GRAPH.md) now tests growing and revising a graph
+without a semantic depth cap, including source inspection and an investigation agenda.
+Its next checks are relationship support/novelty and repeatability; the earlier static
+and staged conditions below remain separate controls.
+
 1. Add proposal-to-map novelty review and one bounded follow-up retrieval round. Citation
    validity and complete signal accounting are necessary but did not stop proposals whose
    scope overlaps existing node descriptions.
@@ -153,9 +179,9 @@ stage actually produces. Three results change what the roadmap should prioritize
    pricier model. The budgets are measured and `--max-bytes` exists; nothing yet acts on
    the promotion cause.
 
-The present capability experiment is capped at two generated levels—umbrella plus
-children—while retaining a recursive representation for later super-umbrella or deeper
-nesting experiments. Capability hierarchy describes what the system does; epoch hierarchy
+The original induction condition is capped at two generated levels—umbrella plus
+children. The newer graph condition permits uneven arbitrary depth and separate dependency
+edges. Capability hierarchy describes what the system does; epoch hierarchy
 describes when its work changed character. Keep those axes separate until evidence shows a
 useful relationship between them.
 

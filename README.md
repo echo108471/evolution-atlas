@@ -84,6 +84,16 @@ slice:
 
 Requires Node.js 22.12 or newer and Git.
 
+For the current **capability-discovery workflow**, use
+[`scripts/repository-engine.mjs`](scripts/repository-engine.mjs) and its
+[operating sequence](docs/ARCHITECTURE.md#consolidated-repository-workflow).
+It handles repository-neutral snapshot discovery, expansion, saved progress and
+a complete candidate-map report. Model execution is supplied by the host; the
+engine does not call a model API. This is separate from the observed-history
+viewer and older interpretation commands below, and does not yet infer
+historical evolution. New delivery work uses this shared workflow; earlier
+experiment runners remain frozen for replay.
+
 ```bash
 npm install
 npm run analyze -- --repo . --out public/atlas.json
@@ -165,6 +175,8 @@ npm run build
 ```
 
 ## Project documents
+
+- [Experiment summary and lessons](docs/EXPERIMENT-SUMMARY.md) — readable synthesis, corrected conclusions, and unresolved questions
 
 - [Concept](docs/CONCEPT.md)
 - [Architecture](docs/ARCHITECTURE.md)

@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+export function renderDescription(data, packet, audit = null) {
+  const available = new Set([...packet.evidence, ...packet.searches].map((e) => e.id))
+  const refs = (ids) => (ids ?? []).map((id) => available.has(id) ? `<a href="#${esc(id)}">${esc(id)}</a>` : `<span>${esc(id)} (not in fixed packet)</span>`).join(' · ')
+  const descriptor = (d) => d ? `<h3>${esc(d.name)}</h3><p>${esc(d.summary)}</p><p>${refs(d.evidenceIds)}</p>` : '<p>No identity-preserving replacement proposed.</p>'
+  const names = new Map(data.graph.nodes.map((n) => [n.id, n.name]))
+  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Can descriptions evolve without changing identity?</title><style>body{font:16px/1.6 system-ui;background:#f6f8fa;color:#23313b;margin:0;padding:24px}main{max-width:1200px;margin:auto}h1{font-size:30px}h2{margin-top:32px}article{background:white;border:1px solid #d5dce2;border-radius:8px;padding:18px;overflow-wrap:anywhere}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.notice{background:#e8f1f8;padding:16px;border-left:4px solid #477596}a{color:#175db0}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#edf1f4;padding:16px;font-size:13px}summary{cursor:pointer}details{margin:12px 0}.sources article{margin:8px 0}@media(max-width:750px){.grid{grid-template-columns:1fr}body{padding:16px}}</style><main>
+  <h1>Can descriptions evolve without changing identity?</h1><p>One capability · fixed evidence · original versus model-revised wording</p><div class="notice">The accepted map is unchanged. The model proposes a description, a separate review checks identity, and fresh reviews judge the same two relationships. No prior relationship verdicts or owner judgments enter inference.</div>
+  <p>Cost: ${data.cost === null ? 'unavailable' : '$' + data.cost.toFixed(4)} · Fixed packet: ${packet.evidence.length} evidence items and ${packet.searches.length} search receipts.</p>
+  ${audit ? `<div class="notice"><p>${esc(audit.summary)}</p><details><summary>Source spot-check and interpretation limits</summary>${audit.notes.map((n) => `<p>${esc(n)}</p>`).join('')}<p>Assistant notes, not model input. <a href="audit.json">Audit record</a></p></details></div>` : ''}
+  <h2>Description comparison</h2><div class="grid"><article><h3>Original · ${esc(data.originalDescriptor.id)}</h3>${descriptor(data.originalDescriptor)}</article><article><h3>Proposed · ${esc(data.proposal.value?.identityDecision ?? data.proposal.status)}</h3>${descriptor(data.proposal.value?.descriptor)}<p>${esc(data.proposal.value?.reason ?? data.proposal.error)}</p>${refs(data.proposal.value?.evidenceIds)}</article></div>
+  <h2>Separate identity review</h2><article><h3>${esc(data.gate?.value?.decision ?? data.gate?.status ?? 'Not run')}</h3><p>${esc(data.gate?.value?.reason ?? data.gate?.error ?? 'No identity-preserving candidate available.')}</p>${refs(data.gate?.value?.evidenceIds)}${(data.gate?.value?.unresolved ?? []).map((u) => `<p>Open: ${esc(u)}</p>`).join('')}</article>
+  ${data.claims.map((c) => `<h2>${esc(c.id)} · ${esc(names.get(c.from))} → ${esc(names.get(c.to))}</h2><div class="grid">${[['original','forward'],['original','reverse'],['revised','forward'],['revised','reverse']].map(([condition,order]) => {
+    const r = data.reviews.find((r) => r.condition === condition && r.order === order)
+    if (!r || r.status !== 'valid') return `<article><h3>${condition} · ${order}</h3><p>${esc(r?.error ?? 'Not run: identity gate did not approve.')}</p>${r ? `<a href="${condition}-${order}.response.json">Unrepaired response; entire review excluded</a>` : ''}</article>`
+    const a = r.value.assessments.find((a) => a.id === c.id)
+    return `<article><h3>${condition} · ${order}</h3><p><strong>Outcome: ${esc(a.outcome.decision)}</strong> · ${esc(a.outcome.type)} · ${esc(a.outcome.timeScope)}</p><p>${esc(a.outcome.reason)}</p><p><strong>Wiring: ${esc(a.wiring.status)}</strong></p><p>${esc(a.wiring.statement)}</p><p>Condition: ${esc(a.wiring.condition ?? 'none reported')}</p><details><summary>Citations, history, and open questions</summary><p>Outcome: ${refs(a.outcome.evidenceIds)}</p><p>Wiring: ${refs(a.wiring.evidenceIds)}</p><p>Searches: ${refs(a.wiring.searchIds)}</p><pre>${esc(JSON.stringify({ atCommits: a.outcome.atCommits, history: a.history, unresolved: a.unresolved }, null, 2))}</pre></details></article>`
+  }).join('')}</div>`).join('')}
+  <h2>Limits</h2><p>Planned design: ${esc(data.manifest.limitations)}</p><p>All executed cells have the same observations. In the planned comparison, only the target descriptor changes between conditions; claim order changes between forward and reverse. Proposal rationale and identity verdict are withheld from relationship reviewers. Formatting and guard reminders are identical across planned cells but differ from the preceding experiment. Skipped cells provide no comparison result.</p>
+  <details><summary>Full model output, including all open questions</summary><pre>${esc(JSON.stringify(data, null, 2))}</pre></details>
+  <h2>Evidence and search receipts</h2><div class="sources">${[...packet.evidence,...packet.searches].map((e) => `<article id="${esc(e.id)}"><details><summary>${esc(e.id)} · ${esc(e.path ?? e.query?.text ?? e.subject ?? e.kind)}${e.kind === 'source' ? ` · ${e.startLine}–${e.endLine} / ${e.totalLines}` : ''}</summary><p>${esc(e.kind)} · ${esc(e.commitSha)}</p><pre>${esc(e.text ?? JSON.stringify(e, null, 2))}</pre></details></article>`).join('')}</div>
+  <p><a href="output.json">Full output</a> · <a href="packets.json">Fixed evidence</a> · <a href="manifest.json">Protocol</a></p></main></html>`
+}
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const dir = dirname(resolve(process.argv[2])), read = (n) => JSON.parse(readFileSync(`${dir}/${n}.json`, 'utf8'))
+  writeFileSync(`${dir}/index.html`, renderDescription(read('output'), read('packets').enriched, existsSync(`${dir}/audit.json`) ? read('audit') : null))
+  process.stdout.write(`${dir}/index.html\n`)
+}
