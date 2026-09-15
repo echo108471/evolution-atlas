@@ -22,6 +22,16 @@ function runtime(directory, creating = false) {
 }
 export const prepareEngine = (directory, input) => runtime(directory, true).prepareEngine(directory, input)
 export const inspectEngine = directory => runtime(directory).inspectEngine(directory)
+export const statusEngine = directory => {
+  const rt = runtime(directory)
+  if (typeof rt.statusEngine === 'function') return rt.statusEngine(directory)
+  const c = rt.inspectEngine(directory)
+  return {
+    status: c.status, version: c.plan.version, mode: c.plan.mode, displayName: c.plan.displayName, commitSha: c.plan.commitSha,
+    availableDiscoveryFiles: c.inventory.eligibleFiles,
+    jobs: c.jobs.map(({ agent, state, handle, validation }) => ({ agent, state, handle, validation })),
+  }
+}
 export const engineBroker = (directory, ...args) => runtime(directory).engineBroker(directory, ...args)
 export const checkpointEngine = (directory, ...args) => runtime(directory).checkpointEngine(directory, ...args)
 export const freezeIntegration = directory => runtime(directory).freezeIntegration(directory)
@@ -34,8 +44,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     if (!directory) throw new Error('Run directory required')
     let result
-    if (command === 'prepare' && args.length === 1) result = prepareEngine(directory, read(resolve(args[0])))
-    else if (command === 'status' && !args.length) result = inspectEngine(directory)
+    if (command === 'prepare' && args.length === 1) { prepareEngine(directory, read(resolve(args[0]))); result = statusEngine(directory) }
+    else if (command === 'status' && !args.length) result = statusEngine(directory)
     else if (command === 'broker') result = engineBroker(directory, ...args.slice(0, 2), args.slice(2))
     else if (command === 'checkpoint' && args.length === 1) result = checkpointEngine(directory, ...args)
     else if (command === 'integrate' && !args.length) result = freezeIntegration(directory)
@@ -43,7 +53,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     else if (command === 'terminal' && args.length === 3) result = recordEngineTerminal(directory, ...args)
     else if (command === 'publish' && !args.length) result = publishEngine(directory)
     else throw new Error('Usage: repository-engine.mjs prepare RUN CONFIG.json | status RUN | broker RUN AGENT list|read|search|receipt|commit-meta|diff|path-history ARGS | checkpoint RUN AGENT | integrate RUN | launch RUN AGENT HANDLE | terminal RUN AGENT HANDLE completed|interrupted|failed | publish RUN')
-    if (['prepare', 'status'].includes(command)) result = { status: result.status, version: result.plan.version, mode: result.plan.mode, displayName: result.plan.displayName, commitSha: result.plan.commitSha, availableDiscoveryFiles: result.inventory.eligibleFiles, jobs: result.jobs.map(({ agent, state, handle, validation }) => ({ agent, state, handle, validation })) }
     console.log(JSON.stringify(result, null, 2))
   } catch (error) { console.error(error.message); process.exitCode = 1 }
 }

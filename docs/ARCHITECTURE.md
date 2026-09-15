@@ -192,10 +192,14 @@ checkpointed output and complete report. A recorded agent handle with no result 
 **check the host**, not “running” and not “rerun.” The parent still dispatches subscription
 agents through host tools; the wrapper does not purchase API inference or infer live status.
 An explicitly resumed interrupted assignment retains all earlier receipts and the remaining
-budget. A per-assignment exclusive lock prevents overlapping wrapper broker requests. An
-abandoned lock requires checking the recorded process before recovery; it is never expired
-or deleted solely because time passed. Direct use of the older broker can bypass wrapper
-locking, so agent access discipline remains instruction-enforced rather than a sandbox.
+budget. A per-assignment exclusive lock serializes wrapper broker requests with host
+`launch`/`terminal` recording for that assignment. When another live process holds the lock,
+callers wait for release rather than failing immediately with `EEXIST`. An abandoned lock
+(dead recorded pid) still requires checking the recorded process before recovery; it is never
+expired or deleted solely because time passed. Hosts should record `launch` before dispatching
+a worker that will call the broker, so the two operations share the lock in a defined order.
+Direct use of the older broker can bypass wrapper locking, so agent access discipline remains
+instruction-enforced rather than a sandbox.
 
 Once discovery is checkpointed, integration pins the complete input set—not just files that
 existed at an earlier check. Added receipts, changed instructions or changed task packets are
@@ -234,7 +238,7 @@ Operational sequence, with `RUN` an ignored local output directory:
 ```text
 node scripts/repository-engine.mjs prepare RUN CONFIG.json
 node scripts/repository-engine.mjs status RUN
-# Host dispatches fresh workers using RUN/tasks/A.json, B.json, ...
+# Host records launch, then dispatches fresh workers using RUN/tasks/A.json, B.json, ...
 node scripts/repository-engine.mjs launch RUN A HOST_HANDLE
 # Workers use: broker RUN A list|read|search ...
 # Workers save their first complete raw JSON once to the task's output path.
@@ -271,6 +275,13 @@ with remaining receipts/budget; do not automatically start over. Invalid raw out
 and blocks automatic semantic retry. Status reads never recreate missing files. Explicit
 preparation may reconstruct missing deterministic setup files but rejects conflicting bytes.
 Writes are create-only, not crash-atomic; abandoned locks require a real process check.
+
+Host-facing `status` (and the `statusEngine` helper) returns assignment state metadata only:
+agent, state, handle, and schema validation issues. It deliberately omits proposal/result
+semantic bodies (`jobs[].value`), output paths, and receipt pins so a status/list view cannot
+leak other agents' completed task summaries into a blind discovery worker context. Privileged
+`inspectEngine` still loads full saved outputs for checkpoint/integrate/publish; hosts must
+not paste that privileged inspect into worker context.
 
 Run plans pin the workflow's source-file bytes as well as their inputs. The stable entry point
 selects the runtime from an existing run's declared version; new directories use

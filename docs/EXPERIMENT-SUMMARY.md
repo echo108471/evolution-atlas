@@ -899,7 +899,8 @@ Historical evolution is milestone-in-scope via the
 [three planes](ARCHITECTURE.md#three-planes-store-decision-session-history) (Store / Decision
 session / History). Version 2 now exposes partial history-plane broker ops (`commit-meta`,
 bounded `diff`, `path-history`); prior-map lookup and brokered cached per-commit readings
-remain open. The
+remain open. Host hardening on v2 waits for live assignment locks and keeps `status` free of
+other agents' proposal/result bodies. The
 [architecture](ARCHITECTURE.md#consolidated-repository-workflow) owns the operating sequence;
 the [roadmap](ROADMAP.md#immediate-next-steps) owns the delivery order.
 At the consolidation checkpoint, all **476 tests**, the build and whitespace checks passed. The generic renderer was checked

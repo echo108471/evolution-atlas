@@ -1,12 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync, realpathSync } from 'node:fs'
+import { execFileSync, spawn } from 'node:child_process'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync, realpathSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import * as legacy from '../scripts/versions/repository-engine-v1/repository-engine.mjs'
-import { prepareEngine, inspectEngine, engineBroker, checkpointEngine, freezeIntegration, publishEngine, recordEngineLaunch, recordEngineTerminal } from '../scripts/repository-engine.mjs'
+import { prepareEngine, inspectEngine, statusEngine, engineBroker, checkpointEngine, freezeIntegration, publishEngine, recordEngineLaunch, recordEngineTerminal } from '../scripts/repository-engine.mjs'
 
 const json = x => JSON.stringify(x, null, 2) + '\n'
 function fixture(t) {
@@ -69,6 +70,7 @@ test('stable entry point resumes and replays v1 bytes while new runs use v2', t 
   assert.match(v2Protocol, /prior-map lookup/)
   assert.match(v2Protocol, /decision-scoped frozen packet/)
   assert.match(v2Protocol, /broker receipt/)
+  assert.match(v2Protocol, /Host status\/list views expose assignment state metadata only/)
   assert.match(v1Protocol, /Historical evolution is outside this snapshot task/)
   assert.notEqual(v2Protocol, v1Protocol)
   assert.deepEqual(
@@ -275,4 +277,60 @@ test('malformed or mismatched terminal records never authorize another launch', 
     assert.throws(() => recordEngineLaunch(f.out, 'A', 'host-2'), /Invalid terminal/)
   }
   assert.deepEqual(readdirSync(f.out + '/attempts/A'), ['001.json', '001.terminal.json'])
+})
+
+
+test('live assignment locks block until release instead of racing with EEXIST', t => {
+  const f = fixture(t); prepareEngine(f.out, f.config)
+  const lockPath = f.out + '/locks/A.lock'
+  mkdirSync(f.out + '/locks', { recursive: true })
+  const child = spawn(process.execPath, ['--input-type=module', '-e', `
+    import { writeFileSync, unlinkSync } from 'node:fs'
+    writeFileSync(${JSON.stringify(lockPath)}, JSON.stringify({ pid: process.pid, note: 'test holder' }) + String.fromCharCode(10), { flag: 'wx' })
+    await new Promise(r => setTimeout(r, 150))
+    unlinkSync(${JSON.stringify(lockPath)})
+  `], { stdio: ['ignore', 'ignore', 'pipe'] })
+  t.after(() => { try { child.kill('SIGKILL') } catch {} })
+  const started = Date.now()
+  while (!existsSync(lockPath) && Date.now() - started < 2000) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10) }
+  assert.equal(existsSync(lockPath), true)
+  const result = recordEngineLaunch(f.out, 'A', 'host-after-wait')
+  assert.equal(result.state, 'runtime-check-required')
+  assert.equal(inspectEngine(f.out).jobs[0].handle, 'host-after-wait')
+  assert.equal(existsSync(lockPath), false)
+})
+
+test('host status omits proposal and result semantic bodies while inspect retains them', t => {
+  const f = fixture(t); prepareEngine(f.out, f.config)
+  const r = engineBroker(f.out, 'A', 'read', ['main.go']); const body = proposal(f.out, r); checkpointEngine(f.out, 'A')
+  const status = statusEngine(f.out)
+  assert.equal(Object.hasOwn(status.jobs[0], 'value'), false)
+  assert.equal(Object.hasOwn(status.jobs[0], 'path'), false)
+  assert.equal(Object.hasOwn(status.jobs[0], 'receiptPins'), false)
+  const blob = JSON.stringify(status)
+  assert.ok(!blob.includes(body.scopeSummary))
+  assert.ok(!blob.includes('Synthetic responsibility'))
+  assert.ok(!blob.includes('Synthetic claim'))
+  assert.deepEqual(status.jobs.map(j => j.agent), inspectEngine(f.out).jobs.map(j => j.agent))
+  assert.equal(inspectEngine(f.out).jobs[0].value.nodes[0].summary, 'Synthetic responsibility')
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+  const cli = execFileSync(process.execPath, [resolve(root, 'scripts/repository-engine.mjs'), 'status', f.out], { encoding: 'utf8', cwd: root })
+  assert.ok(!cli.includes('Synthetic responsibility'))
+  assert.ok(!cli.includes(body.scopeSummary))
+  const parsed = JSON.parse(cli)
+  assert.equal(parsed.version, 'repository-engine/2')
+  assert.equal(Object.hasOwn(parsed.jobs[0], 'value'), false)
+})
+
+test('multi-agent host status never embeds another assignment proposal body', t => {
+  const f = fixture(t)
+  prepareEngine(f.out, { ...f.config, partitionCount: 2 })
+  const a = engineBroker(f.out, 'A', 'read', ['main.go'])
+  const value = { agent: 'A', scopeSummary: 'Secret scope summary for agent A only', coverage: { inspected: [a.path], omissions: ['Other behavior not examined'] }, crossPartitionLeads: [], nodes: [node('A1', a.id)], edges: [], limitations: ['Synthetic fixture'] }
+  save(f.out + '/proposals/A.json', value); checkpointEngine(f.out, 'A')
+  const status = statusEngine(f.out)
+  const blob = JSON.stringify(status)
+  assert.ok(!blob.includes('Secret scope summary for agent A only'))
+  assert.ok(!blob.includes('Synthetic responsibility'))
+  assert.deepEqual(status.jobs.filter(j => j.agent === 'B').map(j => j.state), ['ready-to-dispatch'])
 })

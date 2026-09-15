@@ -148,7 +148,7 @@ contract and operating sequence are in
 
 1. Landed decision-scoped `integrate` packaging (catalog + brokered receipt fetch + explicit
    omissions) while keeping the complete candidate map available at publish. Next: finish remaining
-   history-plane gaps and host hardening before another coverage expansion. The completed second larger
+   history-plane gaps and app surface before another coverage expansion. The completed second larger
    wave delivered 113 nodes / 97 relationships across excerpts from 118 files; earlier runs
    still replay exactly under their pinned versions. Preserve owner review as broad usefulness
    feedback, not discovery labels or a fixed taxonomy.
@@ -157,9 +157,9 @@ contract and operating sequence are in
    brokered cached per-commit readings. Snapshot maps remain useful intermediates, not the success bar.
 3. Address failures that prevent reliable operation or materially reduce map usefulness.
    Keep claim-local review qualifications separate from candidate-map availability.
-4. Consolidate generic review continuity and the host execution adapter, retaining the now
-   versioned runtime/replay contract; expose results in the app. Coordinate launch recording
-   before broker use, and keep host status checks from exposing prior outputs to blind workers.
+4. Host launch locking + blind-safe status landed on v2: live lock holders block instead of
+   racing with `EEXIST`; `status`/`statusEngine` omit proposal/result bodies. Still open:
+   consolidate generic review continuity and expose results in the app.
 
 ### Earlier research backlog — not the current execution plan
 
