@@ -139,24 +139,27 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-**Current priority: consolidate, then deliver.** The encouraging discovery results justify
-one reusable workflow now; more small semantic comparisons are not the main workstream.
-The repository-neutral entry point is `scripts/repository-engine.mjs`; its current contract
-and operating sequence are in [the architecture](ARCHITECTURE.md#consolidated-repository-workflow).
+**Current priority: decision-scoped integration + history plane, then deliver.** Historical
+evolution is **in** the consolidation milestone (not snapshot-only). More VS Code coverage
+waves wait until `integrate` is restructured; raising the 1.5MB packet ceiling is not the
+scaling strategy. The repository-neutral entry point is `scripts/repository-engine.mjs`; its
+contract and operating sequence are in
+[the architecture](ARCHITECTURE.md#consolidated-repository-workflow).
 
-1. Bound cumulative integration work before another coverage expansion. The completed second
-   larger wave delivered 113 nodes / 97 relationships across excerpts from 118 files. Version 2
-   removed duplicate packaging and earlier runs still replay exactly, but integration still
-   reads accumulated evidence. Keep the complete candidate map available while designing
-   decision-scoped evidence retrieval with explicit omissions and revisable claims. Preserve
-   owner review as broad usefulness feedback, not discovery labels or a fixed taxonomy.
-2. Address failures that prevent reliable operation or materially reduce map usefulness.
+1. Restructure integration before another coverage expansion. The completed second larger
+   wave delivered 113 nodes / 97 relationships across excerpts from 118 files. Version 2
+   only removed duplicate packaging (`receiptIds`); earlier runs still replay exactly, but
+   integration still accumulates and feeds all evidence. Move to decision-scoped retrieval
+   with explicit omissions while keeping the complete candidate map available at publish.
+   Preserve owner review as broad usefulness feedback, not discovery labels or a fixed
+   taxonomy.
+2. Land the history plane as milestone work (commit meta, bounded diffs, path history, prior
+   maps across revisions)—snapshot maps remain useful intermediates, not the success bar.
+3. Address failures that prevent reliable operation or materially reduce map usefulness.
    Keep claim-local review qualifications separate from candidate-map availability.
-3. Consolidate generic review continuity and the host execution adapter, retaining the now
+4. Consolidate generic review continuity and the host execution adapter, retaining the now
    versioned runtime/replay contract; expose results in the app. Coordinate launch recording
    before broker use, and keep host status checks from exposing prior outputs to blind workers.
-   Confirm whether historical evolution is part of the temporary engine milestone
-   before treating snapshot delivery as full success.
 
 ### Earlier research backlog — not the current execution plan
 

@@ -35,11 +35,13 @@ before every claim is verified. Claim-local failures qualify the affected claims
 not automatically invalidate the entire map. Owner review stays broad, not a source-level
 answer key.
 
-**Current direction: consolidation, not more small comparisons.** The encouraging results
-are enough to justify a reusable workflow. The next acceptance criterion is that someone
-can run the same mechanism on another repository and obtain a complete, useful candidate
-map, with recoverable progress and visible limitations. Further semantic comparisons should
-be motivated by a concrete delivery failure, not by a desire for more polished explanations.
+**Current direction: decision-scoped integration + history plane inside consolidation.**
+The reusable workflow is established enough to stop chasing small semantic comparisons and
+further VS Code coverage waves until `integrate` is restructured. Historical evolution is
+**in** the consolidation milestone—not snapshot-only. Snapshot maps remain useful
+intermediates; milestone success requires maps that can reason over git history. Raising the
+1.5MB packet ceiling is not the scaling strategy. Further semantic comparisons should be
+motivated by a concrete delivery failure, not by a desire for more polished explanations.
 
 ## What counts as evidence of progress
 
@@ -557,11 +559,11 @@ types, exact field locations, stale-review rejection and report escaping.
 
 The next reliability step is a **bounded revision-and-recheck loop**: apply proposed wording
 to a new candidate version, require that the active assertion actually changes, and recheck
-affected claims without inheriting their old review status. The discovery track still needs
-a reusable run/resume workflow and a repeat on untouched input. Snapshot discovery is not
-historical evolution; whether history belongs in the temporary engine-success milestone is
-an explicit scope question, not something these audits settle. Main-app migration remains
-separate from these local experimental reports.
+affected claims without inheriting their old review status. The discovery track still needs a reusable run/resume workflow and a repeat on untouched
+input. Snapshot discovery is not historical evolution; history is now locked **in** the
+consolidation milestone, with decision-scoped integrate and a history plane as the delivery
+path. These audits do not implement that plane. Main-app migration remains separate from
+these local experimental reports.
 
 ## Previous experiment: VS Code revision and fresh recheck
 
@@ -741,7 +743,7 @@ not another independent semantic experiment.
 | Preserve evidence and resume safely | Frozen input/receipt checks, checkpoints, real interruption recovery and exact replay pass. Host liveness remains external to saved artifacts. |
 | Keep usefulness separate from reliability | Candidate status and version-linked historical review findings now coexist without automatic promotion or discovery feedback. Remaining source qualifications are not erased. |
 | Stable decisions as the map grows | Two fresh fixed-evidence integrations share eight of nine group member sets, but disagree on two shared comparison labels and one definition revision. This is limited recurrence evidence, not long-run stability or semantic correctness. |
-| Broader engine scope | Generic repository adaptation, main-app delivery and historical capability evolution are not complete. Whether history belongs in the temporary milestone still needs owner confirmation. |
+| Broader engine scope | Generic repository adaptation and main-app delivery are not complete. Historical capability evolution is **in** the consolidation milestone but not yet implemented (history plane + decision-scoped integrate). |
 
 The full engine goal remains open. No count of passing tests or additional candidate nodes
 substitutes for the unresolved semantic and scope requirements above.
@@ -802,8 +804,9 @@ All **416 tests** and the build pass; these validate software behavior, not mode
 behavior, separately from shared implementation or supporting work, before choosing an
 overlap label. The model should still choose the boundary and explain what would revise
 it. Freeze that representation before fresh judgments; do not supply the labels above as
-expected answers or repeat until agreement. The full engine goal remains open, including
-the separately unresolved scope of historical evolution, general adaptation and app delivery.
+expected answers or repeat until agreement. The full engine goal remains open: historical
+evolution is milestone-in-scope but unimplemented here; general adaptation and app delivery
+remain separate gaps.
 
 ## Current experiment: pair-specific behavioral witnesses
 
@@ -867,10 +870,9 @@ ignored report directory. All **429 tests**, the build, whitespace checks and ex
 replay pass. Earlier maps and frozen integration reports remain unchanged.
 
 **Next engineering direction:** keep pair-specific evidence available as a review sidecar
-without imposing a permanent taxonomy. Return to making discovery, expansion and review a
-reusable workflow rather than tuning this small sample until all labels agree. Whether
-historical evolution belongs in the temporary engine milestone still needs confirmation;
-current-snapshot success cannot stand in for that capability.
+without imposing a permanent taxonomy. Prioritize decision-scoped integration and the history
+plane over further coverage expansion or label-agreement tuning. Historical evolution is in
+milestone scope; current-snapshot success cannot stand in for that capability.
 
 ## Current engineering work: one repository workflow
 
@@ -891,9 +893,12 @@ of baseline history without transferring approval. **These are implementation ch
 new model-quality experiments.** No new capability-discovery calls or API spending were used for this
 consolidation. Model dispatch still belongs to the host, using generated task files; a live
 acceptance sequence is now underway on real code, as described below.
-Generic review-history projection, app integration and historical evolution remain separate
-delivery gaps. The [architecture](ARCHITECTURE.md#consolidated-repository-workflow) owns the
-operating sequence; the [roadmap](ROADMAP.md#immediate-next-steps) owns the delivery order.
+Generic review-history projection and app integration remain separate delivery gaps.
+Historical evolution is milestone-in-scope via the
+[three planes](ARCHITECTURE.md#three-planes-store-decision-session-history) (Store / Decision
+session / History); this runner generation still lacks history-plane ops. The
+[architecture](ARCHITECTURE.md#consolidated-repository-workflow) owns the operating sequence;
+the [roadmap](ROADMAP.md#immediate-next-steps) owns the delivery order.
 At the consolidation checkpoint, all **476 tests**, the build and whitespace checks passed. The generic renderer was checked
 in the browser against the existing 103-node saved map, including a 390-pixel-wide layout;
 that reuse is a presentation check, not a fresh discovery result. Its 2,340 internal links
@@ -948,8 +953,10 @@ report was visually checked. After the Mac became available, the expanded report
 multi-parent organization, integration section and historical qualification were also visually
 checked. No model API calls or reset credits were used.
 
-The next work is delivery hardening: a host execution adapter, explicit runtime upgrade/replay
-policy and generic review continuity. The owner subsequently found the bounded map interesting
+The next work prioritizes decision-scoped `integrate` (explicit omissions) and the history
+plane before another coverage wave or ceiling raise; host execution adapter, runtime
+upgrade/replay policy and generic review continuity remain in the same delivery track. The
+owner subsequently found the bounded map interesting
 and broadly sensible while explicitly noting they could not understand VS Code as well as
 their own repository. After the small coverage fraction was explained, they approved moving
 to a larger demonstration. This is qualified broad acceptance, not proof of whole-repository
@@ -1082,8 +1089,9 @@ was manually carried forward onto the exact retained condition, still unresolved
 [Complete second-wave map with separate review notes](http://127.0.0.1:8880/consolidated-engine/larger-demonstration/wave-2-v2/reviewed.html#map).
 Earlier 37-, 70- and 92-node maps replayed with exact unchanged output bytes through their
 archived runtime. No third wave was launched. Deduplication removed the demonstrated
-packaging barrier; integration still reads the accumulated evidence, so bounded evidence
-retrieval and host coordination remain delivery work, not another taxonomy comparison.
+packaging barrier; integration still reads the accumulated evidence. Decision-scoped
+retrieval with explicit omissions, the history plane, and host coordination remain delivery
+work—not another taxonomy comparison or ceiling raise.
 
 ## Cost and provenance
 

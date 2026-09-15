@@ -206,9 +206,10 @@ remain failures requiring explicit recovery; writes are create-only, not crash-a
 The companion wording-revision transaction requires exact old text and graph preconditions,
 applies a proposal atomically in memory and records changed assertions. Source-review records
 bind to exact reviewed content in a separate sidecar; neither schema success nor proposer
-confidence grants independent verification. Main-app integration
-and historical-evolution reasoning remain separate work. Current experimental outcomes and
-limitations are owned by [the experiment summary](EXPERIMENT-SUMMARY.md).
+confidence grants independent verification. Main-app integration remains separate delivery work. Historical evolution is **in**
+the consolidation milestone (see [three planes](#three-planes-store-decision-session-history)
+below); snapshot maps are intermediates, not the success bar. Current experimental outcomes
+and limitations are owned by [the experiment summary](EXPERIMENT-SUMMARY.md).
 
 ### Consolidated repository workflow
 
@@ -318,6 +319,29 @@ notes to the affected capability without changing its candidate graph or grantin
 verification. Stale targets and conflicting companion files fail closed. This is a mechanical
 presentation layer, not an automatic audit, correction, or cross-version review migration.
 
+
+### Three planes: Store / Decision session / History
+
+The consolidated engine currently couples three concerns that must separate for milestone
+success:
+
+1. **Store (unbounded growth OK)** — immutable receipt files, graph checkpoints, and indexes
+   by path / node / claim / revision. Partly exists today as `receipts/{agent}/*.json` and
+   related run artifacts. Publish keeps the **full candidate map** available offline.
+2. **Decision session (bounded)** — discovery, integration, and later history workers retrieve
+   *only* what the current decision needs via brokered inspect / search / request-depth, with
+   **explicit omissions** recorded. The model never needs the full corpus in one prompt.
+3. **History plane (milestone work)** — commit metadata, bounded diffs, path history, prior
+   maps across revisions, and cached per-commit readings. Snapshot protocol and runners that
+   still lack these ops must state that limitation honestly; they must not redefine milestone
+   success as snapshot-only.
+
+Today's `integrate` path still tends to accumulate-and-feed-all: baseline graph, proposals,
+and receipt bodies freeze into one packet. Version 2's `baseline.receiptIds` only fixed
+duplicate packaging of the same receipt identity—it did **not** bound cumulative growth or
+implement decision-scoped retrieval. Raising the run packet ceiling is not the scaling
+strategy; restructuring integrate toward decision-scoped retrieval with explicit omissions is.
+
 #### Coverage routing
 
 Coverage-led runs may first call `node scripts/plan-repository-coverage.mjs RUN`. This
@@ -342,14 +366,18 @@ Version 2 instead gives integration `baseline: { graph, receiptIds }`; those IDs
 the single top-level receipts collection. Exact receipt identity, content, source provenance,
 candidate definitions, semantic protocol and retrieval budgets remain unchanged. This removes
 duplicate occurrences of the same receipt ID, not distinct IDs with coincidentally equal text
-or overlapping source windows. Historical baseline files remain complete and withheld from
-discovery. Packet validation recomputes the complete expected bytes, including the references,
-so removed or changed evidence and reference lists fail closed.
+or overlapping source windows. It does **not** implement decision-scoped retrieval or the
+history plane. Historical baseline files remain complete and withheld from discovery. Packet
+validation recomputes the complete expected bytes, including the references, so removed or
+changed evidence and reference lists fail closed.
 
 Under a frozen run-specific byte ceiling, a prepared baseline gives a conservative lower
 bound before discovery dispatch; measure the actual complete packet again before integration.
 Count real serialized bytes, not an informal compressed equivalent. Removing duplicate bytes
-does not alone bound cumulative graph/evidence growth or establish semantic scaling.
+does not alone bound cumulative graph/evidence growth or establish semantic scaling. Do not
+raise the ceiling as the primary scaling strategy; move `integrate` from accumulate-and-feed-all
+to decision-scoped retrieval with explicit omissions, and land history-plane broker ops as
+milestone work.
 
 ### Review history survives graph changes without transferring approval
 
