@@ -253,10 +253,12 @@ node scripts/repository-engine.mjs publish RUN
 
 Broker argument order is explicit: `broker RUN AGENT read PATH START_LINE LINE_COUNT`
 (the final number is a count, **not an end line**),
-`broker RUN AGENT search PATH_PREFIX LITERAL`, and
-`broker RUN AGENT list PREFIX OFFSET`. Omitted read range arguments default to line 1
-and 120 lines; list defaults to the worker's assignment and offset 0. An explicit list
-prefix can navigate across assignments. Search locations alone do not support claims.
+`broker RUN AGENT search PATH_PREFIX LITERAL`,
+`broker RUN AGENT list PREFIX OFFSET`, and for integration only
+`broker RUN R receipt RECEIPT_ID` (loads a cataloged store receipt without consuming fresh
+read/search budgets). Omitted read range arguments default to line 1 and 120 lines; list
+defaults to the worker's assignment and offset 0. An explicit list prefix can navigate across
+assignments. Search locations alone do not support claims.
 
 The host must observe a terminal state before recording
 `terminal RUN AGENT HOST_HANDLE completed|interrupted|failed`. A saved handle is not proof
@@ -336,11 +338,12 @@ success:
    still lack these ops must state that limitation honestly; they must not redefine milestone
    success as snapshot-only.
 
-Today's `integrate` path still tends to accumulate-and-feed-all: baseline graph, proposals,
-and receipt bodies freeze into one packet. Version 2's `baseline.receiptIds` only fixed
-duplicate packaging of the same receipt identity—it did **not** bound cumulative growth or
-implement decision-scoped retrieval. Raising the run packet ceiling is not the scaling
-strategy; restructuring integrate toward decision-scoped retrieval with explicit omissions is.
+Version 2 `integrate` now freezes a **decision-scoped** packet: baseline graph, proposals,
+a `receiptCatalog` of store ids/fingerprints, and explicit `omissions`. Full receipt bodies
+remain in Store (`receipts/{agent}/*.json` and projected baseline) and are loaded on demand
+with `broker RUN R receipt <id>`; fresh inspection still uses `list|read|search` under
+integration budgets. Raising the run packet ceiling is not the scaling strategy. History-plane
+broker ops remain milestone work beyond this packaging change.
 
 #### Coverage routing
 
@@ -362,22 +365,18 @@ These regions are not capability categories, and file/line counts are not semant
 
 The larger demonstration exposed a separate integration packaging limit in version 1:
 baseline source receipts appeared inside both `baseline.receipts` and top-level `receipts`.
-Version 2 instead gives integration `baseline: { graph, receiptIds }`; those IDs reference
-the single top-level receipts collection. Exact receipt identity, content, source provenance,
-candidate definitions, semantic protocol and retrieval budgets remain unchanged. This removes
-duplicate occurrences of the same receipt ID, not distinct IDs with coincidentally equal text
-or overlapping source windows. It does **not** implement decision-scoped retrieval or the
-history plane. Historical baseline files remain complete and withheld from discovery. Packet
-validation recomputes the complete expected bytes, including the references, so removed or
-changed evidence and reference lists fail closed.
+Version 2 first gave integration `baseline: { graph, receiptIds }` against a single receipts
+collection, then replaced inlined receipt bodies with a decision-scoped `receiptCatalog` plus
+brokered `receipt` fetch and explicit omissions. Exact receipt identity, content, source
+provenance, candidate definitions, semantic protocol and fresh-retrieval budgets remain
+unchanged; only packaging and access path changed. Historical baseline files remain complete
+and withheld from discovery. Packet validation recomputes the complete expected bytes,
+including the catalog fingerprints, so removed or changed store evidence fails closed.
 
-Under a frozen run-specific byte ceiling, a prepared baseline gives a conservative lower
-bound before discovery dispatch; measure the actual complete packet again before integration.
-Count real serialized bytes, not an informal compressed equivalent. Removing duplicate bytes
-does not alone bound cumulative graph/evidence growth or establish semantic scaling. Do not
-raise the ceiling as the primary scaling strategy; move `integrate` from accumulate-and-feed-all
-to decision-scoped retrieval with explicit omissions, and land history-plane broker ops as
-milestone work.
+Publish still materializes the full candidate map and complete receipt set offline. Decision
+sessions stay bounded by catalog + on-demand fetch rather than by raising the former 1.5MB
+accumulate-and-feed-all ceiling. History-plane broker ops (commit meta, bounded diffs, path
+history, prior maps) remain milestone work on top of this Store / Decision session split.
 
 ### Review history survives graph changes without transferring approval
 

@@ -146,13 +146,12 @@ scaling strategy. The repository-neutral entry point is `scripts/repository-engi
 contract and operating sequence are in
 [the architecture](ARCHITECTURE.md#consolidated-repository-workflow).
 
-1. Restructure integration before another coverage expansion. The completed second larger
-   wave delivered 113 nodes / 97 relationships across excerpts from 118 files. Version 2
-   only removed duplicate packaging (`receiptIds`); earlier runs still replay exactly, but
-   integration still accumulates and feeds all evidence. Move to decision-scoped retrieval
-   with explicit omissions while keeping the complete candidate map available at publish.
-   Preserve owner review as broad usefulness feedback, not discovery labels or a fixed
-   taxonomy.
+1. Landed decision-scoped `integrate` packaging (catalog + brokered receipt fetch + explicit
+   omissions) while keeping the complete candidate map available at publish. Next: history-plane
+   broker ops and host hardening before another coverage expansion. The completed second larger
+   wave delivered 113 nodes / 97 relationships across excerpts from 118 files; earlier runs
+   still replay exactly under their pinned versions. Preserve owner review as broad usefulness
+   feedback, not discovery labels or a fixed taxonomy.
 2. Land the history plane as milestone work (commit meta, bounded diffs, path history, prior
    maps across revisions)—snapshot maps remain useful intermediates, not the success bar.
 3. Address failures that prevent reliable operation or materially reduce map usefulness.

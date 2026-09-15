@@ -35,13 +35,14 @@ before every claim is verified. Claim-local failures qualify the affected claims
 not automatically invalidate the entire map. Owner review stays broad, not a source-level
 answer key.
 
-**Current direction: decision-scoped integration + history plane inside consolidation.**
-The reusable workflow is established enough to stop chasing small semantic comparisons and
-further VS Code coverage waves until `integrate` is restructured. Historical evolution is
+**Current direction: history plane on top of decision-scoped integration, then deliver.**
+Version 2 `integrate` now freezes a receipt catalog with brokered on-demand fetch and explicit
+omissions rather than inlining the cumulative receipt corpus. Historical evolution remains
 **in** the consolidation milestone—not snapshot-only. Snapshot maps remain useful
-intermediates; milestone success requires maps that can reason over git history. Raising the
-1.5MB packet ceiling is not the scaling strategy. Further semantic comparisons should be
-motivated by a concrete delivery failure, not by a desire for more polished explanations.
+intermediates; milestone success still requires maps that can reason over git history via the
+history plane. Raising the 1.5MB packet ceiling is not the scaling strategy. Further semantic
+comparisons should be motivated by a concrete delivery failure, not by a desire for more
+polished explanations.
 
 ## What counts as evidence of progress
 

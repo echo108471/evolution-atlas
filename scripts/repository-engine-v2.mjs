@@ -34,9 +34,9 @@ Each node has id, name, summary, actor (text); inputs, outcomes, conditions, exc
 
 Discovery output: {agent,scopeSummary,coverage:{inspected:[paths],omissions:[text]},crossPartitionLeads:[text],nodes,edges,limitations:[text]}. IDs start with the assignment letter followed by letters, digits, _ or -. Empty output is allowed when evidence does not justify a capability. Assignments route work, not semantic ownership. Explicit-prefix navigation may cross assignments. Read at most 160 lines/16000 bytes per window; each discovery job gets 20 windows, 8 searches and 72000 serialized receipt bytes. Save the FIRST complete JSON to the task output with apply_patch; never overwrite or semantically retry an invalid saved result.
 
-Integration receives all checkpointed discovery outputs and, for expansion only, a candidate-only prior graph. Milestone direction is decision-scoped retrieval with explicit omissions (Store holds full receipts; the session loads only what the current decision needs)—this runner version still freezes an accumulate-and-feed-all packet, so record that packaging limitation when relevant. Reconsider shared, overlapping, broader/narrower and distinct responsibilities using source evidence. Preserve meaningful detail, not necessarily every earlier decision. Output {nodes,edges,lineage,edgeLineage,decisions,limitations,comparisons}. For every input node exactly once: lineage {originalId,decision:retain|rename|revise|merge|split|remove,successorIds,reason}. Retain is exact unchanged content; rename changes only ID/name; revise changes a definition; merge requires two or more originals explicitly merging to one successor; split requires two or more distinct successors; remove has none. Compound split-and-merge transactions need separate versions, not ambiguous accounting. New grouping nodes may be constructed with source evidence and an explanation in decisions.
+Integration receives a decision-scoped frozen packet: all checkpointed discovery outputs, for expansion only a candidate-only prior graph, and a receiptCatalog of store evidence ids/fingerprints with explicit omissions. Store retains complete receipt bodies on disk and in the projected baseline; the packet does not inline them. Load cited store evidence on demand with broker receipt <id>; fresh inspection uses broker list|read|search under integration budgets. Record limitations when needed evidence was not retrieved. Reconsider shared, overlapping, broader/narrower and distinct responsibilities using source evidence. Preserve meaningful detail, not necessarily every earlier decision. Output {nodes,edges,lineage,edgeLineage,decisions,limitations,comparisons}. For every input node exactly once: lineage {originalId,decision:retain|rename|revise|merge|split|remove,successorIds,reason}. Retain is exact unchanged content; rename changes only ID/name; revise changes a definition; merge requires two or more originals explicitly merging to one successor; split requires two or more distinct successors; remove has none. Compound split-and-merge transactions need separate versions, not ambiguous accounting. New grouping nodes may be constructed with source evidence and an explanation in decisions.
 
-For every input edge exactly once: edgeLineage {source:baseline|discovery,originalIndex,decision:retain|revise|remove,successorEdges:[{from,to,type}],reason}. Indices use baseline.edges and flattened proposals.edges in packet order. Retain is exact; revise must change; removal has no successors. Decisions use {question,decision,reason,evidenceIds,uncertainty:[text]}. In expansion, compare every new node with plausible prior alternatives: comparisons [{newNodeId,existingNodeIds,relation:same|overlapping|broader|narrower|distinct|uncertain,reason,disposition,evidenceIds,uncertainty}]. This records a revisable decision, not independent validation; do not force a permanent taxonomy. In initial discovery comparisons may be empty. R may retrieve 16 windows,4 searches,64000 bytes from the full inventory. Save its first complete response once. A complete candidate map may precede verification; never silently promote it.
+For every input edge exactly once: edgeLineage {source:baseline|discovery,originalIndex,decision:retain|revise|remove,successorEdges:[{from,to,type}],reason}. Indices use baseline.edges and flattened proposals.edges in packet order. Retain is exact; revise must change; removal has no successors. Decisions use {question,decision,reason,evidenceIds,uncertainty:[text]}. In expansion, compare every new node with plausible prior alternatives: comparisons [{newNodeId,existingNodeIds,relation:same|overlapping|broader|narrower|distinct|uncertain,reason,disposition,evidenceIds,uncertainty}]. This records a revisable decision, not independent validation; do not force a permanent taxonomy. In initial discovery comparisons may be empty. R may fetch cataloged store receipts without consuming fresh-read budgets, and may retrieve 16 windows,4 searches,64000 bytes of fresh evidence from the full inventory. Save its first complete response once. A complete candidate map may precede verification; never silently promote it.
 `
 function outputDirectory(directory) {
   const out = resolve(directory), project = resolve(fileURLToPath(new URL('..', import.meta.url)))
@@ -123,12 +123,39 @@ function receiptsFor(c, agent) {
   if (receipts.filter(r => r.kind === 'source').length > budget.windows || receipts.filter(r => r.kind === 'search').length > budget.searches || receipts.reduce((sum, r) => sum + Buffer.byteLength(JSON.stringify(r)), 0) > budget.evidenceBytes) throw new Error('Receipt budget exceeded')
   return { receipts, fingerprints }
 }
+function catalogEntry(r) {
+  const contentSha256 = hash(json(r)), bytes = Buffer.byteLength(json(r))
+  if (r.kind === 'source') return { id: r.id, kind: 'source', contentSha256, bytes, commitSha: r.commitSha, blobSha: r.blobSha, path: r.path,
+    startLine: r.startLine, endLine: r.endLine, totalLines: r.totalLines, partition: r.partition, crossPartition: r.crossPartition, truncated: r.truncated, omitted: ['text'] }
+  if (r.kind === 'search') return { id: r.id, kind: 'search', contentSha256, bytes, commitSha: r.commitSha, prefix: r.prefix, literal: r.literal,
+    searchedFiles: r.searchedFiles, totalMatches: r.totalMatches, omittedMatches: r.omittedMatches, note: r.note, omitted: ['matches'] }
+  throw new Error('Invalid store receipt kind: ' + (r && r.id))
+}
+function storeReceipts(c, receipts) { return [...c.baseline.receipts, ...receipts.filter(r => !r.id.startsWith('R-'))] }
 function packet(c, jobs, receipts) {
   const discovery = jobs.filter(j => j.agent !== 'R')
   if (discovery.some(j => j.state !== 'checkpointed')) throw new Error('All discoveries must be checkpointed before integration')
-  return { version: c.plan.version, commitSha: c.plan.commitSha, baseline: { graph: c.baseline.graph, receiptIds: c.baseline.receipts.map(r => r.id) },
-    proposals: discovery.map(j => j.value), receipts: [...c.baseline.receipts, ...receipts.filter(r => !r.id.startsWith('R-'))],
+  const store = storeReceipts(c, receipts)
+  return { version: c.plan.version, commitSha: c.plan.commitSha, packaging: 'decision-scoped',
+    baseline: { graph: c.baseline.graph, receiptIds: c.baseline.receipts.map(r => r.id) },
+    proposals: discovery.map(j => j.value), receiptCatalog: store.map(catalogEntry),
+    omissions: ['Full receipt bodies are omitted from this frozen packet; Store retains immutable receipts under receipts/{agent}/ and in the projected baseline.',
+      'Source text and search match lists are withheld until brokered fetch.',
+      'Load cataloged evidence with broker receipt <id>; fresh inspection uses broker list|read|search under integration budgets.',
+      'Catalog contentSha256 pins exact store bytes for replay; removed or changed store evidence fails closed.'],
     inputFingerprints: Object.fromEntries(discovery.flatMap(j => Object.entries({ ...j.receiptPins, [j.path.slice(c.out.length + 1)]: hash(read(j.path)) }))) }
+}
+function loadStoreReceipt(c, id) {
+  if (id.startsWith('old:')) {
+    const receipt = c.baseline.receipts.find(r => r.id === id)
+    if (!receipt) throw new Error('Store receipt missing: ' + id)
+    return receipt
+  }
+  const agent = id.split('-')[0]
+  if (!agent || agent === id) throw new Error('Invalid receipt id: ' + id)
+  const path = c.out + '/receipts/' + agent + '/' + id + '.json'
+  if (!existsSync(path)) throw new Error('Store receipt missing: ' + id)
+  return parse(path)
 }
 export function inspectEngine(directory) {
   const c = load(directory), jobs = [], receipts = [], issues = []
@@ -183,7 +210,7 @@ export function inspectEngine(directory) {
   return { ...c, jobs, receipts: [...c.baseline.receipts, ...receipts], validationIssues: issues,
     status: jobs.every(j => j.state === 'checkpointed') && !issues.length ? 'candidate-map-produced' : 'incomplete' }
 }
-function integrationTask(c) { return { agent: 'R', stage: 'integration', runDirectory: c.out, output: resultPath(c.out, 'R'), permittedInputs: ['protocol.md', 'manifest.json', 'integration-input.json', 'snapshot/inventory.json', 'receipts/R/'], withheld: ['history/', 'prior reviews and owner labels'], instruction: 'Integrate the frozen packet once under the protocol. Baseline receiptIds reference the single top-level receipts collection; no evidence is omitted. Additional source retrieval uses repository-engine.mjs broker with agent R. Save the first complete JSON once; no semantic retry.' } }
+function integrationTask(c) { return { agent: 'R', stage: 'integration', runDirectory: c.out, output: resultPath(c.out, 'R'), permittedInputs: ['protocol.md', 'manifest.json', 'integration-input.json', 'snapshot/inventory.json', 'receipts/R/'], withheld: ['history/', 'prior reviews and owner labels'], instruction: 'Integrate the frozen decision-scoped packet once under the protocol. The packet carries baseline graph, proposals, receiptCatalog ids/fingerprints, and explicit omissions—not full receipt bodies. Load cited store evidence with repository-engine.mjs broker RUN R receipt <id>. Fresh source retrieval uses broker list|read|search with agent R. Save the first complete JSON once; no semantic retry.' } }
 export function freezeIntegration(directory) {
   const c = inspectEngine(directory), freshReceipts = c.receipts.filter(r => !r.id.startsWith('old:'))
   exact(c.out + '/integration-input.json', json(packet(c, c.jobs, freshReceipts)))
@@ -204,6 +231,7 @@ function locked(directory, name, action) {
 export function engineBroker(directory, agent, action, args = []) {
   const out = realpathSync(resolve(directory)), c = load(out); agentCheck(c, agent)
   return locked(out, agent, () => {
+    if (action === 'receipt' && agent !== 'R') throw new Error('Store receipt fetch is integration-only')
     if (existsSync(resultPath(out, agent))) throw new Error('Saved output seals this assignment evidence')
     if (existsSync(out + '/integration-input.json') && agent !== 'R') throw new Error('Discovery evidence sealed by integration packet')
     if (agent === 'R' && !existsSync(out + '/integration-input.json')) throw new Error('Integration packet required')
@@ -214,6 +242,18 @@ export function engineBroker(directory, agent, action, args = []) {
       if (!Number.isInteger(start) || start < 0) throw new Error('Invalid offset')
       const fs = inventory.files.filter(f => prefix ? f.path.startsWith(prefix) : agent === 'R' || f.partition === agent)
       return { total: fs.length, files: fs.slice(start, start + 150), nextOffset: start + 150 < fs.length ? start + 150 : null }
+    }
+    if (action === 'receipt') {
+      if (agent !== 'R') throw new Error('Store receipt fetch is integration-only')
+      const [id] = args
+      if (typeof id !== 'string' || !id.trim()) throw new Error('Receipt id required')
+      const packetData = parse(out + '/integration-input.json')
+      if (!Array.isArray(packetData.receiptCatalog)) throw new Error('Decision-scoped receipt catalog required')
+      const entry = packetData.receiptCatalog.find(e => e && e.id === id)
+      if (!entry) throw new Error('Unknown or non-cataloged receipt: ' + id)
+      const receipt = loadStoreReceipt(c, id)
+      if (hash(json(receipt)) !== entry.contentSha256) throw new Error('Store receipt fingerprint mismatch: ' + id)
+      return receipt
     }
     const prior = receiptsFor(c, agent).receipts, budget = agent === 'R' ? integrationBudget : sourceBudget, reader = sourceReader(c.plan.repo, inventory)
     if (!['read', 'search'].includes(action)) throw new Error('Unknown broker action')
@@ -253,7 +293,7 @@ export function publishEngine(directory) {
     status: c.status, interpretationStatus: 'candidate', independentVerification: 'not-performed', graph: c.jobs.at(-1).value,
     baselineGraph: c.baseline.graph, proposals: c.jobs.slice(0, -1).map(j => j.value), receipts: c.receipts,
     coverage: { files: coverage.size, uniqueLines: [...coverage.values()].reduce((n, lines) => n + lines.size, 0), eligibleFiles: c.full.eligibleFiles, allTrackedEntries: c.full.allTrackedEntries },
-    validationIssues: [], limitations: ['Bounded source sampling is not exhaustive capability coverage.', 'Historical evolution is milestone-in-scope but unimplemented in this runner version (no history-plane broker ops).', 'No runtime verification.', 'Owner feedback and prior review labels withheld from discovery.', 'Model dispatch is external to this engine; no provider calls are made by this program.', 'Integration still uses accumulate-and-feed-all packaging; decision-scoped retrieval with explicit omissions is not yet implemented.'],
+    validationIssues: [], limitations: ['Bounded source sampling is not exhaustive capability coverage.', 'Historical evolution is milestone-in-scope but unimplemented in this runner version (no history-plane broker ops).', 'No runtime verification.', 'Owner feedback and prior review labels withheld from discovery.', 'Model dispatch is external to this engine; no provider calls are made by this program.', 'Integration uses decision-scoped packaging: receipt bodies stay in Store and are broker-fetched on demand with explicit packet omissions.'],
     provenance: { runPlanSha256: hash(read(c.out + '/run-plan.json')), integrationPacketSha256: hash(read(c.out + '/integration-input.json')), outputFingerprints: Object.fromEntries(c.jobs.map(j => [j.agent, hash(read(j.path))])), baselineRawSha256: c.plan.baselineSha256 } }
   exact(c.out + '/output.json', json(output)); exact(c.out + '/index.html', renderRepositoryMap(output))
   return { status: c.status, report: c.out + '/index.html', nodes: output.graph.nodes.length, edges: output.graph.edges.length }
@@ -262,7 +302,7 @@ export function publishEngine(directory) {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const [command, directory, ...args] = process.argv.slice(2)
   try {
-    if (!directory) throw new Error('Usage: repository-engine.mjs prepare RUN CONFIG.json | status RUN | broker RUN AGENT list|read|search ARGS | checkpoint RUN AGENT | integrate RUN | launch RUN AGENT HANDLE | terminal RUN AGENT HANDLE completed|interrupted|failed | publish RUN')
+    if (!directory) throw new Error('Usage: repository-engine.mjs prepare RUN CONFIG.json | status RUN | broker RUN AGENT list|read|search|receipt ARGS | checkpoint RUN AGENT | integrate RUN | launch RUN AGENT HANDLE | terminal RUN AGENT HANDLE completed|interrupted|failed | publish RUN')
     let result
     if (command === 'prepare') result = prepareEngine(directory, parse(resolve(args[0])))
     else if (command === 'status') result = inspectEngine(directory)
