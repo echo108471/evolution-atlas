@@ -64,12 +64,18 @@ test('stable entry point resumes and replays v1 bytes while new runs use v2', t 
   const v2Protocol = readFileSync(next.out + '/protocol.md', 'utf8')
   const v1Protocol = readFileSync(f.out + '/protocol.md', 'utf8')
   assert.match(v2Protocol, /Historical evolution is in consolidation-milestone scope/)
-  assert.match(v2Protocol, /does not yet expose history-plane broker ops/)
+  assert.match(v2Protocol, /History-plane broker ops available now/)
+  assert.match(v2Protocol, /commit-meta/)
+  assert.match(v2Protocol, /prior-map lookup/)
   assert.match(v2Protocol, /decision-scoped frozen packet/)
   assert.match(v2Protocol, /broker receipt/)
   assert.match(v1Protocol, /Historical evolution is outside this snapshot task/)
   assert.notEqual(v2Protocol, v1Protocol)
-  assert.deepEqual(next.manifest.budgets, inspectEngine(f.out).manifest.budgets)
+  assert.deepEqual(
+    { discovery: next.manifest.budgets.discovery, integration: next.manifest.budgets.integration },
+    inspectEngine(f.out).manifest.budgets,
+  )
+  assert.deepEqual(next.manifest.budgets.history, { commitMeta: 12, diffs: 8, pathHistory: 6 })
   assert.deepEqual(next.baseline.receipts[0].text, r.text)
 })
 

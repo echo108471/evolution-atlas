@@ -254,11 +254,15 @@ node scripts/repository-engine.mjs publish RUN
 Broker argument order is explicit: `broker RUN AGENT read PATH START_LINE LINE_COUNT`
 (the final number is a count, **not an end line**),
 `broker RUN AGENT search PATH_PREFIX LITERAL`,
-`broker RUN AGENT list PREFIX OFFSET`, and for integration only
+`broker RUN AGENT list PREFIX OFFSET`, history-plane
+`broker RUN AGENT commit-meta SHA`,
+`broker RUN AGENT diff SHA [PATH] [MAX_LINES] [MAX_BYTES]`,
+`broker RUN AGENT path-history PATH [LIMIT] [SKIP]`, and for integration only
 `broker RUN R receipt RECEIPT_ID` (loads a cataloged store receipt without consuming fresh
-read/search budgets). Omitted read range arguments default to line 1 and 120 lines; list
+read/search/history budgets). Omitted read range arguments default to line 1 and 120 lines; list
 defaults to the worker's assignment and offset 0. An explicit list prefix can navigate across
-assignments. Search locations alone do not support claims.
+assignments. Search locations alone do not support claims. History ops may only target commits
+that are ancestors of (or equal to) the run's pinned revision.
 
 The host must observe a terminal state before recording
 `terminal RUN AGENT HOST_HANDLE completed|interrupted|failed`. A saved handle is not proof
@@ -334,16 +338,25 @@ success:
    *only* what the current decision needs via brokered inspect / search / request-depth, with
    **explicit omissions** recorded. The model never needs the full corpus in one prompt.
 3. **History plane (milestone work)** — commit metadata, bounded diffs, path history, prior
-   maps across revisions, and cached per-commit readings. Snapshot protocol and runners that
-   still lack these ops must state that limitation honestly; they must not redefine milestone
-   success as snapshot-only.
+   maps across revisions, and cached per-commit readings. Snapshot protocol and runners must
+   state remaining gaps honestly; they must not redefine milestone success as snapshot-only.
 
-Version 2 `integrate` now freezes a **decision-scoped** packet: baseline graph, proposals,
+Version 2 `integrate` freezes a **decision-scoped** packet: baseline graph, proposals,
 a `receiptCatalog` of store ids/fingerprints, and explicit `omissions`. Full receipt bodies
 remain in Store (`receipts/{agent}/*.json` and projected baseline) and are loaded on demand
 with `broker RUN R receipt <id>`; fresh inspection still uses `list|read|search` under
-integration budgets. Raising the run packet ceiling is not the scaling strategy. History-plane
-broker ops remain milestone work beyond this packaging change.
+integration budgets. Raising the run packet ceiling is not the scaling strategy.
+
+History-plane broker ops now available on version 2 (ancestors of the pinned revision only,
+bounded payloads, explicit omissions, immutable receipts):
+
+- `broker RUN AGENT commit-meta SHA`
+- `broker RUN AGENT diff SHA [PATH] [MAX_LINES] [MAX_BYTES]`
+- `broker RUN AGENT path-history PATH [LIMIT] [SKIP]`
+
+Honest gaps still open: prior-map lookup across engine outputs, and brokered access to cached
+per-commit model readings from `analyze-commits`. Contributor fields on `commit-meta` are
+observed Git metadata only—not ranking or performance judgment input.
 
 #### Coverage routing
 
@@ -375,8 +388,9 @@ including the catalog fingerprints, so removed or changed store evidence fails c
 
 Publish still materializes the full candidate map and complete receipt set offline. Decision
 sessions stay bounded by catalog + on-demand fetch rather than by raising the former 1.5MB
-accumulate-and-feed-all ceiling. History-plane broker ops (commit meta, bounded diffs, path
-history, prior maps) remain milestone work on top of this Store / Decision session split.
+accumulate-and-feed-all ceiling. History-plane broker ops for commit meta, bounded diffs, and
+path history are available on this split; prior-map lookup across engine outputs remains open
+milestone work.
 
 ### Review history survives graph changes without transferring approval
 
