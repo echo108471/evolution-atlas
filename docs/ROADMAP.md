@@ -147,13 +147,14 @@ contract and operating sequence are in
 [the architecture](ARCHITECTURE.md#consolidated-repository-workflow).
 
 1. Landed decision-scoped `integrate` packaging (catalog + brokered receipt fetch + explicit
-   omissions) while keeping the complete candidate map available at publish. Next: history-plane
-   broker ops and host hardening before another coverage expansion. The completed second larger
+   omissions) while keeping the complete candidate map available at publish. Next: finish remaining
+   history-plane gaps and host hardening before another coverage expansion. The completed second larger
    wave delivered 113 nodes / 97 relationships across excerpts from 118 files; earlier runs
    still replay exactly under their pinned versions. Preserve owner review as broad usefulness
    feedback, not discovery labels or a fixed taxonomy.
-2. Land the history plane as milestone work (commit meta, bounded diffs, path history, prior
-   maps across revisions)—snapshot maps remain useful intermediates, not the success bar.
+2. History plane partially landed: broker ops for commit meta, bounded diffs, and path history
+   (ancestors of the pinned revision). Still open: prior-map lookup across engine outputs and
+   brokered cached per-commit readings. Snapshot maps remain useful intermediates, not the success bar.
 3. Address failures that prevent reliable operation or materially reduce map usefulness.
    Keep claim-local review qualifications separate from candidate-map availability.
 4. Consolidate generic review continuity and the host execution adapter, retaining the now

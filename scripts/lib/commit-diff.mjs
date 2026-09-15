@@ -151,8 +151,12 @@ const summaryLine = (file) =>
  * that stands in for the files that did not fit. `omitted` is reported rather than
  * hidden: a tier that saw a partial diff should be able to say so.
  */
-export function readCommitDiff(repositoryPath, sha, { maxLines = DEFAULT_MAX_LINES, maxBytes = DEFAULT_MAX_BYTES, contextLines = DEFAULT_CONTEXT_LINES } = {}) {
-  const files = readNumstat(repositoryPath, sha)
+export function readCommitDiff(repositoryPath, sha, { maxLines = DEFAULT_MAX_LINES, maxBytes = DEFAULT_MAX_BYTES, contextLines = DEFAULT_CONTEXT_LINES, paths = null } = {}) {
+  let files = readNumstat(repositoryPath, sha)
+  if (Array.isArray(paths)) {
+    const wanted = new Set(paths)
+    files = files.filter((file) => wanted.has(file.path) || (file.previousPath && wanted.has(file.previousPath)))
+  }
   const totalLines = files.reduce((sum, file) => sum + file.added + file.deleted, 0)
 
   if (files.length === 0) {
@@ -165,10 +169,11 @@ export function readCommitDiff(repositoryPath, sha, { maxLines = DEFAULT_MAX_LIN
 
   const binaryCount = files.filter((file) => file.binary).length
   const textFiles = files.filter((file) => !file.binary)
+  const patchPaths = Array.isArray(paths) ? files.map((file) => file.path) : []
 
   if (totalLines <= maxLines && totalBytes <= maxBytes) {
     return {
-      text: readPatch(repositoryPath, sha, [], contextLines),
+      text: readPatch(repositoryPath, sha, patchPaths, contextLines),
       files,
       totalLines,
       totalBytes,

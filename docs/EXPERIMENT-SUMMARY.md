@@ -897,7 +897,9 @@ acceptance sequence is now underway on real code, as described below.
 Generic review-history projection and app integration remain separate delivery gaps.
 Historical evolution is milestone-in-scope via the
 [three planes](ARCHITECTURE.md#three-planes-store-decision-session-history) (Store / Decision
-session / History); this runner generation still lacks history-plane ops. The
+session / History). Version 2 now exposes partial history-plane broker ops (`commit-meta`,
+bounded `diff`, `path-history`); prior-map lookup and brokered cached per-commit readings
+remain open. The
 [architecture](ARCHITECTURE.md#consolidated-repository-workflow) owns the operating sequence;
 the [roadmap](ROADMAP.md#immediate-next-steps) owns the delivery order.
 At the consolidation checkpoint, all **476 tests**, the build and whitespace checks passed. The generic renderer was checked
