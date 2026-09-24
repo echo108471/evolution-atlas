@@ -26,3 +26,4 @@ coverage/
 !/public/graph-reviews/consolidated-engine/larger-demonstration/**
 !/public/graph-reviews/experiment-summary/
 !/public/graph-reviews/experiment-summary/**
+/scratch/
