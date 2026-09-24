@@ -106,6 +106,9 @@ export function GalleryIndex({ subjects, onSelectSubject }: GalleryIndexProps) {
           The observed atlas needs no credentials. The optional interpretation pass calls a model
           provider and requires your own API key.
         </p>
+        <p className="gallery-map-entry">
+          Already have an engine artifact? <a href="?view=map">Open a candidate capability map</a> from a local JSON file.
+        </p>
       </section>
     </main>
   )

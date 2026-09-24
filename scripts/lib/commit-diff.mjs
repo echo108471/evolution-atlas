@@ -21,6 +21,15 @@ import { execFileSync } from 'node:child_process'
 
 const GIT_MAX_BUFFER = 256 * 1024 * 1024
 
+// Read the object named by the receipt, independent of caller configuration,
+// replacement refs, lazy fetches, and external diff or text conversion tools.
+function gitEnvironment() {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')))
+  return { ...env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_NO_LAZY_FETCH: '1',
+    GIT_NO_REPLACE_OBJECTS: '1', GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C' }
+}
+const gitArguments = repositoryPath => ['--literal-pathspecs', '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.allow=never', '-C', repositoryPath]
+
 export const DEFAULT_MAX_LINES = 400
 export const DEFAULT_CONTEXT_LINES = 3
 
@@ -34,7 +43,9 @@ export const DEFAULT_CONTEXT_LINES = 3
 export const DEFAULT_MAX_BYTES = 64 * 1024
 
 function runGit(repositoryPath, args) {
-  return execFileSync('git', ['-C', repositoryPath, ...args], {
+  return execFileSync('git', [...gitArguments(repositoryPath), ...args], {
+    env: gitEnvironment(),
+    timeout: 30_000,
     encoding: 'utf8',
     maxBuffer: GIT_MAX_BUFFER,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -48,7 +59,7 @@ function runGit(repositoryPath, args) {
  */
 export function readNumstat(repositoryPath, sha) {
   const raw = runGit(repositoryPath, [
-    'diff-tree', '--root', '--diff-merges=first-parent', '--no-commit-id', '--numstat', '-r', '-M', '-z', sha,
+    'diff-tree', '--root', '--diff-merges=first-parent', '--no-ext-diff', '--no-textconv', '--no-commit-id', '--numstat', '-r', '-M', '-z', sha,
   ])
 
   const tokens = raw.split('\0')
@@ -86,7 +97,7 @@ export function readNumstat(repositoryPath, sha) {
  */
 export function readBlobSizes(repositoryPath, sha) {
   const raw = runGit(repositoryPath, [
-    'diff-tree', '--root', '--diff-merges=first-parent', '--no-commit-id', '--raw', '-r', '-M', '-z', sha,
+    'diff-tree', '--root', '--diff-merges=first-parent', '--no-ext-diff', '--no-textconv', '--no-commit-id', '--raw', '-r', '-M', '-z', sha,
   ])
 
   const tokens = raw.split('\0')
@@ -111,7 +122,9 @@ export function readBlobSizes(repositoryPath, sha) {
 
   const sizes = new Map()
   if (wanted.size > 0) {
-    const output = execFileSync('git', ['-C', repositoryPath, 'cat-file', '--batch-check=%(objectname) %(objectsize)'], {
+    const output = execFileSync('git', [...gitArguments(repositoryPath), 'cat-file', '--batch-check=%(objectname) %(objectsize)'], {
+      env: gitEnvironment(),
+      timeout: 30_000,
       input: `${[...wanted].join('\n')}\n`,
       encoding: 'utf8',
       maxBuffer: GIT_MAX_BUFFER,
@@ -132,7 +145,7 @@ export function readBlobSizes(repositoryPath, sha) {
 
 function readPatch(repositoryPath, sha, paths, contextLines) {
   const args = [
-    'diff-tree', '--root', '--diff-merges=first-parent', '--no-commit-id', '-p', '-r', '-M',
+    'diff-tree', '--root', '--diff-merges=first-parent', '--no-ext-diff', '--no-textconv', '--no-commit-id', '-p', '-r', '-M',
     `--unified=${contextLines}`, '--no-color', sha,
   ]
   if (paths.length > 0) args.push('--', ...paths)

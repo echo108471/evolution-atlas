@@ -6,6 +6,7 @@ import { GalleryIndex } from './GalleryIndex'
 import { IdentityReview } from './IdentityReview'
 import { PeriodBands } from './PeriodBands'
 import { RepositoryOverview } from './RepositoryOverview'
+import { RepositoryMapExplorer } from './RepositoryMapExplorer'
 import { RepositoryTimeMachine } from './RepositoryTimeMachine'
 import { LIFECYCLE_STAGES, normalizeSemanticEpisodes } from './lifecycle'
 import {
@@ -631,11 +632,11 @@ export default function App() {
     return manifest.subjects.find((entry) => entry.slug === urlSubject) ?? manifest.subjects[0]
   }, [manifest, urlSubject])
 
-  const showGalleryIndex = manifest !== null && activeSubject === null
+  const showGalleryIndex = manifest !== null && activeSubject === null && section !== 'map'
 
   // Null suppresses the fetch entirely. The index needs no dataset, and a gallery dataset
   // is measured in megabytes, so arriving at the front door should not download one.
-  const datasetUrl = showGalleryIndex
+  const datasetUrl = section === 'map' || showGalleryIndex
     ? null
     : activeSubject
       ? `/gallery/${activeSubject.dataset}`
@@ -1016,6 +1017,16 @@ export default function App() {
 
   // The index is the gallery's entry point, so it renders before the dataset guard below —
   // there is no dataset to wait for.
+  if (section === 'map') {
+    return (
+      <RepositoryMapExplorer
+        sourceUrl={url.mapUrl}
+        onSourceUrl={(value) => setUrl({ section: 'map', mapUrl: value })}
+        onBack={() => setUrl({ section: 'overview', mapUrl: null })}
+      />
+    )
+  }
+
   if (showGalleryIndex && manifest) {
     return (
       <GalleryIndex
@@ -1044,6 +1055,7 @@ export default function App() {
                 <code>npm run analyze -- --repo . --out public/atlas.json</code>
               </>
             )}
+            <a className="load-map-link" href="?view=map">Open a candidate capability map</a>
             <small>{loadError}</small>
           </div>
         ) : (
@@ -1110,6 +1122,12 @@ export default function App() {
             onClick={() => handleSectionChange('repository')}
           >
             Repository
+          </button>
+          <button
+            type="button"
+            onClick={() => setUrl({ section: 'map', mapUrl: null })}
+          >
+            Candidate map
           </button>
           {periodDocument && (
             <button

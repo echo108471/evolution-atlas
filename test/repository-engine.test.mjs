@@ -6,7 +6,16 @@ import { tmpdir } from 'node:os'
 import { resolve, dirname } from 'node:path'
 import { createHash } from 'node:crypto'
 import * as legacy from '../scripts/versions/repository-engine-v1/repository-engine.mjs'
-import { prepareEngine, inspectEngine, engineBroker, checkpointEngine, freezeIntegration, publishEngine, recordEngineLaunch, recordEngineTerminal } from '../scripts/repository-engine.mjs'
+import { prepareEngine as prepareCurrentEngine, inspectEngine, engineBroker, checkpointEngine, freezeIntegration, publishEngine, recordEngineLaunch, recordEngineTerminal } from '../scripts/repository-engine.mjs'
+
+import { prepareEngine as prepareV2Engine } from '../scripts/versions/repository-engine-v2/history/repository-engine-v2.mjs'
+const prepareEngine = (directory, input) => {
+  try {
+    JSON.parse(readFileSync(directory + '/run-plan.json'))
+    return prepareCurrentEngine(directory, input)
+  } catch (error) { if (error.code !== 'ENOENT') throw error }
+  return prepareV2Engine(directory, input)
+}
 
 const json = x => JSON.stringify(x, null, 2) + '\n'
 function fixture(t) {
@@ -50,7 +59,7 @@ test('archived v1 runtime exactly preserves the original six source pins', () =>
   for (const [file, pin] of Object.entries(pins)) assert.equal(createHash('sha256').update(readFileSync(new URL('../scripts/versions/repository-engine-v1/' + file, import.meta.url))).digest('hex'), pin, file)
 })
 
-test('stable entry point resumes and replays v1 bytes while new runs use v2', t => {
+test('stable entry point resumes and replays v1 and archived v2 bytes', t => {
   const f = fixture(t)
   legacy.prepareEngine(f.out, f.config)
   const r = engineBroker(f.out, 'A', 'read', ['main.go'])

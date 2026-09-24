@@ -8,7 +8,7 @@ import type { LifecycleStage } from './model'
  * touches the DOM.
  */
 
-export type AtlasSection = 'overview' | 'repository' | 'periods' | 'features' | 'people' | 'identity'
+export type AtlasSection = 'overview' | 'repository' | 'periods' | 'features' | 'people' | 'identity' | 'map'
 export type EvidencePreset = 'conservative' | 'balanced' | 'all'
 
 export const ATLAS_SECTIONS: AtlasSection[] = [
@@ -18,6 +18,7 @@ export const ATLAS_SECTIONS: AtlasSection[] = [
   'features',
   'people',
   'identity',
+  'map',
 ]
 
 export const EVIDENCE_PRESET_KEYS: EvidencePreset[] = ['conservative', 'balanced', 'all']
@@ -38,6 +39,8 @@ export interface AtlasUrlState {
   scopePath: string
   /** Abbreviated commit SHA of the selected checkpoint. Ids stay stable when scope changes. */
   checkpointSha: string | null
+  /** Same-origin artifact route for a locally served candidate map. */
+  mapUrl: string | null
 }
 
 export const DEFAULT_URL_STATE: AtlasUrlState = {
@@ -51,12 +54,14 @@ export const DEFAULT_URL_STATE: AtlasUrlState = {
   selectedId: null,
   scopePath: '',
   checkpointSha: null,
+  mapUrl: null,
 }
 
 /** Serialization order, so two equal states always produce byte-identical query strings. */
 const PARAM_ORDER = [
   'repo',
   'view',
+  'map',
   'chapter',
   'stage',
   'evidence',
@@ -82,9 +87,11 @@ function readText(value: string | null) {
  */
 export function parseAtlasUrl(search: string): AtlasUrlState {
   const params = new URLSearchParams(search)
+  const mapUrl = readText(params.get('map'))
   return {
     subject: readText(params.get('repo')),
-    section: readEnum(params.get('view'), ATLAS_SECTIONS, DEFAULT_URL_STATE.section),
+    // A map artifact link is a complete entry point, even when its author omits `view=map`.
+    section: mapUrl ? 'map' : readEnum(params.get('view'), ATLAS_SECTIONS, DEFAULT_URL_STATE.section),
     chapterId: readText(params.get('chapter')),
     lifecycleStage: readEnum(
       params.get('stage'),
@@ -101,6 +108,7 @@ export function parseAtlasUrl(search: string): AtlasUrlState {
     selectedId: readText(params.get('sel')),
     scopePath: readText(params.get('scope')) ?? DEFAULT_URL_STATE.scopePath,
     checkpointSha: readText(params.get('at')),
+    mapUrl,
   }
 }
 
@@ -119,7 +127,10 @@ function relaxQueryEncoding(search: string) {
 export function serializeAtlasUrl(state: AtlasUrlState): string {
   const values: Record<(typeof PARAM_ORDER)[number], string | null> = {
     repo: state.subject,
-    view: state.section === DEFAULT_URL_STATE.section ? null : state.section,
+    view:
+      state.section === DEFAULT_URL_STATE.section || (state.section === 'map' && state.mapUrl !== null)
+        ? null
+        : state.section,
     chapter: state.chapterId,
     stage: state.lifecycleStage === DEFAULT_URL_STATE.lifecycleStage ? null : state.lifecycleStage,
     evidence:
@@ -129,6 +140,7 @@ export function serializeAtlasUrl(state: AtlasUrlState): string {
     sel: state.selectedId,
     scope: state.scopePath.length > 0 ? state.scopePath : null,
     at: state.checkpointSha,
+    map: state.mapUrl,
   }
 
   const params = new URLSearchParams()

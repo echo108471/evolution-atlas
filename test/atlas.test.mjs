@@ -11,7 +11,7 @@ function git(repositoryPath, args, date) {
   const env = date
     ? { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date }
     : process.env
-  return execFileSync('git', ['-C', repositoryPath, ...args], {
+  return execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', '-C', repositoryPath, ...args], {
     encoding: 'utf8',
     env,
   })

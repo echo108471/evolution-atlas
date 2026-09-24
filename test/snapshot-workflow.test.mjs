@@ -12,12 +12,13 @@ function fixture(t) {
   const previousCwd = process.cwd(), brokerText = readFileSync(new URL('../scripts/vscode-snapshot-evidence.mjs', import.meta.url), 'utf8')
   const root = mkdtempSync(resolve(tmpdir(), 'snapshot-workflow-test-'))
   t.after(() => { process.chdir(previousCwd); rmSync(root, { recursive: true, force: true }) })
-  execFileSync('git', ['init', '-q', root])
+  const env = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_'))), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' }
+  execFileSync('git', ['init', '-q', root], { env })
   writeFileSync(root + '/.gitignore', '*\n')
   process.chdir(root)
   const repo = root + '/source.git', out = root + '/run'
-  execFileSync('git', ['init', '--bare', '-q', repo])
-  const git = (args, input) => execFileSync('git', ['--git-dir=' + repo, ...args], { encoding: 'utf8', input })
+  execFileSync('git', ['init', '--bare', '-q', repo], { env })
+  const git = (args, input) => execFileSync('git', ['--git-dir=' + repo, ...args], { encoding: 'utf8', env, input })
   const text = 'export function example() { return 1 }\n', blobSha = git(['hash-object', '-w', '--stdin'], text).trim()
   const inventory = { commitSha: 'a'.repeat(40), allTrackedEntries: 2, eligibleFiles: 2, omitted: [], files: [
     { path: 'alpha.ts', size: Buffer.byteLength(text), blobSha, mode: '100644', partition: 'A' },

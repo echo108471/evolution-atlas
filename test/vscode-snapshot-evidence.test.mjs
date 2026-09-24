@@ -27,8 +27,9 @@ test('broker rejects unrecognized agents before any repository access',()=>{
 })
 function fixture(){
   const dir=mkdtempSync(join(tmpdir(),'snapshot-broker-test-')),repo=join(dir,'source.git'),out=join(dir,'run')
-  execFileSync('git',['init','--bare',repo],{stdio:'ignore'})
-  const blobSha=execFileSync('git',['--git-dir='+repo,'hash-object','-w','--stdin'],{input:'one\ntwo\nthree\n',encoding:'utf8'}).trim()
+  const env={...Object.fromEntries(Object.entries(process.env).filter(([k])=>!k.startsWith('GIT_'))),GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'}
+  execFileSync('git',['init','--bare',repo],{stdio:'ignore',env})
+  const blobSha=execFileSync('git',['--git-dir='+repo,'hash-object','-w','--stdin'],{input:'one\ntwo\nthree\n',encoding:'utf8',env}).trim()
   const inventory={files:[{path:'src/synthetic.ts',blobSha,size:14,partition:'A'}]}
   saveNew(out+'/inventory.json',inventory)
   const budget={windows:1,searches:1,evidenceBytes:4000,linesPerWindow:3,bytesPerWindow:100}

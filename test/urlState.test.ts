@@ -44,6 +44,7 @@ test('parsing and serializing round-trip a fully populated state', () => {
     selectedId: 'episode:def456',
     scopePath: 'src/viewer',
     checkpointSha: 'cb05280',
+    mapUrl: null,
   }
   assert.deepEqual(parseAtlasUrl(serializeAtlasUrl(state)), state)
 })
@@ -97,4 +98,15 @@ test('an absent subject means the single local dataset', () => {
   assert.equal(parseAtlasUrl('?repo=').subject, null)
   assert.equal(parseAtlasUrl('?repo=%20%20').subject, null)
   assert.equal(serializeAtlasUrl({ ...DEFAULT_URL_STATE, subject: null }), '')
+})
+
+test('candidate map view opens with or without a same-origin artifact route', () => {
+  assert.equal(parseAtlasUrl('?view=map').section, 'map')
+  const linked = parseAtlasUrl('?map=%2Fmaps%2Frun%2Freviewed-output.json')
+  assert.equal(linked.section, 'map')
+  assert.equal(linked.mapUrl, '/maps/run/reviewed-output.json')
+  assert.equal(
+    serializeAtlasUrl({ ...DEFAULT_URL_STATE, section: 'map', mapUrl: linked.mapUrl }),
+    '?map=/maps/run/reviewed-output.json',
+  )
 })

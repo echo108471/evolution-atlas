@@ -333,7 +333,7 @@ test('the diff budget counts bytes, not only lines', async () => {
   const { readCommitDiff } = await import('../scripts/lib/commit-diff.mjs')
 
   const repository = mkdtempSync(join(tmpdir(), 'atlas-bytes-'))
-  const git = (args) => execFileSync('git', ['-C', repository, ...args], { encoding: 'utf8' })
+  const git = (args) => execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', '-C', repository, ...args], { encoding: 'utf8' })
   try {
     git(['init', '--initial-branch=main', '.'])
     git(['config', 'user.email', 'test@example.com'])

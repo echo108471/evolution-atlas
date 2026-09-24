@@ -88,11 +88,13 @@ For the current **capability-discovery workflow**, use
 [`scripts/repository-engine.mjs`](scripts/repository-engine.mjs) and its
 [operating sequence](docs/ARCHITECTURE.md#consolidated-repository-workflow).
 It handles repository-neutral snapshot discovery, expansion, saved progress and
-a complete candidate-map report. Model execution is supplied by the host; the
-engine does not call a model API. This is separate from the observed-history
-viewer and older interpretation commands below, and does not yet infer
-historical evolution. New delivery work uses this shared workflow; earlier
-experiment runners remain frozen for replay.
+a complete candidate-map report. Version 3 connects ancestor-revision maps,
+bounded Git history, and explicitly supplied cached readings, with candidate
+explanations of capability changes. Model execution is supplied by the host;
+the engine does not call a model API. Follow the
+[history workflow](docs/HISTORY-WORKFLOW.md) for preparation, worker coordination,
+review continuity, and the app's **Candidate map** view. Earlier experiment
+runtimes remain frozen for replay.
 
 ```bash
 npm install

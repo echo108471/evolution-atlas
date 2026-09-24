@@ -27,7 +27,7 @@
     "gallery": "node scripts/gallery.mjs",
     "interpret": "node scripts/interpret.mjs",
     "dev": "vite",
-    "test": "node --import tsx --test",
+    "test": "GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 node --import tsx --test",
     "typecheck": "tsc -b",
     "build": "tsc -b && vite build",
     "preview": "vite preview",

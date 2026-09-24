@@ -206,7 +206,8 @@ remain failures requiring explicit recovery; writes are create-only, not crash-a
 The companion wording-revision transaction requires exact old text and graph preconditions,
 applies a proposal atomically in memory and records changed assertions. Source-review records
 bind to exact reviewed content in a separate sidecar; neither schema success nor proposer
-confidence grants independent verification. Main-app integration remains separate delivery work. Historical evolution is **in**
+confidence grants independent verification. This frozen wrapper predates the candidate-map
+explorer; current engine outputs can be opened from the app or imported locally. Historical evolution is **in**
 the consolidation milestone (see [three planes](#three-planes-store-decision-session-history)
 below); snapshot maps are intermediates, not the success bar. Current experimental outcomes
 and limitations are owned by [the experiment summary](EXPERIMENT-SUMMARY.md).
@@ -214,7 +215,7 @@ and limitations are owned by [the experiment summary](EXPERIMENT-SUMMARY.md).
 ### Consolidated repository workflow
 
 New runs use **`scripts/repository-engine.mjs`**, not another experiment-specific runner.
-Its commands are `prepare`, `status`, `broker`, `launch`, `terminal`, `checkpoint`,
+Its commands are `prepare`, `status`, `broker`, `reserve`, `bind`, `terminal`, `checkpoint`,
 `integrate` and `publish`. It combines repository-neutral inventory, bounded immutable-source
 retrieval, saved responses, global integration, explicit lineage and a complete local report.
 It does **not** launch models itself: the host dispatches fresh-context workers from the saved
@@ -224,9 +225,12 @@ execution, not a standalone one-command model service.
 An initial configuration contains `mode: "discovery"`, an absolute local `repo` path,
 `displayName`, optional `revision` (default `HEAD`), `partitionCount` (1–6, default 3) and
 `maxFileBytes` (at most 1 MiB). Expansion uses `mode: "expansion"` and `baseline`, the path
-to a previous `output.json`, on the **same pinned commit**. The discovery inventory is
-reconstructed from the complete commit tree, then excludes every cumulatively inspected
-baseline file. It never substitutes a previous reduced inventory for the full one.
+to a previous `output.json`, on the same commit or an **ancestor revision**. The discovery
+inventory is reconstructed from the complete current commit tree, then excludes previously
+inspected files only when their blobs are unchanged. Old receipts retain their original
+revision, including evidence for deleted paths. `priorMaps` and `commitReadings` explicitly
+select optional earlier run directories and saved reading documents; their bytes and
+ancestry are pinned before lookup. A reduced inventory never replaces the complete tree.
 Assignments balance source-directory groups; they impose no capability count or depth.
 
 Operational sequence, with `RUN` an ignored local output directory:
@@ -234,8 +238,10 @@ Operational sequence, with `RUN` an ignored local output directory:
 ```text
 node scripts/repository-engine.mjs prepare RUN CONFIG.json
 node scripts/repository-engine.mjs status RUN
-# Host dispatches fresh workers using RUN/tasks/A.json, B.json, ...
-node scripts/repository-engine.mjs launch RUN A HOST_HANDLE
+node scripts/repository-engine.mjs reserve RUN A
+# Host dispatches a fresh worker using RUN/tasks/A.json, then binds its actual handle.
+node scripts/repository-engine.mjs bind RUN A RESERVATION_ID HOST_HANDLE
+node scripts/repository-engine.mjs status RUN A
 # Workers use: broker RUN A list|read|search ...
 # Workers save their first complete raw JSON once to the task's output path.
 # After the host observes that the worker has completed:
@@ -243,8 +249,9 @@ node scripts/repository-engine.mjs terminal RUN A HOST_HANDLE completed
 node scripts/repository-engine.mjs checkpoint RUN A
 # Repeat checkpoint for each assignment, without rerunning completed work.
 node scripts/repository-engine.mjs integrate RUN
-# Host dispatches RUN/tasks/R.json and records its actual handle.
-node scripts/repository-engine.mjs launch RUN R HOST_HANDLE
+node scripts/repository-engine.mjs reserve RUN R
+# Host dispatches RUN/tasks/R.json and binds its actual handle.
+node scripts/repository-engine.mjs bind RUN R RESERVATION_ID HOST_HANDLE
 # After the host observes completion:
 node scripts/repository-engine.mjs terminal RUN R HOST_HANDLE completed
 node scripts/repository-engine.mjs checkpoint RUN R
@@ -262,7 +269,9 @@ Broker argument order is explicit: `broker RUN AGENT read PATH START_LINE LINE_C
 read/search/history budgets). Omitted read range arguments default to line 1 and 120 lines; list
 defaults to the worker's assignment and offset 0. An explicit list prefix can navigate across
 assignments. Search locations alone do not support claims. History ops may only target commits
-that are ancestors of (or equal to) the run's pinned revision.
+that are ancestors of (or equal to) the run's pinned revision. Integration also has bounded
+`prior-map MAP_ID OFFSET LIMIT` and `reading ARTIFACT_ID COMMIT_SHA [TIER]` lookups. Their
+payloads are earlier interpretations, never substitutes for observed Git evidence.
 
 The host must observe a terminal state before recording
 `terminal RUN AGENT HOST_HANDLE completed|interrupted|failed`. A saved handle is not proof
@@ -271,12 +280,17 @@ with remaining receipts/budget; do not automatically start over. Invalid raw out
 and blocks automatic semantic retry. Status reads never recreate missing files. Explicit
 preparation may reconstruct missing deterministic setup files but rejects conflicting bytes.
 Writes are create-only, not crash-atomic; abandoned locks require a real process check.
+Version 3 reserves dispatch before spawning and gates evidence until the host binds the
+actual handle. Worker status is assignment-scoped and contains no other responses or labels.
+A bounded wait handles the spawn/bind race. Live lock contention retries briefly; dead or
+unreadable locks remain for explicit recovery. A recorded handle still does not prove liveness.
 
 Run plans pin the workflow's source-file bytes as well as their inputs. The stable entry point
-selects the runtime from an existing run's declared version; new directories use
-`repository-engine/2`. Version 1's six exact source files are retained, unmodified, under
-`scripts/versions/repository-engine-v1/`. Version 2 lives in `scripts/repository-engine-v2.mjs`
-and pins itself, the dispatcher and its source dependencies. Unknown versions or mismatched
+selects the runtime from an existing run's declared version and exact pins; new directories use
+`repository-engine/3`. Version 1's six exact source files remain unmodified under
+`scripts/versions/repository-engine-v1/`. All four published version 2 source/pin sets are
+preserved under `scripts/versions/repository-engine-v2/`. Version 3 lives in
+`scripts/repository-engine-v3.mjs` and pins itself, the dispatcher and its dependencies. Unknown versions or mismatched
 pins fail closed. Existing directories are never migrated automatically; upgrading means
 preparing a new directory against the same previous output, which is independently rebound
 to its pinned source tree. The archive is for original-version replay/recovery, not a second
@@ -294,7 +308,7 @@ that all secrets or adversarial instructions have been excluded. Worker access d
 outside the broker remains instruction-enforced.
 
 Baseline history is retained verbatim in `history/baseline-output.json`, withheld from blind
-discovery. Integration receives an explicit candidate-field projection and source-only
+discovery. Integration receives an explicit candidate-field projection and verified evidence
 receipt aliases, not embedded prior review labels. Source aliases bind exact path, commit,
 blob, range and bytes. Fresh model graph fields reject independent-verification labels.
 The consolidated validator checks malformed values, citation membership, acyclic multi-parent
@@ -306,8 +320,9 @@ versions under this contract.
 
 `output.json` and `index.html` contain the complete candidate map, definitions, relationships,
 evidence, integration decisions, retained/changed/removed inputs and coverage limits. All
-independent verification starts as `not-performed`; earlier review histories are preserved
-but are not yet automatically projected onto new generic runs. The full discovery–expansion
+independent verification starts as `not-performed`. The optional post-inference
+`scripts/repository-review-history.mjs` companion projects earlier review notes through
+explicit lineage without changing the graph or transferring approval. The full discovery–expansion
 workflow is tested with synthetic local Git repositories and has completed a host-assisted
 VS Code delivery run through the same unchanged entry point, including controlled stop/resume,
 expansion and exact report replay. This establishes working delivery mechanics, not
@@ -328,20 +343,20 @@ presentation layer, not an automatic audit, correction, or cross-version review 
 
 ### Three planes: Store / Decision session / History
 
-The consolidated engine currently couples three concerns that must separate for milestone
-success:
+The consolidated engine separates evidence storage from the bounded model session and
+the interpretation of changes across revisions:
 
 1. **Store (unbounded growth OK)** — immutable receipt files, graph checkpoints, and indexes
-   by path / node / claim / revision. Partly exists today as `receipts/{agent}/*.json` and
-   related run artifacts. Publish keeps the **full candidate map** available offline.
+   by receipt and revision, with candidate references by node and claim. These live in
+   `receipts/{agent}/*.json` and related run artifacts. Publish keeps the **full candidate map** available offline.
 2. **Decision session (bounded)** — discovery, integration, and later history workers retrieve
    *only* what the current decision needs via brokered inspect / search / request-depth, with
    **explicit omissions** recorded. The model never needs the full corpus in one prompt.
-3. **History plane (milestone work)** — commit metadata, bounded diffs, path history, prior
-   maps across revisions, and cached per-commit readings. Snapshot protocol and runners must
-   state remaining gaps honestly; they must not redefine milestone success as snapshot-only.
+3. **History plane** — commit metadata, bounded diffs, path history, prior maps across
+   revisions, and cached per-commit readings. Observed file changes and candidate capability
+   evolution remain separate, and each output records what was omitted or not retrieved.
 
-Version 2 `integrate` freezes a **decision-scoped** packet: baseline graph, proposals,
+Versions 2 and 3 `integrate` freeze a **decision-scoped** packet: baseline graph, proposals,
 a `receiptCatalog` of store ids/fingerprints, and explicit `omissions`. Full receipt bodies
 remain in Store (`receipts/{agent}/*.json` and projected baseline) and are loaded on demand
 with `broker RUN R receipt <id>`; fresh inspection still uses `list|read|search` under
@@ -354,9 +369,12 @@ bounded payloads, explicit omissions, immutable receipts):
 - `broker RUN AGENT diff SHA [PATH] [MAX_LINES] [MAX_BYTES]`
 - `broker RUN AGENT path-history PATH [LIMIT] [SKIP]`
 
-Honest gaps still open: prior-map lookup across engine outputs, and brokered access to cached
-per-commit model readings from `analyze-commits`. Contributor fields on `commit-meta` are
-observed Git metadata only—not ranking or performance judgment input.
+Version 3 adds configured prior-map lookup, brokered saved per-commit model readings, and
+cross-revision expansion. The observed file/blob transition is separate from model-authored
+`historyLineage` and `historyEdgeLineage`. Changed lifecycle claims require post-baseline diff
+evidence; unsupported interpretations remain unresolved. The catalog and graph still grow;
+this is bounded evidence access, not a constant-size prompt or proof of semantic scaling.
+Contributor fields on `commit-meta` are observed Git metadata only, never ranking input.
 
 #### Coverage routing
 
@@ -389,11 +407,20 @@ including the catalog fingerprints, so removed or changed store evidence fails c
 Publish still materializes the full candidate map and complete receipt set offline. Decision
 sessions stay bounded by catalog + on-demand fetch rather than by raising the former 1.5MB
 accumulate-and-feed-all ceiling. History-plane broker ops for commit meta, bounded diffs, and
-path history are available on this split; prior-map lookup across engine outputs remains open
-milestone work.
+path history are available on this split. Version 3 extends it with prior-map and cached-reading
+lookup. The [history workflow](HISTORY-WORKFLOW.md) describes the current operational contract.
 
 ### Review history survives graph changes without transferring approval
 
+Generic engine outputs use `scripts/repository-review-history.mjs`: a source reviewed map
+and a current published run produce separate `reviewed-output.json` and `reviewed.html`
+companions. Exact baseline projection, explicit successors and byte-identical evidence aliases
+bind the notes. Changed wording, ambiguous/split/merged correspondence, changed relationships,
+and removed successors remain visible. Earlier notes can be carried across multiple revisions;
+they remain historical and never become current approvals. The main app accepts either the
+original or review companion through a local file import or same-origin map URL.
+
+The earlier experimental adapter remains preserved:
 Historical source reviews now have a separate post-discovery projection in
 `scripts/snapshot-review-history.mjs` and `scripts/lib/review-continuity.mjs`. It verifies the
 exact reviewed graph, regenerates the prior review sidecar from its frozen packets/reviews,
@@ -405,7 +432,7 @@ still only an earlier review, not approval of the current graph context.
 Removed nodes retain archived findings; split or merged successors keep their predecessor
 histories with explicit correspondence warnings. Changed wording does not automatically resolve
 an earlier qualification. This layer creates a separate review-aware report after inference;
-it leaves frozen candidate outputs, discovery inputs and model decisions unchanged. The current
+it leaves frozen candidate outputs, discovery inputs and model decisions unchanged. That experimental
 adapter joins one verified wording-recheck sidecar to its immediate snapshot expansion, not an
 arbitrary multi-version review database or semantic review-transfer policy.
 

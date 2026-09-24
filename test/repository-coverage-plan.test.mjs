@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, writeFileSync, rmSync, realpathSync, existsS
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { prepareEngine, engineBroker } from '../scripts/repository-engine.mjs'
+import { prepareEngine, engineBroker, reserveEngineLaunch, bindEngineLaunch, recordEngineTerminal, checkpointEngine, freezeIntegration, publishEngine } from '../scripts/repository-engine.mjs'
 import { prepareCoverageRouting } from '../scripts/plan-repository-coverage.mjs'
 
 function fixture(t) {
@@ -20,6 +20,10 @@ function fixture(t) {
   prepareEngine(run, config)
   return { root, repo, run, config }
 }
+function dispatch(run, agent) {
+  const reservation = reserveEngineLaunch(run, agent)
+  bindEngineLaunch(run, agent, reservation.reservationId, 'synthetic-' + agent)
+}
 
 test('pins metadata routing before inference and replays exact companions without modifying engine tasks', t => {
   const f = fixture(t), task = readFileSync(f.run + '/tasks/A.json'), protocol = readFileSync(f.run + '/protocol.md')
@@ -29,6 +33,7 @@ test('pins metadata routing before inference and replays exact companions withou
   assert.deepEqual(readFileSync(f.run + '/tasks/A.json'), task)
   assert.deepEqual(readFileSync(f.run + '/protocol.md'), protocol)
   assert.equal(JSON.parse(saved).provenance.helperSha256.length, 64)
+  dispatch(f.run, 'A')
   engineBroker(f.run, 'A', 'read', ['lib/a.go'])
   rmSync(f.run + '/coverage-tasks/A.json')
   prepareCoverageRouting(f.run)
@@ -37,6 +42,7 @@ test('pins metadata routing before inference and replays exact companions withou
 
 test('rejects late routing and conflicting artifacts without replacing saved contents', t => {
   const f = fixture(t)
+  dispatch(f.run, 'A')
   engineBroker(f.run, 'A', 'read', ['lib/a.go'])
   assert.throws(() => prepareCoverageRouting(f.run), /before discovery/)
   assert.equal(existsSync(f.run + '/coverage-routing.json'), false)
@@ -49,9 +55,17 @@ test('rejects late routing and conflicting artifacts without replacing saved con
 })
 
 test('worker supplements omit previously read paths while aggregate plan retains region accounting', t => {
-  const f = fixture(t), receipt = engineBroker(f.run, 'A', 'read', ['lib/a.go'])
-  const baseline = join(f.root, 'baseline.json')
-  writeFileSync(baseline, JSON.stringify({ commitSha: receipt.commitSha, graph: { nodes: [], edges: [] }, receipts: [receipt] }))
+  const f = fixture(t)
+  dispatch(f.run, 'A')
+  const receipt = engineBroker(f.run, 'A', 'read', ['lib/a.go'])
+  mkdirSync(f.run + '/proposals', { recursive: true })
+  writeFileSync(f.run + '/proposals/A.json', JSON.stringify({ agent: 'A', scopeSummary: 'Synthetic navigation only',
+    coverage: { inspected: [receipt.path], omissions: ['No semantic discovery'] }, crossPartitionLeads: [], nodes: [], edges: [], limitations: ['Synthetic fixture'] }))
+  recordEngineTerminal(f.run, 'A', 'synthetic-A', 'completed'); checkpointEngine(f.run, 'A')
+  freezeIntegration(f.run); dispatch(f.run, 'R')
+  writeFileSync(f.run + '/reconciled.json', JSON.stringify({ nodes: [], edges: [], lineage: [], edgeLineage: [], comparisons: [], decisions: [], limitations: ['Synthetic fixture'], historyLineage: [], historyEdgeLineage: [] }))
+  recordEngineTerminal(f.run, 'R', 'synthetic-R', 'completed'); checkpointEngine(f.run, 'R'); publishEngine(f.run)
+  const baseline = f.run + '/output.json'
   const run = join(f.root, 'expansion'); prepareEngine(run, { ...f.config, mode: 'expansion', baseline })
   const result = prepareCoverageRouting(run), task = JSON.parse(readFileSync(run + '/coverage-tasks/A.json'))
   assert.equal(result.inventory.inspectedFileCount, 1)

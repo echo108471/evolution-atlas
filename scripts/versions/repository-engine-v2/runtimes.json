@@ -1,0 +1,56 @@
+[
+  {
+    "name": "snapshot",
+    "commit": "3776cea161647f8c4fac03ccdba9ca611c4dc269",
+    "engines": {
+      "repository-engine.mjs": "107acf11e220fec2fd1bd3830413c2d491269a70ba0b7155fdcdc1bb0dab09d0",
+      "repository-engine-v2.mjs": "2c2d89b78d9957afd6c0ecf19e5864ad29f1410ceafbc0f163eb7b83be7a038e",
+      "repository-run-plan.mjs": "048b3ff7a22d8faebf86263049284e9206221fd43925da57f978566e31f19b84",
+      "lib/repository-snapshot.mjs": "b19583e312ec953c760f5c82dd4efd6671d9aba4c138acae31305ac2571a7365",
+      "lib/repository-source.mjs": "fb4a45680144896d755ba5fba28ad917bfdabbb7686636a0494fbdd871542c85",
+      "lib/repository-engine-contract.mjs": "24012a30ee2205cf8971e45dd0e1e6f66fc7e3f700dc66584ed27e61c69bdc03",
+      "render-repository-map.mjs": "52bdec5b7f7085d2e7ae262151af108b88ea8dd07ccbe0a54bd5b8f51a197989"
+    }
+  },
+  {
+    "name": "milestone",
+    "commit": "7dfda8695b554ab4fef43e88327e8b799249a25d",
+    "engines": {
+      "repository-engine.mjs": "107acf11e220fec2fd1bd3830413c2d491269a70ba0b7155fdcdc1bb0dab09d0",
+      "repository-engine-v2.mjs": "966c84f506363b6eac7e04f647a0fc38908068ea4b52985ac423ae9752952d31",
+      "repository-run-plan.mjs": "048b3ff7a22d8faebf86263049284e9206221fd43925da57f978566e31f19b84",
+      "lib/repository-snapshot.mjs": "b19583e312ec953c760f5c82dd4efd6671d9aba4c138acae31305ac2571a7365",
+      "lib/repository-source.mjs": "fb4a45680144896d755ba5fba28ad917bfdabbb7686636a0494fbdd871542c85",
+      "lib/repository-engine-contract.mjs": "24012a30ee2205cf8971e45dd0e1e6f66fc7e3f700dc66584ed27e61c69bdc03",
+      "render-repository-map.mjs": "52bdec5b7f7085d2e7ae262151af108b88ea8dd07ccbe0a54bd5b8f51a197989"
+    }
+  },
+  {
+    "name": "catalog",
+    "commit": "f1bfd217b198c2d24fce4e9e92e72839686aac21",
+    "engines": {
+      "repository-engine.mjs": "3745724f0fd0ffaa70e0fae9788cb23ff4eea1649d5dcb8f99ff6ad5ed389508",
+      "repository-engine-v2.mjs": "a05883b0ee4e8ba7c4bc116bc6f7088e30094e1e6bb11759ab82e03f4010dc3c",
+      "repository-run-plan.mjs": "048b3ff7a22d8faebf86263049284e9206221fd43925da57f978566e31f19b84",
+      "lib/repository-snapshot.mjs": "b19583e312ec953c760f5c82dd4efd6671d9aba4c138acae31305ac2571a7365",
+      "lib/repository-source.mjs": "fb4a45680144896d755ba5fba28ad917bfdabbb7686636a0494fbdd871542c85",
+      "lib/repository-engine-contract.mjs": "24012a30ee2205cf8971e45dd0e1e6f66fc7e3f700dc66584ed27e61c69bdc03",
+      "render-repository-map.mjs": "52bdec5b7f7085d2e7ae262151af108b88ea8dd07ccbe0a54bd5b8f51a197989"
+    }
+  },
+  {
+    "name": "history",
+    "commit": "b43c84a6ec5125c42cbe533982331f2019a91b2c",
+    "engines": {
+      "repository-engine.mjs": "07a9a56ac1ae06f4037cfd25c0934abbce55cdddf86bf2de7a474c9784a74cb1",
+      "repository-engine-v2.mjs": "c4639fe4affa0ab06aee538b609ec102be55d05b6de96ffa74932a08c145a6c7",
+      "repository-run-plan.mjs": "048b3ff7a22d8faebf86263049284e9206221fd43925da57f978566e31f19b84",
+      "lib/repository-snapshot.mjs": "b19583e312ec953c760f5c82dd4efd6671d9aba4c138acae31305ac2571a7365",
+      "lib/repository-source.mjs": "fb4a45680144896d755ba5fba28ad917bfdabbb7686636a0494fbdd871542c85",
+      "lib/repository-history.mjs": "5423a098e6b2d1e77a9daffc8e9b981edc9d0ade7ba7fdf35c9519964eef989d",
+      "lib/commit-diff.mjs": "7d177fe43d8b48b57c1bccbcea0396b42c431efc6c0955149e44c719c19b6dff",
+      "lib/repository-engine-contract.mjs": "24012a30ee2205cf8971e45dd0e1e6f66fc7e3f700dc66584ed27e61c69bdc03",
+      "render-repository-map.mjs": "52bdec5b7f7085d2e7ae262151af108b88ea8dd07ccbe0a54bd5b8f51a197989"
+    }
+  }
+]

@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve, dirname } from 'node:path'
-import { prepareEngine, inspectEngine, engineBroker, checkpointEngine, freezeIntegration, publishEngine } from '../scripts/repository-engine.mjs'
+import { prepareEngine, inspectEngine, engineBroker, checkpointEngine, freezeIntegration, publishEngine } from '../scripts/versions/repository-engine-v2/history/repository-engine-v2.mjs'
 import { historyReader } from '../scripts/lib/repository-history.mjs'
 
 const json = x => JSON.stringify(x, null, 2) + '\n'
@@ -62,6 +62,23 @@ test('history helpers expose commit meta, bounded path diff, and path history fo
   assert.equal(pathHistory.returned, 2)
   assert.deepEqual(pathHistory.commits.map(c => c.commitSha), [f.commits.c2, f.commits.c1])
   assert.throws(() => history.commitMeta('0'.repeat(40)), /not found|not an ancestor/)
+})
+
+test('current history diffs ignore replacement refs and caller Git environment', t => {
+  const f = multiCommitFixture(t)
+  const history = historyReader(f.repo, f.commits.c3)
+  const original = history.diff(f.commits.c2, 'main.go')
+  f.git(['replace', f.commits.c2, f.commits.c1])
+  assert.deepEqual(history.diff(f.commits.c2, 'main.go'), original)
+  const previous = process.env.GIT_EXTERNAL_DIFF
+  try {
+    process.env.GIT_EXTERNAL_DIFF = '/nonexistent/forbidden-diff-tool'
+    assert.deepEqual(history.diff(f.commits.c2, 'main.go'), original)
+    history.verify({ ...original, id: 'proof' })
+  } finally {
+    if (previous === undefined) delete process.env.GIT_EXTERNAL_DIFF
+    else process.env.GIT_EXTERNAL_DIFF = previous
+  }
 })
 
 test('v2 broker history ops persist verifiable receipts and stay within ancestor scope', t => {
