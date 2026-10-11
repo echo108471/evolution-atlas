@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { dirname, parse, resolve } from 'node:path'
 import Anthropic from '@anthropic-ai/sdk'
 import {
   PROVIDERS,
@@ -11,6 +11,7 @@ import {
   mergeInterpretation,
   validateSemanticEpisodes,
 } from './lib/interpret.mjs'
+import { requireNewOutput, requirePaidPermission, requireSeparateOutput } from './lib/experiment-permissions.mjs'
 
 function usage() {
   const providers = Object.entries(PROVIDERS)
@@ -25,7 +26,8 @@ dataset are discarded rather than trusted.
 
 Options:
   --in <path>           Observed dataset to read (default: public/atlas.json)
-  --out <path>          Write the interpreted dataset here (default: overwrite --in)
+  --out <path>          New output file (default: <input-stem>.interpreted.json;
+                        local revalidation uses <input-stem>.revalidated.json)
   --provider <name>     Where to send the request (default: auto-detected from env)
   --model <id>          Override the provider's default model (gateways only)
   --max-features <n>    Cap on proposed features (default: 40)
@@ -33,6 +35,7 @@ Options:
                         Cap on proposed lifecycle episodes (default: 160)
   --reuse-features      Keep validated input features and rerun only lifecycle discovery
   --revalidate          Reapply local evidence and boundary checks without a model call
+  --allow-paid          Explicitly permit model requests; SDK retries are disabled
   --compact             Emit compact JSON instead of indented JSON
   --help                Show this help
 
@@ -54,6 +57,7 @@ function parseArguments(argv) {
     maxLifecycleEpisodes: 160,
     reuseFeatures: false,
     revalidate: false,
+    allowPaid: false,
     pretty: true,
   }
 
@@ -70,6 +74,10 @@ function parseArguments(argv) {
     }
     if (argument === '--revalidate') {
       options.revalidate = true
+      continue
+    }
+    if (argument === '--allow-paid') {
+      options.allowPaid = true
       continue
     }
     if (
@@ -120,8 +128,16 @@ try {
     process.exit(0)
   }
 
+  if (options.revalidate && options.reuseFeatures) {
+    throw new Error('--revalidate and --reuse-features are mutually exclusive')
+  }
+  if (!options.revalidate) requirePaidPermission(options.allowPaid, 'Interpretation')
+
   const inputPath = resolve(options.inputPath)
-  const outputPath = resolve(options.outputPath ?? options.inputPath)
+  const input = parse(inputPath)
+  const outputPath = resolve(options.outputPath ?? `${input.dir}/${input.name}.${options.revalidate ? 'revalidated' : 'interpreted'}.json`)
+  requireSeparateOutput(outputPath, [inputPath])
+  requireNewOutput(outputPath)
   const dataset = JSON.parse(readFileSync(inputPath, 'utf8'))
 
   if (options.reuseFeatures && (dataset.featureCandidates?.length ?? 0) === 0) {
@@ -130,13 +146,10 @@ try {
   if (options.revalidate && (dataset.semanticEpisodes?.length ?? 0) === 0) {
     throw new Error('--revalidate requires an input dataset with semantic lifecycle episodes')
   }
-  if (options.revalidate && options.reuseFeatures) {
-    throw new Error('--revalidate and --reuse-features are mutually exclusive')
-  }
 
-  if (dataset.analysis?.mode === 'interpreted') {
+  if (dataset.analysis?.mode === 'interpreted' && !options.revalidate) {
     process.stderr.write(
-      'Input is already interpreted; re-running replaces its feature candidates.\n',
+      'Input is already interpreted; the new output will replace its feature candidates.\n',
     )
   }
 
@@ -171,7 +184,7 @@ try {
   } else {
     const provider = options.provider ?? detectProvider()
     const result = await interpretAtlas(dataset, {
-      client: createClient(Anthropic, provider),
+      client: createClient(Anthropic, provider, process.env, { maxRetries: 0 }),
       provider,
       model: options.model,
       maxFeatures: options.maxFeatures,
@@ -186,7 +199,7 @@ try {
 
   const serialized = `${JSON.stringify(interpreted, null, options.pretty ? 2 : 0)}\n`
   mkdirSync(dirname(outputPath), { recursive: true })
-  writeFileSync(outputPath, serialized, 'utf8')
+  writeFileSync(outputPath, serialized, { encoding: 'utf8', flag: 'wx' })
 
   process.stderr.write(
     `Kept ${validated.featureCandidates.length} candidate features and ${validated.semanticEpisodes.length} lifecycle episodes -> ${outputPath}\n`,

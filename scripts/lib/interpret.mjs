@@ -513,7 +513,7 @@ export function detectProvider(env = process.env) {
   return DEFAULT_PROVIDER
 }
 
-export function createClient(Anthropic, providerName, env = process.env) {
+export function createClient(Anthropic, providerName, env = process.env, { maxRetries } = {}) {
   const provider = resolveProvider(providerName)
   const apiKey = env[provider.apiKeyEnv]
 
@@ -524,6 +524,7 @@ export function createClient(Anthropic, providerName, env = process.env) {
   return new Anthropic({
     ...(provider.baseURL ? { baseURL: provider.baseURL } : {}),
     ...(apiKey ? { apiKey } : {}),
+    ...(maxRetries === undefined ? {} : { maxRetries }),
   })
 }
 

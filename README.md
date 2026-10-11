@@ -123,8 +123,11 @@ npm run experiment:status -- /path/to/ignored/run
 node scripts/check-offline.mjs
 ```
 
-The original atlas pipeline remains available for its historical experiments
-and the standalone viewer:
+The original atlas pipeline remains available for historical experiments and
+the standalone private viewer. Use [Explicit experiments](docs/EXPERIMENTS.md)
+for pinned local sources, separate acquisition and paid-call flags, and saved
+output reuse. The legacy viewer reads explicitly prepared local `public/` data;
+those files remain ignored and excluded from production:
 
 ```bash
 npm run analyze -- --repo . --out public/atlas.json
@@ -137,7 +140,7 @@ evidence-linked lifecycle episodes within those features. Any cited commit or
 feature id that does not resolve to the observed dataset is discarded:
 
 ```bash
-npm run interpret -- --in public/atlas.json
+node scripts/interpret.mjs --in public/atlas.json --allow-paid
 ```
 
 During lifecycle calibration, validated features can be reused so only the
@@ -145,12 +148,18 @@ second model pass runs. Local boundary checks can also be reapplied without a
 model call:
 
 ```bash
-npm run interpret -- --in public/atlas.json --reuse-features
-npm run interpret -- --in public/atlas.json --revalidate
+node scripts/interpret.mjs --in public/atlas.interpreted.json --reuse-features --allow-paid --out scratch/atlas.lifecycle-next.json
+node scripts/interpret.mjs --in public/atlas.interpreted.json --revalidate --out scratch/atlas.revalidated-next.json
 ```
 
-It needs a model credential; the observed pipeline above does not. Features and
-semantic lifecycle episodes are separate `candidate` entities carrying their
+Model execution needs `--allow-paid` and a model credential; local
+revalidation and observed analysis do not. Interpretation writes a new sibling
+`*.interpreted.json` or `*.revalidated.json` by default. Existing destinations
+and aliases of inputs are refused; preserve saved files and choose a new
+`--out` for another experiment. The legacy viewer does not automatically switch
+to the new file; prepare its local viewer filename separately while retaining
+the saved inputs. Features and semantic lifecycle episodes are separate
+`candidate` entities carrying their
 method, confidence, and supporting commits. A feature can therefore show a
 sequence such as introduced → expanded → hardened instead of receiving one
 permanent stage.
@@ -160,8 +169,8 @@ same Messages API — only the base URL, credential, and model naming differ. Th
 provider is auto-detected from whichever key is set, or named explicitly:
 
 ```bash
-npm run interpret -- --provider openrouter    # needs OPENROUTER_API_KEY
-npm run interpret -- --provider anthropic     # needs ANTHROPIC_API_KEY, or `ant auth login`
+node scripts/interpret.mjs --in scratch/atlas.json --provider openrouter --allow-paid    # needs OPENROUTER_API_KEY
+node scripts/interpret.mjs --in scratch/atlas.json --provider anthropic --allow-paid     # needs ANTHROPIC_API_KEY, or `ant auth login`
 ```
 
 Each candidate records which provider and model produced it in its `method`
@@ -181,7 +190,7 @@ history into periods during which the work was about roughly the same thing, so 
 analysis can proceed period by period rather than needing the whole corpus in one request:
 
 ```bash
-npm run epochs -- --in public/atlas.json --out public/epochs.json
+node scripts/epochs.mjs --in public/atlas.json --allow-paid --save-proposals scratch/proposals-next.json --out scratch/epochs-next.json
 ```
 
 It runs two passes that never see each other: a model reads raw commit windows and marks
@@ -196,18 +205,23 @@ history with too many periods to describe together gets eras above them.
 
 Periods are then named, which doubles as the cheapest check on the boundaries: a period
 the model can only call "Mixed feature work" is a cut in the wrong place. `--no-labels`
-skips naming, and `--proposals` reuses a saved run so the deterministic half can be
-changed without paying again.
+skips naming but still requests proposals. The free replay path combines
+`--proposals` with `--no-labels`; saved proposals must match the repository and
+full head revision. New period and proposal files are created exclusively:
 
-The viewer picks up `public/epochs.json` if it is present and adds a Periods tab. Like
+```bash
+node scripts/epochs.mjs --in public/atlas.json --proposals scratch/saved-proposals.json --no-labels --out scratch/epochs-replayed-next.json
+```
+
+The legacy viewer picks up a separately prepared `public/epochs.json` and adds a
+Periods tab; the new scratch output is not automatically served. Like
 `public/atlas.json`, it is gitignored and excluded from gallery builds, because it quotes
 commit subjects and dates.
 
 General checks:
 
 ```bash
-npm test
-npm run check
+node scripts/check-offline.mjs
 ```
 
 ## How we work
@@ -244,6 +258,8 @@ behavior; it does not establish semantic accuracy of model-authored history.
 - [Experiment summary and lessons](docs/EXPERIMENT-SUMMARY.md) — readable synthesis, corrected conclusions, and unresolved questions
 - [Engineering workflow](docs/ENGINEERING.md)
 - [Verification guide](docs/VERIFICATION.md)
+- [Synthetic development and clean checkout](docs/DEVELOPMENT.md)
+- [Explicit experiments and saved-output reuse](docs/EXPERIMENTS.md)
 - [Capability history workflow](docs/HISTORY-WORKFLOW.md)
 - [Concept](docs/CONCEPT.md)
 - [Architecture](docs/ARCHITECTURE.md)

@@ -5,6 +5,8 @@ catalogs belong in Git. Real datasets, runs, model responses, receipts, reports,
 repository clones, and caches belong in ignored local storage. Use `scratch/`
 for new experiments; choose a new run directory when its engine source changes.
 Repository catalogs describe candidates, not permission to publish their data.
+Follow [Explicit experiments](EXPERIMENTS.md) for pinned source acquisition and
+saved-output reuse; routine checks remain separate from paid execution.
 
 ## Preserved outputs
 

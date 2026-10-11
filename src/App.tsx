@@ -1047,7 +1047,7 @@ export default function App() {
             {manifest ? (
               <>
                 <p>This gallery subject has no dataset yet. Rebuild it, then reload.</p>
-                <code>npm run gallery -- --only {activeSubject?.slug ?? '&lt;slug&gt;'}</code>
+                <code>npm run gallery -- --only {activeSubject?.slug ?? '&lt;slug&gt;'} --out public/gallery</code>
               </>
             ) : (
               <>

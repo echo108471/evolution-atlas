@@ -193,7 +193,9 @@ choose `scratch/synthetic-fixtures/maps/output.json` in the local file picker.
 
 ## Keep real experiments separate
 
-Use a complete revision pin when explicitly acquiring an experiment source, or
+Follow [Explicit experiments](EXPERIMENTS.md) for acquisition flags, paid gates,
+immutable outputs, and free saved-artifact replay. Use a complete revision pin
+when explicitly acquiring an experiment source, or
 load saved source and response artifacts with verified pins and hashes. Reuse
 expensive outputs instead of interpreting again during onboarding or routine
 validation. Real source acquisition, paid worker execution, snapshot selection,
