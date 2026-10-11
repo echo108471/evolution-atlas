@@ -3,7 +3,7 @@ name: Offline checks
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'codex/**']
 
 permissions:
   contents: read

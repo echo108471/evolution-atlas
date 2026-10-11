@@ -66,7 +66,9 @@ build, and whitespace validation with an isolated home and an environment that
 omits credentials and proxy settings. Node requests to external hosts fail;
 loopback requests remain available for synthetic local verification. Git access
 is limited to the local file protocol and automatic lazy fetching is disabled.
-`npm test` applies the same isolation. This is a development guard, not an OS
+`npm test` applies the same isolation and bounds file concurrency to two by
+default; an explicit Node test-concurrency option overrides that bound.
+This is a development guard, not an OS
 network sandbox or a complete secret audit. Browser readiness and live UI
 journeys remain separate checks described in [Verification](VERIFICATION.md).
 

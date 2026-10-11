@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,7 +12,7 @@ const environment = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 function sandbox(run) {
-  const parent = mkdtempSync(join(tmpdir(), 'atlas-private-artifacts-'))
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), 'atlas-private-artifacts-')))
   const repositoryRoot = join(parent, 'repository')
   mkdirSync(repositoryRoot)
   const git = (...args) => execFileSync('git', args, { cwd: repositoryRoot, env: environment, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })

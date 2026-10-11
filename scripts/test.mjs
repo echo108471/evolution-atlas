@@ -39,7 +39,9 @@ export function runTests(args = process.argv.slice(2), { cwd = REPOSITORY_ROOT }
   const testRoot = join(cwd, 'test')
   const home = mkdtempSync(join(tmpdir(), 'atlas-test-home-'))
   try {
-    const runner = spawnSync(process.execPath, buildRunnerArgs(testRoot, args, cwd), {
+    const concurrency = args.some(arg => arg === '--test-concurrency' || arg.startsWith('--test-concurrency='))
+      ? [] : ['--test-concurrency=2']
+    const runner = spawnSync(process.execPath, [...concurrency, ...buildRunnerArgs(testRoot, args, cwd)], {
       cwd, env: createOfflineEnvironment({ home }), stdio: 'inherit', timeout: 240_000,
     })
     if (runner.error) throw runner.error
