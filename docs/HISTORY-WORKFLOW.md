@@ -30,7 +30,7 @@ npm run experiment:status -- RUN
 ```
 
 Keep generated runs in an ignored local directory. Within this checkout,
-`public/graph-reviews/history-delivery-*/` is one suitable location. Do not
+`scratch/history-delivery-*/` is one suitable location. Do not
 commit repository datasets or assume that ignored files are safe to publish.
 The status command is read-only and reports worker states, validation issues,
 and published-map counts. It supports current version 3 runs whose pinned

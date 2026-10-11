@@ -37,7 +37,11 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "check:pstack": "node scripts/check-pstack.mjs",
-    "check": "npm run check:pstack && npm test && npm run build && git diff --check"
+    "check": "npm run check:pstack && npm run check:artifacts && npm test && npm run build && git diff --check",
+    "check:offline": "node scripts/check-offline.mjs",
+    "preserve:artifacts": "node scripts/preserve-private-artifacts.mjs",
+    "render:reports": "node scripts/render-experiment-summary.mjs",
+    "check:artifacts": "node scripts/check-artifacts.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
@@ -51,9 +55,11 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
+    "marked": "18.1.0",
     "playwright": "^1.64.0",
     "tsx": "^4.21.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"
-  }
+  },
+  "packageManager": "npm@11.9.0"
 }

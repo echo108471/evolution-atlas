@@ -596,6 +596,9 @@ the repository into an unstable node-link hairball.
 ## Privacy posture
 
 Generated atlas files can contain repository history and contributor names, and epoch
-documents quote commit subjects and dates. `public/atlas.json` and `public/epochs.json`
-are ignored by default, and gallery builds strip both from `dist/`. A sanitized, explicitly approved
-fixture should be used for screenshots, demos, or publication.
+documents quote commit subjects and dates. Store new real runs in ignored `scratch/`.
+Production builds disable automatic `public/` copying and emit only the exact assets
+listed in the empty-by-default publication manifest. A public source repository does
+not establish permission to publish its derived dataset. Use synthetic fixtures for
+routine verification and separately review real snapshots before explicit approval.
+See [private development boundaries](PRIVATE-DEVELOPMENT.md).

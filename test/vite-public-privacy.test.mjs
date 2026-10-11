@@ -1,165 +1,199 @@
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs'
-import { join, resolve } from 'node:path'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import test from 'node:test'
+import { build } from 'vite'
 
 import viteConfig from '../vite.config.ts'
+import { loadPublicationAssets } from '../scripts/lib/build-publication.mjs'
+import { syntheticAtlas } from '../scripts/verification/fixtures.mjs'
 
-const privacyPlugin = viteConfig.plugins
-  .flat(Infinity)
-  .find((plugin) => plugin?.name === 'evolution-atlas:exclude-local-datasets')
-
-assert.ok(privacyPlugin?.closeBundle, 'Vite config exposes the gallery privacy plugin')
-
-const gitEnv = {
-  ...process.env,
-  GIT_CONFIG_GLOBAL: '/dev/null',
-  GIT_CONFIG_NOSYSTEM: '1',
-}
-
-function createRoot(t) {
-  const root = mkdtempSync(join(tmpdir(), 'atlas-vite-privacy-'))
-  const previousCwd = process.cwd()
-  process.chdir(root)
-  t.after(() => {
-    process.chdir(previousCwd)
-    rmSync(root, { recursive: true, force: true })
-  })
+function fixture(t) {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'atlas-build-publication-')))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  write(root, 'index.html', '<!doctype html><html><body><script type="module" src="/main.js"></script></body></html>')
+  write(root, 'main.js', 'document.body.dataset.app = "synthetic-build-test"\n')
+  manifest(root, [])
   return root
 }
 
-function write(root, relativePath, content = 'synthetic fixture\n') {
-  const path = join(root, relativePath)
-  mkdirSync(resolve(path, '..'), { recursive: true })
-  writeFileSync(path, content)
-  return path
+function write(root, path, bytes) {
+  const absolute = join(root, path)
+  mkdirSync(resolve(absolute, '..'), { recursive: true })
+  writeFileSync(absolute, bytes)
+  return absolute
 }
 
-function initializeGit(root) {
-  execFileSync('git', ['init', '-q', root], { env: gitEnv, stdio: 'ignore' })
+function manifest(root, assets) {
+  write(root, 'publication/manifest.json', JSON.stringify({ version: 1, assets }))
 }
 
-function invokePrivacyPlugin(logs = []) {
-  privacyPlugin.closeBundle.call({ info: (message) => logs.push(message) })
+function approvedFixture(root) {
+  const bytes = `${JSON.stringify(syntheticAtlas())}\n`
+  const asset = {
+    source: 'publication/assets/synthetic-atlas.json',
+    path: 'approved-snapshots/synthetic-atlas.json',
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    mediaType: 'application/json',
+    approval: 'Synthetic fixture for this disposable test only; no real snapshot approval.',
+  }
+  write(root, asset.source, bytes)
+  return { asset, bytes }
 }
 
-function makeGalleryGitFixture(root) {
-  initializeGit(root)
-  write(root, 'public/gallery/manifest.json', '{"runs":[]}\n')
-  write(root, 'public/.gitignore', [
-    '/graph-reviews/consolidated-engine/larger-demonstration/local-only.json',
-    '/graph-reviews/unapproved-run/',
-    '',
-  ].join('\n'))
-  write(root, 'public/graph-reviews/consolidated-engine/larger-demonstration/index.html', 'published demo\n')
-  write(root, 'public/graph-reviews/experiment-summary/index.html', 'published summary\n')
-  write(root, 'public/graph-reviews/consolidated-engine/larger-demonstration/local-only.json', 'private nested data\n')
-  write(root, 'public/graph-reviews/unapproved-run/index.html', 'unapproved synthetic run\n')
+function snapshotTree(directory, prefix = '') {
+  return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const path = prefix ? `${prefix}/${entry.name}` : entry.name
+    return entry.isDirectory()
+      ? snapshotTree(join(directory, entry.name), path)
+      : [{ path, bytes: readFileSync(join(directory, entry.name)) }]
+  })
+}
 
-  execFileSync('git', ['-C', root, 'add', 'public'], { env: gitEnv, stdio: 'ignore' })
-  for (const ignoredPath of [
-    'public/graph-reviews/consolidated-engine/larger-demonstration/local-only.json',
-    'public/graph-reviews/unapproved-run/index.html',
-  ]) {
-    execFileSync('git', ['-C', root, 'check-ignore', '-q', ignoredPath], {
-      env: gitEnv,
-      stdio: 'ignore',
-    })
+async function productionBuild(root, overrides = {}) {
+  const config = await viteConfig({ command: 'build', mode: 'production' })
+  return build({ ...config, ...overrides, root, configFile: false, logLevel: 'silent' })
+}
+
+test('production disables wholesale public copying and development retains local viewing', async () => {
+  assert.equal((await viteConfig({ command: 'build', mode: 'production' })).publicDir, false)
+  assert.equal((await viteConfig({ command: 'serve', mode: 'development' })).publicDir, 'public')
+})
+
+test('actual empty-approval production build excludes root and nested local artifacts even with a gallery manifest', async t => {
+  const root = fixture(t)
+  const marker = 'PRIVATE-SYNTHETIC-BUILD-SENTINEL-EMPTY'
+  for (const path of [
+    'public/atlas.private.json',
+    'public/arbitrary-dataset.json',
+    'public/gallery/manifest.json',
+    'public/gallery/private.json',
+    'public/sweep/nested/dataset.json',
+    'public/graph-reviews/local-run/index.html',
+    'public/graph-reviews/local-run/raw-response.json',
+    'public/nested/responses/model.json',
+    'public/nested/cache/entry.json',
+    'public/nested/clones/example/source.txt',
+    'scratch/private-run/output.json',
+    '.gallery-cache/example/source.txt',
+    'publication/assets/unapproved.json',
+  ]) write(root, path, marker)
+  write(root, 'dist/stale-private-output.json', marker)
+
+  await productionBuild(root)
+  const output = snapshotTree(join(root, 'dist'))
+  assert.ok(output.some(file => file.path === 'index.html'))
+  assert.ok(output.every(file => file.path === 'index.html' || /^assets\/.+\.js$/.test(file.path)))
+  assert.ok(output.every(file => !file.bytes.includes(marker)))
+  assert.equal(readFileSync(join(root, 'public/atlas.private.json'), 'utf8'), marker)
+})
+
+test('actual production build emits only an explicitly approved synthetic fixture with exact bytes', async t => {
+  const root = fixture(t)
+  const { asset, bytes } = approvedFixture(root)
+  manifest(root, [asset])
+  const marker = 'PRIVATE-SYNTHETIC-BUILD-SENTINEL-APPROVED'
+  for (const path of ['public/atlas.json', 'public/gallery/manifest.json', 'public/raw/response.json', 'public/reports/nested/index.html', 'public/cache/entry.json', 'public/clones/example/file.txt', 'publication/assets/unapproved.json']) {
+    write(root, path, marker)
   }
 
-  write(root, 'dist/gallery/manifest.json', '{"runs":[]}\n')
-  write(root, 'dist/graph-reviews/consolidated-engine/larger-demonstration/index.html', 'published demo\n')
-  write(root, 'dist/graph-reviews/consolidated-engine/larger-demonstration/local-only.json', 'private nested data\n')
-  write(root, 'dist/graph-reviews/experiment-summary/index.html', 'published summary\n')
-  write(root, 'dist/graph-reviews/unapproved-run/index.html', 'unapproved synthetic run\n')
-  write(root, 'dist/atlas.synthetic-private.json', '{"private":true}\n')
-}
-
-test('gallery closeBundle keeps tracked published files and removes ignored local output', (t) => {
-  const root = createRoot(t)
-  makeGalleryGitFixture(root)
-  const logs = []
-
-  invokePrivacyPlugin(logs)
-
-  assert.equal(
-    readFileSync(join(root, 'dist/graph-reviews/consolidated-engine/larger-demonstration/index.html'), 'utf8'),
-    'published demo\n',
-  )
-  assert.equal(
-    readFileSync(join(root, 'dist/graph-reviews/experiment-summary/index.html'), 'utf8'),
-    'published summary\n',
-  )
-  assert.equal(
-    existsSync(join(root, 'dist/graph-reviews/consolidated-engine/larger-demonstration/local-only.json')),
-    false,
-  )
-  assert.equal(existsSync(join(root, 'dist/graph-reviews/unapproved-run')), false)
-  assert.equal(existsSync(join(root, 'dist/atlas.synthetic-private.json')), false)
-  assert.deepEqual(readdirSync(join(root, 'dist/graph-reviews')), [
-    'consolidated-engine',
-    'experiment-summary',
-  ])
-  assert.ok(logs.includes('gallery build: excluded 1 local dataset(s)'))
-  assert.ok(logs.every((message) => !message.includes('atlas.synthetic-private.json')))
+  await productionBuild(root)
+  const output = snapshotTree(join(root, 'dist'))
+  assert.equal(readFileSync(join(root, 'dist', asset.path), 'utf8'), bytes)
+  assert.deepEqual(output.filter(file => file.path !== 'index.html' && !file.path.startsWith('assets/')).map(file => file.path), [asset.path])
+  assert.ok(output.every(file => !file.bytes.includes(marker)))
 })
 
-test('gallery closeBundle rejects a tracked source symlink before trusting its copied output', (t) => {
-  const root = createRoot(t)
-  initializeGit(root)
-  write(root, 'public/gallery/manifest.json', '{"runs":[]}\n')
-  write(root, 'public/graph-reviews/consolidated-engine/larger-demonstration/index.html')
-  write(root, 'public/secret-outside-gallery.html', 'private symlink target\n')
-  const symlinkPath = join(root, 'public/graph-reviews/experiment-summary/index.html')
-  mkdirSync(resolve(symlinkPath, '..'), { recursive: true })
-  symlinkSync(join(root, 'public/secret-outside-gallery.html'), symlinkPath)
-  execFileSync('git', ['-C', root, 'add', 'public/gallery/manifest.json', 'public/graph-reviews'], {
-    env: gitEnv,
-    stdio: 'ignore',
-  })
-
-  write(root, 'dist/graph-reviews/consolidated-engine/larger-demonstration/index.html')
-  write(root, 'dist/graph-reviews/experiment-summary/index.html', 'dereferenced private content\n')
-
-  assert.throws(invokePrivacyPlugin, /could not determine tracked graph-review assets/)
-  assert.equal(existsSync(join(root, 'dist/graph-reviews')), false)
+test('approval manifest rejects unsafe paths, arbitrary local sources, collisions, hashes and file types', t => {
+  const root = fixture(t)
+  const { asset } = approvedFixture(root)
+  for (const change of [
+    { source: '../secret.json' }, { source: '/tmp/secret.json' }, { source: 'publication/assets/../secret.json' },
+    { source: 'publication/assets/a\\secret.json' }, { source: 'publication/assets/a%2fsecret.json' },
+    { source: 'public/atlas.json' }, { source: 'scratch/run/output.json' }, { source: '.gallery-cache/response.json' },
+    { path: '../secret.json' }, { path: '/gallery/secret.json' }, { path: 'gallery//secret.json' },
+    { path: 'assets/secret.json' }, { path: 'index.html' }, { path: 'approved-snapshots/.env' },
+    { sha256: 'a'.repeat(64) }, { sha256: 'abc' }, { mediaType: 'application/octet-stream' },
+    { mediaType: 'text/html' }, { approval: '' },
+  ]) {
+    manifest(root, [{ ...asset, ...change }])
+    assert.throws(() => loadPublicationAssets(root), /Publication manifest:/)
+  }
+  manifest(root, [asset, asset])
+  assert.throws(() => loadPublicationAssets(root), /conflicting output/)
+  manifest(root, [asset, { ...asset, path: asset.path.toUpperCase().replace('APPROVED-SNAPSHOTS/', 'approved-snapshots/') }])
+  assert.throws(() => loadPublicationAssets(root), /conflicting output/)
+  manifest(root, [{ ...asset, extra: 'ignored fields must not grant approval' }])
+  assert.throws(() => loadPublicationAssets(root), /invalid asset entry/)
 })
 
-test('personal build without a gallery manifest retains local graph and dataset output', (t) => {
-  const root = createRoot(t)
-  write(root, 'dist/index.html', 'personal viewer\n')
-  write(root, 'dist/graph-reviews/local-run/output.json', '{"local":true}\n')
-  write(root, 'dist/atlas.personal.json', '{"personal":true}\n')
-
-  invokePrivacyPlugin()
-
-  assert.equal(readFileSync(join(root, 'dist/index.html'), 'utf8'), 'personal viewer\n')
-  assert.equal(
-    readFileSync(join(root, 'dist/graph-reviews/local-run/output.json'), 'utf8'),
-    '{"local":true}\n',
-  )
-  assert.equal(readFileSync(join(root, 'dist/atlas.personal.json'), 'utf8'), '{"personal":true}\n')
+test('approval manifest refuses a symlinked asset, source directory or manifest', t => {
+  for (const target of ['asset', 'directory', 'manifest']) {
+    const root = fixture(t)
+    const { asset, bytes } = approvedFixture(root)
+    manifest(root, [asset])
+    if (target === 'asset') {
+      const original = join(root, asset.source)
+      rmSync(original)
+      symlinkSync(write(root, 'outside/asset.json', bytes), original)
+    } else if (target === 'directory') {
+      rmSync(join(root, 'publication/assets'), { recursive: true })
+      write(root, 'outside/synthetic-atlas.json', bytes)
+      symlinkSync(join(root, 'outside'), join(root, 'publication/assets'))
+    } else {
+      rmSync(join(root, 'publication/manifest.json'))
+      symlinkSync(write(root, 'outside/manifest.json', JSON.stringify({ version: 1, assets: [asset] })), join(root, 'publication/manifest.json'))
+    }
+    assert.throws(() => loadPublicationAssets(root), /symlinks are forbidden/)
+  }
 })
 
-test('gallery build without Git fails closed and removes copied local output', (t) => {
-  const root = createRoot(t)
-  write(root, 'public/gallery/manifest.json', '{"runs":[]}\n')
-  write(root, 'dist/graph-reviews/consolidated-engine/larger-demonstration/index.html')
-  write(root, 'dist/graph-reviews/unapproved-run/index.html')
-  write(root, 'dist/atlas.no-git.json', '{"private":true}\n')
+test('actual production build fails closed before emitting an unapproved or changed snapshot', async t => {
+  const root = fixture(t)
+  const { asset } = approvedFixture(root)
+  manifest(root, [{ ...asset, sha256: '0'.repeat(64) }])
+  write(root, 'dist/stale-private-output.json', 'PRIVATE-SYNTHETIC-STALE-FAILED-BUILD')
+  await assert.rejects(productionBuild(root), /SHA-256 mismatch/)
+  assert.equal(existsSync(join(root, 'dist')), false)
+})
 
-  assert.throws(invokePrivacyPlugin, /could not determine tracked graph-review assets/)
-  assert.equal(existsSync(join(root, 'dist/graph-reviews')), false)
-  assert.equal(existsSync(join(root, 'dist/atlas.no-git.json')), false)
+test('production refuses unsafe output cleanup targets and public-copy overrides without deleting user files', async t => {
+  const root = fixture(t)
+  const protectedPath = write(root, 'outside/user-file.txt', 'preserved synthetic user file')
+  symlinkSync(join(root, 'outside'), join(root, 'dist'))
+  await assert.rejects(productionBuild(root), /owned dist output must be a real directory/)
+  assert.equal(readFileSync(protectedPath, 'utf8'), 'preserved synthetic user file')
+  rmSync(join(root, 'dist'))
+  await assert.rejects(productionBuild(root, { build: { copyPublicDir: false, emptyOutDir: true, outDir: 'outside' } }), /owned dist output directory/)
+  assert.equal(readFileSync(protectedPath, 'utf8'), 'preserved synthetic user file')
+  for (const bundler of ['rolldownOptions', 'rollupOptions']) {
+    await assert.rejects(productionBuild(root, { build: { copyPublicDir: false, emptyOutDir: true, outDir: 'dist', [bundler]: { output: [{ dir: 'dist' }, { dir: 'outside' }] } } }), /owned dist output directory/)
+    assert.equal(readFileSync(protectedPath, 'utf8'), 'preserved synthetic user file')
+  }
+  await assert.rejects(productionBuild(root, { publicDir: 'public' }), /disable public directory copying/)
+  await assert.rejects(productionBuild(root, { build: { copyPublicDir: false, emptyOutDir: false } }), /clear stale output/)
+  const alias = join(root, 'alias-root')
+  symlinkSync(root, alias)
+  await assert.rejects(productionBuild(alias), /root and its ancestors must be real directories/)
+  assert.equal(readFileSync(protectedPath, 'utf8'), 'preserved synthetic user file')
+})
+
+test('missing or malformed publication manifests fail closed', t => {
+  const root = fixture(t)
+  rmSync(join(root, 'publication/manifest.json'))
+  assert.throws(() => loadPublicationAssets(root), /ENOENT/)
+  for (const value of [{ version: 2, assets: [] }, { version: 1 }, { version: 1, assets: [], files: [] }]) {
+    write(root, 'publication/manifest.json', JSON.stringify(value))
+    assert.throws(() => loadPublicationAssets(root), /expected version 1/)
+  }
+  write(root, 'publication/manifest.json', 'not-json-sensitive-synthetic-marker')
+  assert.throws(() => loadPublicationAssets(root), error => /manifest must contain valid JSON/.test(error.message)
+    && !error.message.includes('sensitive-synthetic-marker'))
+  const { asset } = approvedFixture(root)
+  const bytes = '{invalid-json}'
+  write(root, asset.source, bytes)
+  manifest(root, [{ ...asset, sha256: createHash('sha256').update(bytes).digest('hex') }])
+  assert.throws(() => loadPublicationAssets(root), /invalid JSON asset/)
 })

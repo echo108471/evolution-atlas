@@ -114,10 +114,12 @@ editing. Use `npm run experiment:status -- RUN` to inspect a prepared version 3
 run and its saved output without dispatching a worker or changing artifacts.
 Keep each implementation trial in a new ignored run directory because the run
 pins its engine source. Compare saved outputs and reports against the stated
-claim, then run `npm run check` for the complete local gate. Synthetic test
-runs live in ignored `scratch/`, outside app `public/` assets. Gallery builds
-publish only tracked files under the review roots allowed by the build
-configuration; inspect the resulting `dist/` before deployment.
+claim, then run `npm run check:offline` for the complete local gate. Synthetic test
+runs live in ignored `scratch/`, outside app `public/` assets. Production builds
+disable automatic `public/` copying and emit only explicitly listed, validated
+publication assets alongside the app bundle. Follow the
+[private development boundaries](PRIVATE-DEVELOPMENT.md) and inspect the actual
+`dist/` inventory before deployment.
 
 ## Measure performance
 
