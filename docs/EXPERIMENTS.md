@@ -55,8 +55,9 @@ node scripts/gallery.mjs --only zod \
 ```
 
 Reuse validates repository identity, the exact head pin, cited commits,
-relationship endpoints and evidence. The new dataset records the saved input's
-SHA-256; the saved input remains unchanged. Resolvable citations establish
+relationship endpoints and evidence. The new gallery manifest records the saved
+input's SHA-256; keep that manifest alongside the dataset to retain this
+provenance. The saved input remains unchanged. Resolvable citations establish
 locations, not the truth of a candidate interpretation.
 
 Local lifecycle revalidation also avoids a model call. It requires a saved
