@@ -1,16 +1,19 @@
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
 import { fixtureEnvironment, generateSyntheticFixtures, parseFixtureArguments, validateSyntheticFixtures } from '../scripts/synthetic-fixtures.mjs'
 import { parseCandidateMapArtifact } from '../src/repositoryMap.ts'
 import { matchesDataset, parsePeriodDocument } from '../src/periods.ts'
 
+const CLI_PATH = fileURLToPath(new URL('../scripts/synthetic-fixtures.mjs', import.meta.url))
+
 test('synthetic fixture generation is byte stable across destinations and supports real viewer parsers', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'atlas-synthetic-fixtures-'))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'atlas-synthetic-fixtures-')))
   try {
     const first = generateSyntheticFixtures(join(root, 'first'))
     const second = generateSyntheticFixtures(join(root, 'second'))
@@ -41,7 +44,7 @@ test('synthetic fixture generation is byte stable across destinations and suppor
 })
 
 test('generation preserves existing files and refuses project source or symlink destinations', () => {
-  const root = mkdtempSync(join(tmpdir(), 'atlas-synthetic-preserve-'))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'atlas-synthetic-preserve-')))
   try {
     const existing = join(root, 'existing')
     mkdirSync(existing)
@@ -57,7 +60,7 @@ test('generation preserves existing files and refuses project source or symlink 
 })
 
 test('validation rejects changed bytes, extra files, and a changed source checkout', () => {
-  const root = mkdtempSync(join(tmpdir(), 'atlas-synthetic-validation-'))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'atlas-synthetic-validation-')))
   try {
     const generated = generateSyntheticFixtures(join(root, 'fixture'))
     const atlasPath = join(generated.root, 'atlas.json')
@@ -70,6 +73,63 @@ test('validation rejects changed bytes, extra files, and a changed source checko
     rmSync(join(generated.root, 'extra.txt'))
     execFileSync('git', ['-C', join(generated.root, 'source-repository'), 'checkout', '--detach', generated.manifest.sourceRepository.headSha], { env: fixtureEnvironment(), stdio: 'ignore' })
     assert.throws(() => validateSyntheticFixtures(generated.root), /source history/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('validation rejects an external manifest symlink before reading or disclosing its content', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'atlas-synthetic-manifest-symlink-')))
+  try {
+    const fixture = generateSyntheticFixtures(join(root, 'fixture'))
+    const canary = 'EXTERNAL_MANIFEST_CANARY_DO_NOT_DISCLOSE'
+    const outside = join(root, 'outside.txt')
+    writeFileSync(outside, canary)
+    const manifest = join(fixture.root, 'fixture-manifest.json')
+    rmSync(manifest)
+    symlinkSync(outside, manifest)
+    const result = spawnSync(process.execPath, [CLI_PATH, 'validate', '--out', fixture.root], {
+      encoding: 'utf8', env: fixtureEnvironment(), timeout: 5000,
+    })
+    assert.equal(result.error, undefined)
+    assert.equal(result.status, 1)
+    assert.match(JSON.parse(result.stderr).error, /symlink or special file/)
+    assert.equal(`${result.stdout}${result.stderr}`.includes(canary), false)
+    assert.equal(readFileSync(outside, 'utf8'), canary)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('validation rejects a FIFO manifest without blocking', { skip: process.platform === 'win32' }, () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'atlas-synthetic-manifest-fifo-')))
+  try {
+    const fixture = generateSyntheticFixtures(join(root, 'fixture'))
+    const manifest = join(fixture.root, 'fixture-manifest.json')
+    rmSync(manifest)
+    execFileSync('mkfifo', [manifest], { env: fixtureEnvironment() })
+    const result = spawnSync(process.execPath, [CLI_PATH, 'validate', '--out', fixture.root], {
+      encoding: 'utf8', env: fixtureEnvironment(), timeout: 5000,
+    })
+    assert.equal(result.error, undefined)
+    assert.equal(result.status, 1)
+    assert.match(JSON.parse(result.stderr).error, /symlink or special file/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('malformed regular manifest errors omit file content', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'atlas-synthetic-manifest-json-')))
+  try {
+    const fixture = generateSyntheticFixtures(join(root, 'fixture'))
+    const canary = 'REGULAR_MANIFEST_CANARY_DO_NOT_DISCLOSE'
+    writeFileSync(join(fixture.root, 'fixture-manifest.json'), canary)
+    assert.throws(() => validateSyntheticFixtures(fixture.root), (error) => {
+      assert.equal(error.message, 'Malformed synthetic fixture manifest JSON.')
+      assert.equal(error.message.includes(canary), false)
+      return true
+    })
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

@@ -2,7 +2,7 @@
 
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
+import { closeSync, constants, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -151,22 +151,56 @@ function inventory(root, prefix = '') {
   return paths.sort()
 }
 
+function assertNoSymlinks(path) {
+  for (let current = resolve(path);; current = dirname(current)) {
+    if (lstatSync(current).isSymbolicLink()) throw new Error('Fixture validation must not traverse a symlink.')
+    if (dirname(current) === current) break
+  }
+}
+
+function readFixtureFile(root, path) {
+  const absolute = join(root, path)
+  assertNoSymlinks(absolute)
+  if (!lstatSync(absolute).isFile()) throw new Error(`Fixture must be a regular file: ${path}`)
+  // Refuse a changed final symlink and avoid blocking if replaced with a FIFO.
+  const descriptor = openSync(absolute, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+  try {
+    const stat = fstatSync(descriptor)
+    if (!stat.isFile()) throw new Error(`Fixture must be a regular file: ${path}`)
+    if (stat.size > 1024 * 1024) throw new Error(`Fixture file exceeds the development fixture limit: ${path}`)
+    return readFileSync(descriptor)
+  } finally {
+    closeSync(descriptor)
+  }
+}
+
 export function validateSyntheticFixtures(destination = DEFAULT_FIXTURE_ROOT) {
   const root = resolve(destination)
+  assertNoSymlinks(root)
+  if (!lstatSync(root).isDirectory()) throw new Error('Fixture root must be a directory.')
   if (realpathSync(root) !== root) throw new Error('Fixture validation must not traverse a symlink.')
-  const manifest = JSON.parse(readFileSync(join(root, MANIFEST_FILE), 'utf8'))
+  const expectedDocuments = fixtureDocuments()
+  const expectedPaths = [...Object.keys(expectedDocuments), 'observed-atlas.json'].sort()
+  // Establish types and the complete non-Git inventory before reading any content.
+  if (serialize(inventory(root)) !== serialize([...expectedPaths, MANIFEST_FILE].sort())) {
+    throw new Error('Fixture inventory does not match the expected relative paths.')
+  }
+  const manifestBytes = readFixtureFile(root, MANIFEST_FILE)
+  let manifest
+  try {
+    manifest = JSON.parse(manifestBytes.toString('utf8'))
+  } catch {
+    throw new Error('Malformed synthetic fixture manifest JSON.')
+  }
   if (manifest.schemaVersion !== 'synthetic-fixtures/1' || manifest.synthetic !== true
     || manifest.source !== 'scripts/verification/fixtures.mjs' || serialize(manifest.limitations) !== serialize(LIMITS)
     || !Array.isArray(manifest.files)) throw new Error('Unrecognized synthetic fixture manifest.')
-  const expectedDocuments = fixtureDocuments()
-  const expectedPaths = [...Object.keys(expectedDocuments), 'observed-atlas.json'].sort()
-  if (serialize(manifest.files.map(({ path }) => path)) !== serialize(expectedPaths)
-    || serialize(inventory(root)) !== serialize([...expectedPaths, MANIFEST_FILE].sort())) {
+  if (serialize(manifest.files.map(({ path }) => path)) !== serialize(expectedPaths)) {
     throw new Error('Fixture inventory does not match the expected relative paths.')
   }
   for (const { path, bytes, sha256 } of manifest.files) {
     if (isAbsolute(path) || path.split('/').includes('..')) throw new Error('Unsafe fixture manifest path.')
-    const content = readFileSync(join(root, path))
+    const content = readFixtureFile(root, path)
     if (content.length !== bytes || digest(content) !== sha256) throw new Error(`Fixture hash mismatch: ${path}`)
     if (path in expectedDocuments && content.toString('utf8') !== expectedDocuments[path]) {
       throw new Error(`Fixture differs from its synthetic source: ${path}`)
@@ -185,7 +219,7 @@ export function validateSyntheticFixtures(destination = DEFAULT_FIXTURE_ROOT) {
   const observed = execFileSync(process.execPath, [join(REPOSITORY_ROOT, 'scripts', 'analyze.mjs'), '--repo', repository], {
     encoding: 'utf8', env: fixtureEnvironment(), stdio: ['ignore', 'pipe', 'pipe'],
   })
-  if (readFileSync(join(root, 'observed-atlas.json'), 'utf8') !== observed) {
+  if (readFixtureFile(root, 'observed-atlas.json').toString('utf8') !== observed) {
     throw new Error('Observed atlas no longer matches synthetic Git extraction.')
   }
   const dataset = JSON.parse(observed)

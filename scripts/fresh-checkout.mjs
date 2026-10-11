@@ -1,13 +1,51 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { closeSync, constants, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 
 const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const NPM_VERSION = '11.9.0'
+
+function readRegularMetadata(repository, name, maximumBytes) {
+  const path = join(resolve(repository), name)
+  for (let current = path;; current = dirname(current)) {
+    if (lstatSync(current).isSymbolicLink()) throw new Error(`Local metadata must not traverse a symlink: ${name}`)
+    if (dirname(current) === current) break
+  }
+  if (!lstatSync(path).isFile()) throw new Error(`Local metadata must be a regular file: ${name}`)
+  const descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+  try {
+    const stat = fstatSync(descriptor)
+    if (!stat.isFile()) throw new Error(`Local metadata must be a regular file: ${name}`)
+    if (stat.size > maximumBytes) throw new Error(`Local metadata exceeds its size limit: ${name}`)
+    return readFileSync(descriptor, 'utf8')
+  } finally {
+    closeSync(descriptor)
+  }
+}
+
+export function readPinnedNodeVersion(repository) {
+  const version = readRegularMetadata(repository, '.node-version', 64).trim()
+  if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
+    throw new Error('Invalid pinned Node version metadata.')
+  }
+  return version
+}
+
+export function readCheckoutTooling(repository) {
+  const nodeVersion = readPinnedNodeVersion(repository)
+  const packageBytes = readRegularMetadata(repository, 'package.json', 1024 * 1024)
+  let packageJson
+  try {
+    packageJson = JSON.parse(packageBytes)
+  } catch {
+    throw new Error('Malformed package tooling metadata JSON.')
+  }
+  return { nodeVersion, packageManager: packageJson?.packageManager }
+}
 
 export function createFreshCheckoutEvidenceDirectory(repository, runId) {
   if (!/^[A-Za-z0-9._-]+$/.test(runId)) throw new Error('Unsafe fresh-checkout evidence identifier.')
@@ -23,6 +61,11 @@ export function createFreshCheckoutEvidenceDirectory(repository, runId) {
   const runRoot = join(evidenceRoot, runId)
   mkdirSync(runRoot, { recursive: false })
   return runRoot
+}
+
+export function localRevisionFetchArguments(repository, revision) {
+  if (!/^[a-f0-9]{40}$/.test(revision)) throw new Error('Local revision acquisition requires a full commit SHA.')
+  return ['-c', 'core.hooksPath=/dev/null', 'fetch', '--no-tags', '--no-write-fetch-head', '--', resolve(repository), revision]
 }
 
 export function parseFreshCheckoutArguments(argv) {
@@ -50,9 +93,9 @@ export function parseFreshCheckoutArguments(argv) {
 
 /** Clone only the named local commit; retain owned checkout and logs as ignored evidence. */
 export async function runFreshCheckout(options) {
-  const { createOfflineEnvironment } = await import('./verification/offline-environment.mjs')
-  const expectedNode = readFileSync(join(options.repository, '.node-version'), 'utf8').trim()
+  const expectedNode = readPinnedNodeVersion(options.repository)
   if (process.versions.node !== expectedNode) throw new Error(`Use pinned Node ${expectedNode}; found ${process.versions.node}.`)
+  const { createOfflineEnvironment } = await import('./verification/offline-environment.mjs')
   const runRoot = createFreshCheckoutEvidenceDirectory(options.repository, `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`)
   const environment = createOfflineEnvironment({ home: join(runRoot, 'empty-home') })
   mkdirSync(environment.HOME, { recursive: true })
@@ -99,11 +142,12 @@ export async function runFreshCheckout(options) {
     if (!/^[a-f0-9]{40}$/.test(revision)) throw new Error('Source did not resolve to a full commit SHA.')
     report.revision = revision
     run('local-clone', 'git', ['clone', '--no-local', '--no-checkout', options.repository, checkout])
+    // A detached/reflog-only commit may not have been transferred by the clone.
+    run('acquire-local-revision', 'git', localRevisionFetchArguments(options.repository, revision), { cwd: checkout })
     run('checkout-revision', 'git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '--detach', revision], { cwd: checkout })
     if (run('verify-checkout-revision', 'git', ['rev-parse', 'HEAD'], { cwd: checkout }) !== revision) throw new Error('Checkout revision mismatch.')
-    const pinnedNode = readFileSync(join(checkout, '.node-version'), 'utf8').trim()
-    const packageJson = JSON.parse(readFileSync(join(checkout, 'package.json'), 'utf8'))
-    if (pinnedNode !== expectedNode || packageJson.packageManager !== `npm@${NPM_VERSION}`) {
+    const tooling = readCheckoutTooling(checkout)
+    if (tooling.nodeVersion !== expectedNode || tooling.packageManager !== `npm@${NPM_VERSION}`) {
       throw new Error('Checked revision lacks the matching Node and npm pins.')
     }
     // The exact checked source owns the guard used by its install and validation.

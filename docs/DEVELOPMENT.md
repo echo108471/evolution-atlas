@@ -124,6 +124,10 @@ that the checkout has no tracked changes or unignored files:
 node scripts/fresh-checkout.mjs --cache "$(pwd)/scratch/npm-cache"
 ```
 
+The selected revision is acquired explicitly from the same local repository, so
+detached and reflog-only commits can also be tested. Source refs, history, and
+files are preserved; this acquisition makes no third-party experiment fetch.
+
 To validate another commit that is already present locally:
 
 ```sh
