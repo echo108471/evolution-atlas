@@ -107,7 +107,7 @@ each check establishes.
 npm ci
 npm run test:engine
 npm run experiment:status -- /path/to/ignored/run
-npm run check:offline
+node scripts/check-offline.mjs
 ```
 
 The original atlas pipeline remains available for its historical experiments

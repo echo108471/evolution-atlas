@@ -4,10 +4,14 @@ Choose a check for the claim being made, then inspect the resulting artifact.
 The required implementation gate is `npm test`, `npm run build`, and
 `git diff --check`, as [AGENTS.md](../AGENTS.md) specifies. `npm run check` runs
 the pstack and tracked-artifact policy checks, then all three in that order.
-Use `npm run check:offline` to run this gate with credentials removed and external
+Use `node scripts/check-offline.mjs` to run this gate with credentials removed and external
 Node requests blocked. Dependency installation is a separate step. A focused check helps while changing one area; it does
 not replace the final gate. `npm run build` already runs `tsc -b` before Vite.
 `npm run typecheck` runs that TypeScript step alone.
+
+The direct Node launch avoids npm's own optional registry update check before a
+package script starts. For strictly offline focused tests, use
+`node scripts/test.mjs test/FILE.test.mjs`.
 
 For one test file, use `npm test -- test/FILE.test.mjs` (or a `.test.ts` file).
 For the current engine, `npm run test:engine` covers the CLI, host, versioned

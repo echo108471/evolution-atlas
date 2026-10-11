@@ -27,4 +27,4 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
       - name: Run credential-free offline gate
-        run: npm run check:offline
+        run: node scripts/check-offline.mjs

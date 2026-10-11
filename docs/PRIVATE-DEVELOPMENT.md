@@ -58,7 +58,15 @@ may use the package registry; a prepared npm cache supports `npm ci --offline`.
 Neither operation fetches experiment repositories or requests model inference.
 
 ```sh
-npm run check:offline
+node scripts/check-offline.mjs
+```
+
+Launch directly with Node for strictly offline validation: npm itself can check
+the registry for updates before a package script starts. The npm alias is also
+available when its launcher is opted out in advance:
+
+```sh
+NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_OFFLINE=true npm run check:offline
 ```
 
 The gate runs the repository checks, tests, TypeScript compilation, production
@@ -66,8 +74,9 @@ build, and whitespace validation with an isolated home and an environment that
 omits credentials and proxy settings. Node requests to external hosts fail;
 loopback requests remain available for synthetic local verification. Git access
 is limited to the local file protocol and automatic lazy fetching is disabled.
-`npm test` applies the same isolation and bounds file concurrency to two by
+The test runner applies the same isolation and bounds file concurrency to two by
 default; an explicit Node test-concurrency option overrides that bound.
+Use `node scripts/test.mjs` when launching focused tests strictly offline.
 This is a development guard, not an OS
 network sandbox or a complete secret audit. Browser readiness and live UI
 journeys remain separate checks described in [Verification](VERIFICATION.md).
