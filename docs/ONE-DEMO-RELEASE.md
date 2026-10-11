@@ -30,18 +30,21 @@ Source tracing covered the [gallery loader](../src/App.tsx),
 [publication validator](../scripts/lib/build-publication.mjs). Tracked-text scans
 reported locations and counts without reproducing private home-path values or
 contact details. Private home workspace instructions and the optional project
-note are absent in this environment. No experiment repository was fetched and
-no full test suite, browser journey, or production build ran for this proposal.
+note are absent in this environment. That tree-only proposal did not acquire a
+source or run application checks. Subsequent private preparation acquired only
+the exact public Zod pin and generated the candidate described below, without
+a paid model call.
 
 ## Proposed history and destination boundary
 
 Use a new directory populated only from an exact, reviewed tracked-file inventory
-plus the approved demo bytes. Initialize a new Git repository there after export
-authorization; do not clone, mirror, copy `.git`, import private refs, use an
+plus separately reviewed demo bytes. A private local Git repository may be
+initialized solely for checkout validation; do not clone, mirror, copy `.git`, import private refs, use an
 alternate object database, or copy a worktree's Git link. A shallow clone of the
 private repository is not the proposed boundary. Keep the original untouched.
 
-Before the first public commit, approve its author/committer identity and a public
+Local preview commits use an explicitly fictional validation identity. Before
+the first public commit, approve its author/committer identity and a public
 provenance statement that preserves required copyright and attribution without
 importing private commit metadata. The private export record can retain the exact
 private source revision, path/hash mapping, exclusions, and transformations.
@@ -73,7 +76,7 @@ below describe the proposed scope, not an executable wildcard approval.
 | `LICENSE`, `.agents/skills/`, and portable `AGENTS.md` | Keep Atlas's Apache-2.0 license and required notices, plus the pinned pstack provenance and unchanged upstream MIT license. Remove dependency on unavailable personal workspace/vault guidance; express approval as the repository owner's decision. Retain `.agents/` because `check:pstack` and the control-harness feature map require it. |
 | Reusable documents listed below | Retain only rewritten portable instructions/contracts. Resolve excluded-document links and remove unapproved source-specific results or quoted evidence. |
 | `gallery/catalog.json` | Retain immutable source catalog pins as candidates; only the separate runtime manifest selects the one published demo. Catalog membership is not snapshot approval or build inclusion. |
-| `publication/manifest.json` and exactly three approved asset sources | Add only the reviewed gallery manifest, sanitized Zod JSON, and MIT notice described below; no automatic output discovery. |
+| `publication/manifest.json` and exactly four proposed asset sources | Keep the canonical manifest empty and asset sources absent until approval. The separate proposal lists the gallery manifest, minimized Zod JSON, MIT notice and provenance; no automatic output discovery. |
 
 Proposed reusable document set: `README.md`, `docs/ARCHITECTURE.md`,
 `docs/DEVELOPMENT.md`, `docs/ENGINEERING.md`, `docs/EVIDENCE-MODEL.md`,
@@ -134,14 +137,28 @@ Do not silently widen the allowlist to fix a broken link.
 The proposed source is Zod at catalog revision
 `43f729db4aa0cedff6d6b3261f33f8556b3c7102`. Source-license review is recorded
 in the private [demo review](DEMO-REVIEW.md); it does not approve a dataset.
-Candidate generation, sanitization, final inventory, and owner approval remain
-separate steps. No other demo or previous interpreted dataset is included.
+The complete pinned history was acquired with no tags, filtering or shallow
+history: 3,094 reachable commits, 2,138 first-parent commits, and 24,380 objects,
+with no missing objects; strict Git integrity validation passed. Observed-only
+analysis ran offline with credentials omitted, a 1 GiB Node heap bound and a
+ten-minute timeout, completing in 33.748 seconds. Its analyzer revision is
+`b2228d2cada8a880e71eaf9dce986b609f499512`.
+
+The immutable raw atlas has 6,223,117 bytes and SHA-256
+`3d7999d5d521fb0e0bbf14b7f46a235db9e4252d196c2963eac55351327d531f`.
+The committed [minimization generator](../scripts/prepare-zod-demo.mjs) at
+`9ee5fcd486419fc6c07a54e219c785f5c42f433c` produced the private four-file candidate
+under ignored `scratch/one-demo-release/candidate-v2/`. A second generation with
+the recorded timestamp reproduced all four files byte-for-byte. These hashes
+identify review candidates, not publication approval. No other demo or previous
+interpreted dataset is included.
 
 | Exact proposed source path | Exact emitted path | Type | Final SHA-256 / approval |
 | --- | --- | --- | --- |
-| `publication/assets/zod-gallery-manifest.json` | `gallery/manifest.json` | `application/json` | Pending candidate review and explicit owner approval |
-| `publication/assets/zod.json` | `gallery/zod.json` | `application/json` | Pending candidate review and explicit owner approval |
-| `publication/assets/zod-LICENSE.txt` | `approved-snapshots/zod-LICENSE.txt` | `text/plain` | Pending exact notice-byte comparison and explicit owner approval |
+| `publication/assets/zod/manifest.json` | `gallery/manifest.json` | `application/json` | `09c0f3d91fea8a91142c0e8226cd0538fee06619586d9340d7b0baddbf46b407` (726 bytes); approval pending |
+| `publication/assets/zod/zod.json` | `gallery/zod.json` | `application/json` | `e37fd8f6826f746d47f1d25d78c47b0c4d21b68c48905ac577d77cffc7038558` (4,320,385 bytes); approval pending |
+| `publication/assets/zod/zod-LICENSE.txt` | `approved-snapshots/zod-LICENSE.txt` | `text/plain` | `3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8` (1,072 bytes); approval pending |
+| `publication/assets/zod/zod-PROVENANCE.json` | `approved-snapshots/zod-PROVENANCE.json` | `application/json` | `756675f6e334ef7d27feca7e9976e7d2d681b08327d644ed8078356d0f902da2` (4,504 bytes); approval pending |
 
 The runtime gallery manifest has `version`, a fixed `generatedAt`, and exactly
 one `subjects` entry with slug `zod`, dataset `zod.json`, upstream URL, exact
@@ -155,8 +172,10 @@ previous entries when its output already has a manifest.
 The Atlas JSON must match the existing `AtlasDataset` contract and retain
 `analysis.mode: "observed-only"`. Proposed privacy default: no contributor
 names, addresses, aliases, heuristic identity matches, copied source excerpts,
-or commit bodies; use consistent opaque contributor labels/IDs and review all
-remaining free-text subjects and paths. Removing identity fields is not
+or commit bodies. The candidate has no contributor records or authored
+relationships, empty episode contributor IDs, generic commit subjects, no
+identity matches or structural/feature/semantic candidates, and 4,753 observed
+touched-path relationships. Path/time/hash evidence is retained. Removing identity fields is not
 anonymity: commits, dates, paths, relationships, and hashes can resolve to
 public upstream people. Record that limitation and any redaction separately
 from observed facts; empty candidate arrays do not certify semantic accuracy.
@@ -181,7 +200,7 @@ the build does not validate the Atlas semantics, sanitize content, authenticate
 the approval reference, or approve publication.
 
 Production disables `public/` copying and clears its owned `dist/`. Inspect
-the actual production output: the app bundle plus exactly the three asset
+the actual production output: the app bundle plus exactly the four asset
 paths/hashes above, with no other demo, report, local clone, cache, receipt,
 response, source map containing unintended material, or stale build output.
 Deploy only that verified build directory after separate hosting approval;
@@ -196,31 +215,37 @@ do not package the original checkout, scratch storage, or backup.
    inventory approval, recording original source and final export hashes.
    Preserve raw inputs and expensive outputs; no paid pass is necessary for
    an observed-only demo.
-2. **Review and authorize the concrete scope.** Present the exact export inventory,
-   one demo's three byte hashes, public provenance/notice, identity treatment,
-   proposed public commit identity, and destination. Resolve only substantive
-   data/license/interpretation concerns. Snapshot approval, clean export approval,
-   and remote/visibility/hosting approval are distinct decisions.
-3. **Create the local export when authorized.** Copy only regular files from the
-   already reviewed final path/hash inventory, byte-for-byte, into a new private
-   directory, including the prepared rewrites and approved assets. Initialize new history
+2. **Prepare the private local export for review.** Copy only regular files from
+   the proposed path/hash inventory, byte-for-byte, into a new private
+   directory, including portable rewrites. Keep its publication manifest empty
+   and unapproved assets outside its source tree. Initialize validation history
    without accessing or mutating the original refs/index. Validate inventory
    equality, forbidden-path/content absence, modes, hashes, links, licenses,
    and the new repository's complete ref/object scope. Keep the export private.
    Any later rewrite or asset change requires a refreshed final inventory and
    renewed review of the changed exact bytes before a public operation.
-4. **Validate the exact export revision.** Install locked dependencies in the
+3. **Validate the exact export revision.** Install locked dependencies in the
    documented separate registry or prepared-cache stage; generate and validate
    synthetic fixtures; run `node scripts/check-offline.mjs`, the final exact
    fresh-checkout smoke, and the report-generator check. No private data, model
    credentials, paid calls, or experiment fetch may be needed for routine checks.
    Required link/provenance checks must pass with only export files present.
-5. **Validate production and the actual demo.** Build from that checkout; compare
-   the complete `dist/` inventory and all three asset hashes. Later browser
+4. **Validate the private production preview and actual demo.** Build from that
+   checkout with the empty canonical publication manifest. Assemble a separate
+   ignored preview using only the four candidate files and app build bytes;
+   this does not use invented approval references or claim approved plugin emission.
+   Compare the complete preview inventory and all four asset hashes. Browser
    checks must exercise the production gallery landing page, `?repo=zod`,
    observed overview/history navigation, evidence references, privacy omissions,
    and the accessible notice. Synthetic harness passes do not establish the
    real sanitized snapshot's usability or semantic history accuracy.
+5. **Review and approve the concrete scope.** Present the exact export inventory,
+   all four candidate byte hashes, public provenance/notice, identity treatment,
+   proposed public commit identity, and destination. Resolve substantive
+   data/license/interpretation concerns. Snapshot approval, clean export approval,
+   and remote/visibility/hosting approval are distinct decisions. Only afterward
+   add approved bytes and actual decision references to the canonical manifest
+   and recheck plugin-emitted build bytes.
 6. **Approve public operations last.** Independently review final tree/history,
    onboarding, exact built bytes, license/provenance, and recovery status. Obtain
    explicit authorization for the named new remote, visibility, and any hosting
@@ -231,7 +256,7 @@ do not package the original checkout, scratch storage, or backup.
 Completion is testable: one parentless initial public commit, no imported private
 commits/refs or unapproved historical blobs, exact approved export inventory,
 all checks runnable from a clean checkout, and a production output containing
-only the app and three
+only the app and four
 approved demo assets. Until candidate hashes and those checks exist, this
 proposal is not release-ready.
 
