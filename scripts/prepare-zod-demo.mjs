@@ -143,6 +143,7 @@ export function prepareZodDemo({ input, analysisProvenance, source, out, generat
     commitCount: dataset.episodes.length, contributorCount: 0, codeAreaCount: dataset.codeAreas.length,
     firstAuthoredAt: dataset.timeRange.firstAuthoredAt, lastAuthoredAt: dataset.timeRange.lastAuthoredAt,
     interpreted: false, interpretation: null,
+    notice: '/approved-snapshots/zod-LICENSE.txt', provenance: '/approved-snapshots/zod-PROVENANCE.json',
   }] }
   const exporterFiles = ['scripts/prepare-zod-demo.mjs', 'scripts/lib/atlas.mjs', 'scripts/lib/identity.mjs', 'src/structure.mjs', 'scripts/gallery.mjs']
   if (git(ROOT, ['status', '--porcelain', '--untracked-files=all', '--', ...exporterFiles])) {

@@ -28,6 +28,9 @@ export interface GallerySubject {
   lastAuthoredAt: string
   interpreted: boolean
   interpretation: GalleryInterpretation | null
+  /** Reviewed snapshot metadata served beside an optional exported demo. */
+  notice?: string
+  provenance?: string
 }
 
 export interface GalleryManifest {

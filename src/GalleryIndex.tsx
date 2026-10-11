@@ -83,6 +83,8 @@ export function GalleryIndex({ subjects, onSelectSubject }: GalleryIndexProps) {
                   </a>
                   {subject.license ? ` · ${subject.license}` : ''}
                 </span>
+                {subject.notice && <a href={subject.notice}>License notice</a>}
+                {subject.provenance && <a href={subject.provenance}>Snapshot provenance</a>}
               </footer>
             </article>
           </li>
