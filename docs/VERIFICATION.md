@@ -21,6 +21,15 @@ read-only summary of a prepared version 3 run, its worker states, validation
 issues, and any published map. It checks that a published map still matches the
 pinned run and checkpointed graph. A changed engine implementation requires a
 new run directory; old run artifacts remain available for comparison.
+For onboarding, follow [Development](DEVELOPMENT.md). Generate and validate the
+fictional fixture pack with `node scripts/synthetic-fixtures.mjs generate` and
+`node scripts/synthetic-fixtures.mjs validate`. After committing source changes,
+`node scripts/fresh-checkout.mjs --cache /absolute/path/to/npm-cache` verifies
+that exact local revision in a clean checkout, using the prepared cache and the
+complete offline gate. Explicit registry mode tests dependency installation
+from an empty cache; it does not fetch experiment repositories. Retained logs
+and `report.json` distinguish those claims from browser or model acceptance.
+
 Many engine and history tests construct temporary Git repositories and synthetic
 candidate output. They establish mechanics and rejection behavior, not a model's
 semantic accuracy on a real repository.
