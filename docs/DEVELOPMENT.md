@@ -146,9 +146,11 @@ node scripts/fresh-checkout.mjs \
 
 Only the registry dependency-install stage inherits the caller's HTTP, HTTPS,
 all-protocol, and bypass proxy routing variables, including their lowercase
-forms. Provider, GitHub, and npm authentication variables stay excluded, and
-the isolated home and Git transport limits remain in effect. Offline installs
-and subsequent validation omit all proxy routing variables.
+forms, plus configured CA trust from `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`, and
+`SSL_CERT_DIR`. TLS verification remains enabled; TLS-disable flags, provider,
+GitHub, and npm authentication variables stay excluded. The isolated home and
+Git transport limits remain in effect. Offline installs and subsequent
+validation omit these routing and trust settings.
 
 Inspect `report.json` and the ordered logs in the reported
 `scratch/fresh-checkout-evidence/` directory. The command retains its owned clone

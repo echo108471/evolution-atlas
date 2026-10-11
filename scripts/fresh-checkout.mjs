@@ -68,13 +68,13 @@ export function localRevisionFetchArguments(repository, revision) {
   return ['-c', 'core.hooksPath=/dev/null', 'fetch', '--no-tags', '--no-write-fetch-head', '--', resolve(repository), revision]
 }
 
-/** Permit required registry routing only; never inherit provider or package-auth variables. */
+/** Permit registry routing and configured CA trust; never inherit credentials or TLS-disable flags. */
 export function createRegistryInstallEnvironment(offlineEnvironment, environment = process.env) {
   const registryEnvironment = { ...offlineEnvironment }
   delete registryEnvironment.NODE_OPTIONS
   delete registryEnvironment.NPM_CONFIG_OFFLINE
-  const routing = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy']
-  for (const key of routing) {
+  const networkSetup = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy', 'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR']
+  for (const key of networkSetup) {
     if (typeof environment[key] === 'string') registryEnvironment[key] = environment[key]
   }
   return registryEnvironment

@@ -30,7 +30,7 @@ test('fresh-checkout rejects implicit network modes and moving or external revis
   assert.deepEqual(parseFreshCheckoutArguments(['--help']), { help: true })
 })
 
-test('explicit registry installation restores only routing and leaves offline validation guarded', () => {
+test('explicit registry installation restores routing and CA trust while preserving TLS and offline validation', () => {
   const offline = {
     PATH: '/synthetic/tools',
     HOME: '/synthetic/empty-home',
@@ -55,19 +55,25 @@ test('explicit registry installation restores only routing and leaves offline va
     all_proxy: 'http://lower-all.example.invalid:8080',
     no_proxy: 'lower-local.example.invalid',
   }
+  const trust = {
+    NODE_EXTRA_CA_CERTS: '/synthetic/trust/extra-ca.pem',
+    SSL_CERT_FILE: '/synthetic/trust/ca-bundle.pem',
+    SSL_CERT_DIR: '/synthetic/trust/certificates',
+  }
   const credentials = {
     ANTHROPIC_API_KEY: 'synthetic-provider-key', OPENAI_API_KEY: 'synthetic-provider-key',
     OPENROUTER_API_KEY: 'synthetic-provider-key', GITHUB_TOKEN: 'synthetic-github-key',
     GH_TOKEN: 'synthetic-github-key', NPM_TOKEN: 'synthetic-npm-key', NODE_AUTH_TOKEN: 'synthetic-npm-key',
     NPM_CONFIG__AUTH: 'synthetic-npm-key', npm_config__auth: 'synthetic-npm-key',
     NPM_CONFIG_USERCONFIG: '/synthetic/caller/auth-npmrc', NODE_OPTIONS: '--require=/synthetic/caller/preload.cjs',
+    NODE_TLS_REJECT_UNAUTHORIZED: '0', NPM_CONFIG_STRICT_SSL: 'false', npm_config_strict_ssl: 'false',
   }
   const original = { ...offline }
-  const registry = createRegistryInstallEnvironment(offline, { ...routing, ...credentials })
+  const registry = createRegistryInstallEnvironment(offline, { ...routing, ...trust, ...credentials })
   assert.deepEqual(offline, original)
   assert.equal(registry.NODE_OPTIONS, undefined)
   assert.equal(registry.NPM_CONFIG_OFFLINE, undefined)
-  for (const [key, value] of Object.entries(routing)) {
+  for (const [key, value] of Object.entries({ ...routing, ...trust })) {
     assert.equal(registry[key], value)
     assert.equal(key in offline, false)
   }
