@@ -69,10 +69,12 @@ test('CLI refuses existing outputs and symlinked raw inputs without disclosing t
     const input = join(directory, 'input.json'), link = join(directory, 'linked.json')
     writeFileSync(input, '{private-sentinel@example.test}')
     symlinkSync(input, link)
-    for (const [file, out] of [[link, output], [input, resolve('scratch')]]) {
+    for (const [file, out, refusal] of [[link, output, 'Input must be a regular file without symlinks.'],
+      [input, resolve('scratch'), 'Choose a new ignored scratch output directory.']]) {
       assert.throws(() => execFileSync(process.execPath, ['scripts/prepare-zod-demo.mjs', '--input', file,
         '--analysis-provenance', input, '--source', directory, '--out', out], { stdio: ['ignore', 'pipe', 'pipe'] }), error => {
         assert.equal(error.status, 1)
+        assert.equal(error.stderr.toString().trim(), refusal)
         assert.equal(error.stderr.toString().includes('private-sentinel'), false)
         return true
       })
