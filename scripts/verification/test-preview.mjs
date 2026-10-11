@@ -17,7 +17,13 @@ const run = mkdtempSync(join(root, 'scratch', 'preview-driver-fixture-')), direc
 await build({ root, configFile: false, envFile: false, envDir: false, publicDir: false, plugins: [react()], logLevel: 'silent', build: { outDir: directory, emptyOutDir: true, copyPublicDir: false } })
 mkdirSync(join(directory, 'gallery'))
 const data = syntheticAtlas()
-writeFileSync(join(directory, 'gallery', 'manifest.json'), JSON.stringify(syntheticGallery(data)))
+const gallery = syntheticGallery(data)
+gallery.subjects[0].notice = '/approved-snapshots/synthetic-LICENSE.txt'
+gallery.subjects[0].provenance = '/approved-snapshots/synthetic-PROVENANCE.json'
+mkdirSync(join(directory, 'approved-snapshots'))
+writeFileSync(join(directory, 'approved-snapshots', 'synthetic-LICENSE.txt'), 'Synthetic verification notice; this is not a license for real source.\n')
+writeFileSync(join(directory, 'approved-snapshots', 'synthetic-PROVENANCE.json'), JSON.stringify({ synthetic: true, headSha: data.repository.headSha }))
+writeFileSync(join(directory, 'gallery', 'manifest.json'), JSON.stringify(gallery))
 writeFileSync(join(directory, 'gallery', 'synthetic-atlas.json'), JSON.stringify(data))
 const files = []
 function visit(base, prefix = '') {
@@ -30,7 +36,7 @@ function visit(base, prefix = '') {
 visit(directory)
 const sourceRevision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
 writeFileSync(inventory, JSON.stringify({ version: 1, sourceRevision, files }))
-const result = spawnSync(process.execPath, ['scripts/control-atlas.mjs', 'verify-preview', '--directory', directory, '--inventory', inventory, '--json'], { cwd: root, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 })
+const result = spawnSync(process.execPath, ['scripts/control-atlas.mjs', 'verify-preview', '--directory', directory, '--inventory', inventory, '--json'], { cwd: root, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024, timeout: 90_000 })
 writeFileSync(join(run, 'result.json'), result.stdout || result.stderr)
 process.stdout.write(result.stdout || result.stderr)
 process.exitCode = result.status ?? 1

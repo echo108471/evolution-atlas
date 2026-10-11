@@ -95,6 +95,11 @@ dataset must agree on a full repository revision and observed counts.
 The driver serves immutable validated bytes on its own ephemeral loopback
 server with no filesystem fallback. A fresh browser opens the sole card and
 checks the overview, dataset response hash, full revision, and visible counts.
+It then opens Repository, steps to a previous checkpoint when available, and
+checks one selected commit's label, short revision and touched paths against
+the prepared dataset. Missing earlier checkpoints are recorded as a limit;
+they do not prevent inspection of an available initial commit. Commit-corpus
+fields are not copied into the report.
 When the subject supplies license-notice or provenance links, their hrefs must
 name inventoried same-origin files; browser GETs must return 200 and exact hashes.
 It blocks external requests, WebSockets, service workers, and requests outside
@@ -103,7 +108,8 @@ when epochs.json is absent from the inventory; response and associated console
 messages are explicitly recorded. Other errors fail the journey.
 
 Inspect report.json, source-manifest.json, build-manifest.json,
-server-requests.json, the gallery and overview screenshots, action logs, and
+server-requests.json, the gallery, overview, repository and commit-evidence
+screenshots, action logs, and
 browser events under the returned ignored evidence directory. Source and build
 fingerprints are checked again at completion. The inventory revision is recorded
 as declared provenance; this command does not prove source-to-bundle binding.
