@@ -896,7 +896,7 @@ export async function verifyPreview(options) {
   const preview = loadPreviewBuild(options)
   const readiness = await doctor()
   if (!readiness.ok) return { ok: false, command: 'verify-preview', doctor: readiness, publicationApproval: false }
-  const features = [getFeature('gallery'), getFeature('overview')]
+  const features = [getFeature('gallery'), getFeature('overview'), getFeature('repository')]
   const source = sourceManifest({ features })
   prepareControlRoots()
   const runId = createRunId(), evidenceDir = join(EVIDENCE_ROOT, runId)
@@ -907,13 +907,13 @@ export async function verifyPreview(options) {
   const limitations = [
     'This is a private inspection of explicitly inventoried prepared production bytes; it does not approve publication or attest plugin emission.',
     'The inventory code revision is caller-declared provenance. Served-byte hashes do not establish which source commit produced the bundle.',
-    'Only the sole gallery card and its repository overview are exercised at 1440 × 1000. This does not establish semantic accuracy, licensing approval, or other routes.',
+    'The sole gallery card, overview, an available previous checkpoint and selected observed commit evidence are exercised at 1440 × 1000. This does not establish semantic accuracy, licensing approval or exhaustive history coverage.',
     'The browser has a fresh profile and sterile environment; external requests and requests outside the inventory are blocked.',
   ]
   const report = { ok: false, command: 'verify-preview', dataMode: 'prepared-private-preview', publicationApproval: false,
     runId, startedAt: new Date().toISOString(), repositoryRoot: REPOSITORY_ROOT, headSha: source.headSha,
     sourceFingerprint: source.sourceFingerprint, build: preview.build, expected: preview.expected,
-    directory: preview.directory, inventory: preview.inventory, evidenceDir, testedFeatures: ['gallery', 'overview'],
+    directory: preview.directory, inventory: preview.inventory, evidenceDir, testedFeatures: ['gallery', 'overview', 'repository'],
     browser: { name: 'Playwright Chromium', isolatedProfile: true, host: '127.0.0.1' }, results: [], limitations,
   }
   let runtime, browser, hosted
@@ -927,7 +927,7 @@ export async function verifyPreview(options) {
     const result = await runOneFeature({ feature, baseUrl: hosted.baseUrl, browser, runtimeDir: runtime.runtimeDir, evidenceDir,
       permittedPaths: new Set(['/', ...[...preview.files.keys()].map(path => `/${path}`), ...(preview.allowedMissingEpochs ? ['/epochs.json'] : [])]),
       allowMissingEpochs: preview.allowedMissingEpochs,
-      journey: args => runPreviewJourney({ ...args, expected: preview.expected,
+      journey: args => runPreviewJourney({ ...args, expected: preview.expected, commits: preview.commits,
         record: entry => recordStep({ actionPath: args.actionPath, actions: args.actions, ...entry }),
         navigate: (url, label) => navigateAndRecord(args.page, args.actionPath, args.actions, url, label),
         visible: (locator, label) => waitForVisible(args.page, args.actionPath, args.actions, locator, label),
@@ -936,6 +936,10 @@ export async function verifyPreview(options) {
     })
     result.artifacts.galleryViewport = join(evidenceDir, 'features', 'gallery', 'gallery-viewport.png')
     result.artifacts.galleryScreenshot = join(evidenceDir, 'features', 'gallery', 'gallery-rendered.png')
+    for (const surface of ['overview', 'repository']) {
+      result.artifacts[`${surface}Viewport`] = join(evidenceDir, 'features', 'gallery', `${surface}-viewport.png`)
+      result.artifacts[`${surface}Screenshot`] = join(evidenceDir, 'features', 'gallery', `${surface}-rendered.png`)
+    }
     report.results.push(result)
   } catch (error) {
     report.setupError = { name: error.name, message: error.message }

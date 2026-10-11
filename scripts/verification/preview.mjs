@@ -103,7 +103,12 @@ export function loadPreviewBuild({ directory, inventory }) {
     metadata.push({ field, label, path, sha256: files.get(path.slice(1)).sha256 })
   }
   const normalizedInventory = [...files.values()].map(({ path, sha256, bytes }) => ({ path, sha256, bytes })).sort((a, b) => a.path.localeCompare(b.path))
-  return { directory, inventory, files,
+  // Retain only fields needed for one selected commit; never serialize the corpus in the report.
+  const commits = new Map(dataset.episodes.map(episode => [episode.shortSha, {
+    commitSha: episode.commitSha, shortSha: episode.shortSha, subject: episode.subject,
+    paths: episode.changes.map(change => change.previousPath ? `${change.previousPath} → ${change.path}` : change.path),
+  }]))
+  return { directory, inventory, files, commits,
     expected: { slug: subject.slug, title: subject.title, repositoryName: dataset.repository.name, headSha: subject.headSha, datasetPath, datasetSha256: files.get(datasetPath).sha256, counts, metadata },
     build: { declaredSourceRevision: manifest.sourceRevision, inventorySha256: hash(inventoryBytes), fingerprint: hash(JSON.stringify(normalizedInventory)), files: normalizedInventory },
     allowedMissingEpochs: !files.has('epochs.json'),
@@ -128,7 +133,7 @@ export async function startPreviewServer(preview) {
   return { server, baseUrl, requests }
 }
 
-export async function runPreviewJourney({ page, baseUrl, expected, featureDir, record, navigate, visible, click }) {
+export async function runPreviewJourney({ page, baseUrl, expected, commits, featureDir, record, navigate, visible, click }) {
   const step = async (name, assertion, work) => {
     try { const details = await work(); record({ name, assertion, details }); return details }
     catch (error) { record({ name, assertion, result: 'failed', details: String(error) }); throw error }
@@ -183,5 +188,47 @@ export async function runPreviewJourney({ page, baseUrl, expected, featureDir, r
     assert.equal(counts['repository reorganizations'], expected.counts.reorganizations)
     assert.equal(await page.locator('.fatal-error, .load-error, .map-error').count(), 0)
     return { headSha: expected.headSha, counts, slug: expected.slug }
+  })
+  await page.screenshot({ path: join(featureDir, 'overview-viewport.png'), animations: 'disabled' })
+  await page.screenshot({ path: join(featureDir, 'overview-rendered.png'), fullPage: true, animations: 'disabled' })
+  await click(page.getByRole('navigation', { name: 'Primary navigation', exact: true }).getByRole('button', { name: 'Repository', exact: true }), 'Open observed repository history.')
+  await visible(page.getByRole('heading', { name: 'See how the codebase changed shape.', exact: true }), 'Prepared repository history renders.')
+  if (!commits.size) {
+    record({ name: 'assert-preview-history', assertion: 'An empty prepared history has no checkpoint or commit evidence to navigate.', details: { checkpointNavigation: 'not available', reason: 'Dataset contains no observed commits.' } })
+    await page.screenshot({ path: join(featureDir, 'repository-viewport.png'), animations: 'disabled' })
+    await page.screenshot({ path: join(featureDir, 'repository-rendered.png'), fullPage: true, animations: 'disabled' })
+    return
+  }
+  const checkpoint = page.locator('.checkpoint-commit')
+  const beforeSha = (await checkpoint.locator('code').innerText()).toLowerCase()
+  assert.ok(commits.has(beforeSha), 'Initial checkpoint must resolve to the prepared dataset.')
+  const previous = page.getByRole('button', { name: '← Previous', exact: true })
+  if (await previous.isEnabled()) {
+    const beforeAt = new URL(page.url()).searchParams.get('at')
+    await click(previous, 'Move to the previous observed checkpoint.')
+    await page.waitForFunction(old => new URL(location.href).searchParams.get('at') !== old, beforeAt)
+    await step('assert-preview-checkpoint', 'Previous checkpoint changes the URL and selects a known prepared commit.', async () => {
+      const sha = (await checkpoint.locator('code').innerText()).toLowerCase()
+      assert.notEqual(sha, beforeSha)
+      assert.equal(new URL(page.url()).searchParams.get('at'), sha)
+      assert.ok(commits.has(sha), 'Selected checkpoint must resolve to the prepared dataset.')
+      return { beforeSha, shortSha: sha, commitSha: commits.get(sha).commitSha }
+    })
+  } else {
+    record({ name: 'assert-preview-checkpoint', assertion: 'The initial checkpoint remains inspectable when Previous is unavailable.', details: { shortSha: beforeSha, checkpointNavigation: 'not available', reason: 'No earlier checkpoint is available.' } })
+  }
+  const selectedSha = (await checkpoint.locator('code').innerText()).toLowerCase()
+  const selected = commits.get(selectedSha)
+  await page.screenshot({ path: join(featureDir, 'repository-viewport.png'), animations: 'disabled' })
+  await page.screenshot({ path: join(featureDir, 'repository-rendered.png'), fullPage: true, animations: 'disabled' })
+  await click(checkpoint, 'Inspect the selected checkpoint commit evidence.')
+  const evidence = page.locator('.checkpoint-panel__evidence')
+  await visible(evidence.getByText('Observed commit evidence', { exact: true }), 'Observed commit evidence opens for the selected checkpoint.')
+  await step('assert-preview-commit-evidence', 'The inspected commit label, revision and touched paths match the selected prepared commit.', async () => {
+    assert.equal(await evidence.locator('.inspector-heading h2').innerText(), selected.subject)
+    assert.equal((await evidence.locator('.status-line code').innerText()).toLowerCase(), selectedSha)
+    const paths = await evidence.locator('.path-list code').allTextContents()
+    assert.deepEqual(paths, selected.paths)
+    return { shortSha: selectedSha, commitSha: selected.commitSha, touchedPathCount: paths.length, touchedPathsSha256: hash(JSON.stringify(paths)) }
   })
 }

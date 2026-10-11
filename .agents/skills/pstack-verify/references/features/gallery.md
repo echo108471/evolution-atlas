@@ -38,7 +38,10 @@ verifies the browser dataset response against the inventory hash and full
 repository revision, and checks the overview's rendered counts. It records
 inventoried license-notice and provenance link hrefs and checks their browser
 GET responses against exact hashes when those fields are present. It records
-both gallery and overview screenshots plus source/build fingerprints. A missing
+gallery, overview, repository and selected-commit evidence screenshots plus
+source/build fingerprints. It checks a previous checkpoint when available and
+compares the selected commit's revision, label and touched paths against the
+prepared dataset without copying its full commit corpus into evidence logs. A missing
 optional epochs.json is recorded as a scoped 404; other browser or request
 errors fail. It does not approve publication or attest that assets were emitted
 by the publication plugin. Synthetic `verify --feature gallery` stays the
