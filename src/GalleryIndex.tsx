@@ -30,10 +30,10 @@ export function GalleryIndex({ subjects, onSelectSubject }: GalleryIndexProps) {
         <p className="brand-mark">EVOLUTION ATLAS</p>
         <h1>How a codebase grew, read from its commits.</h1>
         <p className="gallery-lede">
-          Each atlas below was generated from one public repository's Git history. The observed
-          layer — commits, paths, contributors, renames — is measured. The features and lifecycle
-          episodes layered on top are candidates proposed by a language model from commit subjects
-          and file paths, and every one of them traces back to the commits that suggested it.
+          Each atlas below was prepared from a public repository's Git history. The observed
+          layer records commits, paths and renames. Contributor identities may be omitted from
+          an exported demo. When features or lifecycle episodes are present, they are candidate
+          interpretations linked to supporting commits.
         </p>
       </header>
 
@@ -97,8 +97,9 @@ export function GalleryIndex({ subjects, onSelectSubject }: GalleryIndexProps) {
           of your own, clone the project and analyze it locally; nothing leaves your machine.
         </p>
         <code>
-          git clone https://github.com/echo108471/evolution-atlas.git{'\n'}
-          npm install{'\n'}
+          git clone &lt;your-evolution-atlas-url&gt; evolution-atlas{'\n'}
+          cd evolution-atlas{'\n'}
+          npm ci{'\n'}
           npm run analyze -- --repo /path/to/your/repo --out public/atlas.json{'\n'}
           npm run dev
         </code>
