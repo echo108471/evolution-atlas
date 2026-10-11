@@ -74,7 +74,7 @@ build, and whitespace validation with an isolated home and an environment that
 omits credentials and proxy settings. Node requests to external hosts fail;
 loopback requests remain available for synthetic local verification. Git access
 is limited to the local file protocol and automatic lazy fetching is disabled.
-The test runner applies the same isolation and bounds file concurrency to two by
+The test runner applies the same isolation and bounds file concurrency to one by
 default; an explicit Node test-concurrency option overrides that bound.
 Use `node scripts/test.mjs` when launching focused tests strictly offline.
 This is a development guard, not an OS
