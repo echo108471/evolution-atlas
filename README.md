@@ -194,13 +194,32 @@ npm run check
 
 ## How we work
 
-This repository uses a local adaptation of [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack)
+This repository uses a native adaptation of [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/9d76bcab133aefcccb16121d7be874e6aa823729/pstack)
 for understanding changes, designing boundaries, implementing, debugging,
 verifying, and reviewing. The [engineering guide](docs/ENGINEERING.md) describes
 the workflow; the [pstack-atlas skill](.agents/skills/pstack-atlas/SKILL.md)
 routes broad tasks to focused skills in `.agents/skills/`. In Codex, ask for
 `$pstack-debug` to investigate a defect or `$pstack-review` to review a diff.
 The project evidence and validation rules remain in [AGENTS.md](AGENTS.md).
+
+Verification includes an isolated browser control CLI and a source-linked
+[feature map](.agents/skills/pstack-verify/references/features/README.md).
+Use `$pstack-verify` to exercise behavior and
+`$pstack-maintain-verification` to update the map and harness from source and
+browser evidence. These workflows run with repo-local tools and inherit the
+current agent's permissions and model.
+
+```bash
+npm run control:atlas -- doctor
+npm run control:atlas -- list
+npm run control:atlas -- verify --feature candidate-map
+npm run check:pstack
+```
+
+Follow the [browser setup and evidence guide](docs/VERIFICATION.md#browser-control)
+before the first run. Synthetic verification data and screenshots stay in
+ignored `scratch/`. A passing browser journey establishes the exercised UI
+behavior; it does not establish semantic accuracy of model-authored history.
 
 ## Project documents
 

@@ -7,3 +7,15 @@ Match evidence to the claim. Read the project's [verification guide](../../../..
 3. Run `npm test`, `npm run build`, and `git diff --check` for completed implementation changes as [AGENTS.md](../../../../AGENTS.md) requires. Inspect rendered UI for visual changes and rendered Markdown for project documents. Repeat affected checks after later source edits.
 4. Keep synthetic Git tests, versioned replay, serialized citation checks, browser interaction, and live model quality separate. A passing validator establishes that references and accounting resolve; it does not establish the meaning of a candidate capability or historical change.
 5. Keep generated datasets in ignored local paths unless Eugene approves a fixture for version control. Report commands and results, inspectable artifacts, and remaining unverified claims.
+
+For repeatable browser journeys, use the project control harness documented by
+[pstack-verify](../../pstack-verify/SKILL.md). Start with its doctor command,
+then verify the affected feature and inspect the JSON evidence it reports.
+Use the verifier's feature registry as an inventory, not proof that every
+feature has been exercised. The repository history plane remains covered by
+its CLI, replay, receipt, and source checks; browser journeys do not establish
+history-plane coverage.
+
+Use [maintain verification](../../pstack-maintain-verification/SKILL.md) when
+the task is to reconcile the guide, feature registry, and harness with current
+source and live behavior.

@@ -25,9 +25,61 @@ semantic accuracy on a real repository.
 | Engine lifecycle, host dispatch, versioned replay | [CLI and run status](../test/experiment-status.test.mjs), [engine](../test/repository-engine.test.mjs), [runtime](../test/repository-runtime.test.mjs), and [host](../test/repository-host.test.mjs) tests | Assignment status, actual host completion, immutable receipts, saved source pins, and byte-stable replay of the affected run |
 | Cross-revision integration and historical claims | [evolution](../test/repository-evolution.test.mjs), [engine contract](../test/repository-engine-contract.test.mjs), and [review history](../test/repository-review-history.test.mjs) tests | Before/after revisions, explicit omissions, `historyLineage` and `historyEdgeLineage`, and cited post-baseline Git evidence |
 | Candidate interpretations and review | The owning [capability](../test/capabilities.test.mjs), [candidate revision](../test/candidate-revision.test.mjs), [report](../test/repository-map-report.test.mjs), or [review history](../test/repository-review-history.test.mjs) test | Whether the proposed label or explanation is actually supported; validation of citations and accounting alone cannot decide that |
-| Viewer and interaction | [Map parsing](../test/repositoryMap.test.ts), [URL state](../test/urlState.test.ts), and relevant story/model tests; run `npm run dev` or `npm run preview` after a build to open the app | Import `output.json` or `reviewed-output.json` in **Candidate map** and click through the affected claim, evidence, omissions, and review notes in a real browser; this repo has no browser end-to-end test command |
+| Viewer and interaction | [Map parsing](../test/repositoryMap.test.ts), [URL state](../test/urlState.test.ts), relevant story/model tests, and `npm run control:atlas -- verify --feature candidate-map` or another [mapped feature](../.agents/skills/pstack-verify/references/features/README.md) | Inspect screenshots, action assertions, and the run report. Scripted journeys use synthetic data; import the named real `output.json` or `reviewed-output.json` separately when the claim concerns that artifact. A smoke journey is not exhaustive interaction coverage |
 | Generated data and build privacy | `git check-ignore -v PATH` for a specific run path, `git status`, and `npm run build` | Inspect the intended `dist/`, especially `dist/graph-reviews/`, before publication. A gallery build requires Git and keeps tracked files under two approved review roots while stripping local run directories; a personal build without a gallery manifest can still include local data |
 | Project documents | Render the changed Markdown and inspect headings, tables, code blocks, and links | A source-text or link check alone does not establish the rendered document is readable |
+
+## Browser control
+
+The [pstack-verify skill](../.agents/skills/pstack-verify/SKILL.md) owns the
+launch, doctor, drive, evidence, and teardown instructions. Its
+[feature map](../.agents/skills/pstack-verify/references/features/README.md)
+describes how users reach each surface, the scripted checks, and remaining
+gaps. Consult it before selecting a journey.
+
+After installing the repo's dependencies, install Chromium into the ignored
+project cache once:
+
+```bash
+PLAYWRIGHT_BROWSERS_PATH=scratch/verification-browsers npx playwright install chromium
+```
+
+```bash
+npm run control:atlas -- --help
+npm run control:atlas -- doctor
+npm run control:atlas -- list
+npm run control:atlas -- verify --feature candidate-map
+npm run control:atlas -- verify --all
+```
+
+Doctor is read-only and reports the current source and missing prerequisites,
+including the exact Chromium setup command. Each verification invocation
+starts its own Vite server and browser against synthetic data, exercises the
+real UI, records actions and assertions, and captures screenshots and browser
+logs. It uses separate ports and browser contexts so concurrent invocations
+do not share state. The run closes the resources it started and retains its
+evidence under ignored `scratch/`. Inspect the returned report and screenshots;
+the command's exit status alone is insufficient evidence.
+
+These are development-server smoke journeys. They do not check a deployed
+site, production performance, every alternate entry path, model quality, or
+the real two-revision milestone. Traces are diagnostic artifacts; compare
+performance with separately controlled measurements as described in the
+[performance workflow](../.agents/skills/pstack-atlas/references/performance.md).
+
+After a skill or map change, run `npm run check:pstack` for native skill
+metadata, links, feature wiring, and provenance consistency. To also verify
+the recorded upstream source hashes against a downloaded pstack directory:
+
+```bash
+npm run check:pstack -- --upstream /path/to/downloaded/pstack
+```
+
+The default check is offline. Hash validation checks source identity; it does
+not establish that the adaptation makes good decisions. Use
+[pstack-maintain-verification](../.agents/skills/pstack-maintain-verification/SKILL.md)
+for source review and live feature coverage when the app changes. Maintenance
+runs only when requested or needed for the current task; it is not scheduled.
 
 ## Real history workflow
 

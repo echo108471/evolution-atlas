@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/cursor/plugins",
+  "commit": "9d76bcab133aefcccb16121d7be874e6aa823729",
+  "version": "0.15.17",
+  "adaptation": "Selected native Evolution Atlas workflows with a project verification CLI; not Cursor plugin installation or a complete upstream port.",
+  "skills": [
+    "pstack-atlas",
+    "pstack-explore",
+    "pstack-architect",
+    "pstack-implement",
+    "pstack-refactor",
+    "pstack-debug",
+    "pstack-verify",
+    "pstack-review",
+    "pstack-maintain-verification"
+  ],
+  "documents": [
+    "AGENTS.md",
+    "README.md",
+    "docs/ENGINEERING.md",
+    "docs/VERIFICATION.md"
+  ],
+  "exclusions": [
+    "Cursor plugin packaging and custom-mode metadata",
+    "Cursor Task/subagent types and hard-coded model routing",
+    "Upstream orchestration/bootstrap/watch-pr runtimes",
+    "Cloud provisioning and shared user-session automation",
+    "Messaging, scheduling, publishing, and automatic PR landing",
+    "Global configuration and hooks"
+  ],
+  "sources": [
+    {
+      "path": "README.md",
+      "sha256": "a33eaf6f08fd248f7d064b3909caa947424f027896360077bdbb2d12e8ac213d",
+      "adaptedTo": [
+        "docs/ENGINEERING.md",
+        ".agents/skills/pstack-atlas/ATTRIBUTION.md"
+      ]
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "bc957ca6bee02792566a1a028d105e02e247c6e77cf057061674273da77b200e",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/LICENSE"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/SKILL.md",
+      "sha256": "03d61d15c5a0f7abc2c558c7323ff3c360dedc2915ebadf3c76c9e872f41cb64",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/SKILL.md",
+        ".agents/skills/pstack-atlas/references/principles.md",
+        ".agents/skills/pstack-atlas/references/coordinated-work.md"
+      ]
+    },
+    {
+      "path": "skills/how/SKILL.md",
+      "sha256": "47cfe3e6fe55c49c3bdf8ad1b645dcd5fece8f0c36fd22d2e7221f9faa71f648",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/explore.md"
+      ]
+    },
+    {
+      "path": "skills/why/SKILL.md",
+      "sha256": "fa1d1e9dec14b15381c1ccccad74044d6b6ea3b4af56821f59ba2d8e59b07545",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/explore.md"
+      ]
+    },
+    {
+      "path": "skills/teach/SKILL.md",
+      "sha256": "bd286e5a6290673be2cd28aef7af2ec7f1fb138e6bce156ea657368c7e7fc8a4",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/explore.md"
+      ]
+    },
+    {
+      "path": "skills/architect/SKILL.md",
+      "sha256": "31f8e97a52bfa5432edd61f68ade2a8632ef0bacbc2d2a6802d7a0e6821944ac",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/design.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/investigation.md",
+      "sha256": "dc66bcf6af3a074fc7f67aa5e12b93ef571a4fb4d8e17f2f1af5ae5359f42e46",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/explore.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/feature.md",
+      "sha256": "3a62cc4a8cbcf144bb9dd05f05420a15be0d38b784d3b141bb730a5852f50a62",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/implementation-refactor.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/refactoring.md",
+      "sha256": "50f4f7d3d301551f8b8a57c3303c99958c5ca630ae0d0051823b6987c0eb5b96",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/implementation-refactor.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/bug-fix.md",
+      "sha256": "018bbc146ae19145caa6c7e70591fee081b64447dda1c1c4b681c9974d928b13",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/debug.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/perf-issue.md",
+      "sha256": "2b88ad0f880e4d4d755ac19fe52414d6631d6baa816d060f53cf0a7429d7e14a",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/performance.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/hillclimb.md",
+      "sha256": "244f289898fe67a458065e90fe8217c916c5acf61cdee8975ade3f9831a12e91",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/performance.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/runtime-forensics.md",
+      "sha256": "594f02c40c243a346e1f57b688ecf2ed5e882f21b3d24ed2204d1ac6f1c24a8a",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/performance.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/trace-forensics.md",
+      "sha256": "e8a671fd5511a894f90c933bca75815e7a1d730cb53333075a80b0927e81acfc",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/performance.md"
+      ]
+    },
+    {
+      "path": "skills/benchmark-checklist/SKILL.md",
+      "sha256": "ba109e96c8f6c1c391baccf19e5d11e14370df7b3f2605e1572cd565a6c0fca0",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/performance.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/prototype.md",
+      "sha256": "7aa1f52c691c3d46d5afc527b23f90977fce869ce33573c73c81a4c7f0cde962",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/prototype.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/visual-parity.md",
+      "sha256": "950ca51999a6454c98eee6bcbc3d1bbe501a4e3a5d5439b6f6ddc378991b256c",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/prototype.md"
+      ]
+    },
+    {
+      "path": "skills/swarm/SKILL.md",
+      "sha256": "bdcee4168e22428036e93d7cdeec3f391dbc4132f927f6db2540328c22db0273",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/coordinated-work.md"
+      ]
+    },
+    {
+      "path": "skills/arena/SKILL.md",
+      "sha256": "f15524f216c1c63804b89edb4ff8e53bb21a7b8ed367368dedeb9468eeec6a92",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/coordinated-work.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/multi-phase-plan.md",
+      "sha256": "27d310e3fc3937a60b8fcbe1318f9d249a7477a722907bf85b3e4eb3dc436b11",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/coordinated-work.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/session-pickup.md",
+      "sha256": "1604fb463f7c7410d43fa024ca76c1c1824c166a01fd69d61f073d06fdca2a47",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/coordinated-work.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/pause-safely.md",
+      "sha256": "77968cfe5f4a71a8cd33e0ae8ffcdbd88dd693a212c240457773e6c40c96c21d",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/coordinated-work.md"
+      ]
+    },
+    {
+      "path": "skills/poteto-mode/playbooks/eval.md",
+      "sha256": "b862bfa2fae2399abf047a8e80d3e3dddb64003af96fb1cebb625216131e36bb",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/coordinated-work.md"
+      ]
+    },
+    {
+      "path": "skills/interrogate/SKILL.md",
+      "sha256": "25341c393f515c1e1fa9bce668b7551e9f98c195113a460ff524d3c1f7f50cd9",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/review.md"
+      ]
+    },
+    {
+      "path": "skills/blast-radius/SKILL.md",
+      "sha256": "2e10745b97f5862323dcda3b29ca60d56b5c3c98e37020085d26b48efbe0a436",
+      "adaptedTo": [
+        ".agents/skills/pstack-atlas/references/review.md"
+      ]
+    },
+    {
+      "path": "skills/create-verification-skill/SKILL.md",
+      "sha256": "644f2551403c1bca01a2855b34611b6e7be0ce0dc5b204514c376c0f6a6e6ac4",
+      "adaptedTo": [
+        ".agents/skills/pstack-verify/SKILL.md",
+        ".agents/skills/pstack-verify/references/features/README.md",
+        "scripts/control-atlas.mjs"
+      ]
+    },
+    {
+      "path": "skills/maintain-verification-skill/SKILL.md",
+      "sha256": "515c0eaa054b3f6be1b1fb06f2c2f173c80fddb58bbcac57576f89c479bc68e8",
+      "adaptedTo": [
+        ".agents/skills/pstack-maintain-verification/SKILL.md"
+      ]
+    }
+  ]
+}
