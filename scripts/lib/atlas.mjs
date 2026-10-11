@@ -12,6 +12,7 @@ function runGit(repositoryPath, args) {
     encoding: 'utf8',
     maxBuffer: GIT_MAX_BUFFER,
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, GIT_NO_REPLACE_OBJECTS: '1' },
   })
 }
 
@@ -42,8 +43,12 @@ function isBotIdentity(name, email) {
   )
 }
 
-function mailmapIdentityKey(repositoryPath, name, email, fallbackKey) {
-  const resolved = tryGit(repositoryPath, ['check-mailmap', `${name} <${email}>`])?.trim()
+function mailmapIdentityKey(repositoryPath, name, email, fallbackKey, pinnedRef = null) {
+  // A pinned analysis must not borrow mappings from a later working-tree .mailmap.
+  const options = pinnedRef
+    ? ['-c', 'core.bare=true', '-c', 'mailmap.file=/dev/null', '-c', `mailmap.blob=${pinnedRef}:.mailmap`]
+    : []
+  const resolved = tryGit(repositoryPath, [...options, 'check-mailmap', `${name} <${email}>`])?.trim()
   if (!resolved) return fallbackKey
   const match = resolved.match(/^(.*)\s+<([^<>]+)>$/)
   if (!match) return fallbackKey
@@ -146,17 +151,19 @@ function readCommit(repositoryPath, sha) {
   }
 }
 
-export function buildAtlas(inputPath = '.') {
+export function buildAtlas(inputPath = '.', { ref = 'HEAD' } = {}) {
   const requestedPath = resolve(inputPath)
   const topLevel = runGit(requestedPath, ['rev-parse', '--show-toplevel']).trim()
-  const headSha = runGit(topLevel, ['rev-parse', '--verify', 'HEAD']).trim()
-  const ref = tryGit(topLevel, ['symbolic-ref', '--short', '-q', 'HEAD'])?.trim() || 'HEAD'
+  const headSha = runGit(topLevel, ['rev-parse', '--verify', `${ref}^{commit}`]).trim()
+  const repositoryRef = ref === 'HEAD'
+    ? tryGit(topLevel, ['symbolic-ref', '--short', '-q', 'HEAD'])?.trim() || 'HEAD'
+    : ref
   const commitShas = runGit(topLevel, [
     'log',
     '--reverse',
     '--topo-order',
     '--format=%H',
-    'HEAD',
+    headSha,
   ])
     .split('\n')
     .filter(Boolean)
@@ -166,7 +173,7 @@ export function buildAtlas(inputPath = '.') {
   // outnumber it three to one. Recorded per episode so an analysis pass can choose that
   // unit without the observed layer losing anything.
   const firstParentChain = new Set(
-    runGit(topLevel, ['log', '--first-parent', '--format=%H', 'HEAD']).split('\n').filter(Boolean),
+    runGit(topLevel, ['log', '--first-parent', '--format=%H', headSha]).split('\n').filter(Boolean),
   )
 
   const contributors = new Map()
@@ -189,6 +196,7 @@ export function buildAtlas(inputPath = '.') {
         commit.authorName,
         commit.authorEmail,
         identityKey,
+        ref === 'HEAD' ? null : headSha,
       )
       mailmapCache.set(mailmapCacheKey, resolvedMailmapKey)
     }
@@ -312,12 +320,12 @@ export function buildAtlas(inputPath = '.') {
     schemaVersion: '0.3.0',
     analysis: {
       mode: 'observed-only',
-      historyRange: 'HEAD',
+      historyRange: ref,
       mergeDiffStrategy: 'diff-merges-first-parent',
     },
     repository: {
       name: basename(topLevel),
-      ref,
+      ref: repositoryRef,
       headSha,
       commitCount: episodes.length,
     },

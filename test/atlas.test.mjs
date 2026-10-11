@@ -155,6 +155,41 @@ test('buildAtlas recognizes an explicit repository mailmap identity', () => {
   }
 })
 
+test('buildAtlas reads a pinned history and its mailmap without changing cached HEAD', (t) => {
+  const repositoryPath = mkdtempSync(join(tmpdir(), 'evolution-atlas-pinned-test-'))
+  t.after(() => rmSync(repositoryPath, { recursive: true, force: true }))
+  git(repositoryPath, ['init', '-b', 'main'])
+  git(repositoryPath, ['config', 'user.name', 'Synthetic Old'])
+  git(repositoryPath, ['config', 'user.email', 'old@example.test'])
+  writeFileSync(join(repositoryPath, '.mailmap'), [
+    'Synthetic Canonical <canonical@example.test> Synthetic Old <old@example.test>',
+    'Synthetic Canonical <canonical@example.test> Synthetic Work <work@example.test>',
+    '',
+  ].join('\n'))
+  git(repositoryPath, ['add', '.'])
+  git(repositoryPath, ['commit', '-m', 'Synthetic identity map'], '2025-01-02T12:00:00Z')
+  git(repositoryPath, ['config', 'user.name', 'Synthetic Work'])
+  git(repositoryPath, ['config', 'user.email', 'work@example.test'])
+  writeFileSync(join(repositoryPath, 'work.txt'), 'synthetic work\n')
+  git(repositoryPath, ['add', '.'])
+  git(repositoryPath, ['commit', '-m', 'Synthetic work identity'], '2025-01-03T12:00:00Z')
+  const pin = git(repositoryPath, ['rev-parse', 'HEAD']).trim()
+  const baseline = buildAtlas(repositoryPath)
+  writeFileSync(join(repositoryPath, '.mailmap'), 'Synthetic Different <different@example.test> Synthetic Work <work@example.test>\n')
+  git(repositoryPath, ['add', '.'])
+  git(repositoryPath, ['commit', '-m', 'Later synthetic identity change'], '2025-01-04T12:00:00Z')
+  const current = git(repositoryPath, ['rev-parse', 'HEAD']).trim()
+  const pinned = buildAtlas(repositoryPath, { ref: pin })
+  assert.equal(pinned.repository.headSha, pin)
+  assert.equal(pinned.repository.ref, pin)
+  assert.equal(pinned.analysis.historyRange, pin)
+  assert.deepEqual(pinned.episodes, baseline.episodes)
+  assert.deepEqual(pinned.identityMatches, baseline.identityMatches)
+  assert.equal(pinned.identityMatches[0].signals[0].kind, 'mailmap')
+  assert.equal(git(repositoryPath, ['rev-parse', 'HEAD']).trim(), current)
+  assert.equal(buildAtlas(repositoryPath).analysis.historyRange, 'HEAD')
+})
+
 test('buildAtlas keeps both sides of a root-folder reorganization', () => {
   const repositoryPath = mkdtempSync(join(tmpdir(), 'evolution-atlas-reorganization-test-'))
 
