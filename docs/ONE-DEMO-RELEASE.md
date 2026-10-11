@@ -116,9 +116,9 @@ the reviewed retained documents; update its synthetic tests and documentation
 so `render:reports` remains usable without private narratives. Preserve the
 private renderer and original documents in the original repository. Review
 research-specific comments in `scripts/lib/identity.mjs`,
-`scripts/lib/commit-diff.mjs`, `scripts/lib/triage.mjs`, their versioned copies,
-and `src/model.ts`; avoid publishing old quantitative claims as evidence for
-the new snapshot. Real contact examples were confirmed in the current identity
+`scripts/lib/commit-diff.mjs`, `scripts/lib/triage.mjs`, and `src/model.ts`; avoid publishing old quantitative claims as evidence for
+the new snapshot. Keep archived `scripts/versions/` byte-identical for saved replay; its old research
+comments are dated context, not evidence for this demo. Real contact examples were confirmed in the current identity
 helper's comment and its identity test's comment; preserve their reasoning using
 fictitious examples. Keep versioned replay contracts intact. Retain loopback
 addresses used by the harness, offline guard, and rejection tests; those are
@@ -147,8 +147,8 @@ ten-minute timeout, completing in 33.748 seconds. Its analyzer revision is
 The immutable raw atlas has 6,223,117 bytes and SHA-256
 `3d7999d5d521fb0e0bbf14b7f46a235db9e4252d196c2963eac55351327d531f`.
 The committed [minimization generator](../scripts/prepare-zod-demo.mjs) at
-`9ee5fcd486419fc6c07a54e219c785f5c42f433c` produced the private four-file candidate
-under ignored `scratch/one-demo-release/candidate-v2/`. A second generation with
+`86282a14ee4ca3b6cc689c33052bb04c1155bbd8` produced the private four-file candidate
+under ignored `scratch/one-demo-release/candidate-v3/`. A second generation with
 the recorded timestamp reproduced all four files byte-for-byte. These hashes
 identify review candidates, not publication approval. No other demo or previous
 interpreted dataset is included.
@@ -164,10 +164,10 @@ Exact candidate hashes; owner publication approval remains pending for every row
 
 | Candidate file | Bytes | SHA-256 |
 | --- | ---: | --- |
-| `manifest.json` | 726 | `09c0f3d91fea8a91142c0e8226cd0538fee06619586d9340d7b0baddbf46b407` |
+| `manifest.json` | 828 | `b9b9809b5cf925ba1f3fad957b5a0163cd2858ec359b0ff18669b9593419a09d` |
 | `zod.json` | 4,320,385 | `e37fd8f6826f746d47f1d25d78c47b0c4d21b68c48905ac577d77cffc7038558` |
 | `zod-LICENSE.txt` | 1,072 | `3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8` |
-| `zod-PROVENANCE.json` | 4,504 | `756675f6e334ef7d27feca7e9976e7d2d681b08327d644ed8078356d0f902da2` |
+| `zod-PROVENANCE.json` | 4,504 | `42ca0418704cc3d2a0f40f8e462cbc5503f874e849674f49313fb2b63bda6204` |
 
 The runtime gallery manifest has `version`, a fixed `generatedAt`, and exactly
 one `subjects` entry with slug `zod`, dataset `zod.json`, upstream URL, exact
