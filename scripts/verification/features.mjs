@@ -88,6 +88,7 @@ export const FEATURE_REGISTRY = Object.freeze([
       'A synthetic output.json file is imported into the browser session without upload.',
       'File import creates no network request, including a same-origin GET with query parameters.',
       'A cited source receipt opens in the evidence inspector with its source text.',
+      'At 1440 × 1000, receipt S1 and its citation labels are visible and unobscured without overlap after opening and scrolling.',
     ],
     sourceFiles: [...sharedSources, 'src/RepositoryMapExplorer.tsx', 'src/repositoryMap.ts'],
     testFiles: ['test/repositoryMap.test.ts', 'test/urlState.test.ts'],

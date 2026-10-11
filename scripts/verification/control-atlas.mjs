@@ -440,6 +440,44 @@ async function assertText(page, actionPath, actions, pattern, label) {
   }
 }
 
+async function assertCandidateMapEvidenceLayout(page, actionPath, actions, phase) {
+  const label = `Receipt S1 and its citation labels remain visible without overlap ${phase}.`
+  let layout = null
+  try {
+    layout = await page.evaluate(() => {
+      const measure = (selector) => {
+        const element = document.querySelector(selector)
+        if (!element) return null
+        const { left, right, top, bottom, width, height } = element.getBoundingClientRect()
+        const hit = document.elementFromPoint(left + width / 2, top + height / 2)
+        return { left, right, top, bottom, width, height,
+          inViewport: width > 0 && height > 0 && left >= 0 && top >= 0 && right <= innerWidth && bottom <= innerHeight,
+          unobscured: hit !== null && element.contains(hit),
+        }
+      }
+      return {
+        viewport: { width: innerWidth, height: innerHeight }, scrollY,
+        receipt: measure('.map-evidence-inspector'),
+        source: measure('.map-source-text'),
+        citations: measure('.map-inspector-sources'),
+        heading: measure('.map-inspector-sources h2'),
+        citationId: measure('.map-inspector-sources button span'),
+        citationPath: measure('.map-inspector-sources button small'),
+      }
+    })
+    assert.deepEqual(layout.viewport, { width: 1440, height: 1000 })
+    for (const [name, box] of Object.entries(layout).filter(([name]) => !['viewport', 'scrollY'].includes(name))) {
+      assert.ok(box?.inViewport, `${name} must fit inside the viewport ${phase}`)
+      assert.ok(box.unobscured, `${name} must not be obscured ${phase}`)
+    }
+    assert.ok(layout.receipt.bottom <= layout.citations.top + 0.5, `Receipt inspector must end before its citation section ${phase}`)
+    recordStep({ actionPath, actions, name: 'assert-evidence-layout', assertion: label, details: layout })
+  } catch (error) {
+    recordStep({ actionPath, actions, name: 'assert-evidence-layout', assertion: label, result: 'failed', details: { layout, error: String(error) } })
+    throw error
+  }
+}
+
 async function runJourney({ feature, page, baseUrl, actionPath, actions, runtimeDir, events }) {
   const heading = (name) => page.getByRole('heading', { name, exact: true })
   if (feature.id === 'candidate-map') {
@@ -468,6 +506,18 @@ async function runJourney({ feature, page, baseUrl, actionPath, actions, runtime
     await assertText(page, actionPath, actions, /File imports are never uploaded\./, 'The UI states that file imports are never uploaded.')
     await clickAndRecord(page, actionPath, actions, page.getByRole('button', { name: 'S1', exact: true }).first(), 'Select cited source receipt S1.')
     await waitForVisible(page, actionPath, actions, page.getByText('export function lookup(key)', { exact: false }), 'Evidence inspector displays the cited source text.')
+    await assertCandidateMapEvidenceLayout(page, actionPath, actions, 'after opening the receipt')
+    const scroll = await page.locator('.map-explorer').evaluate(element => {
+      const before = window.scrollY
+      const requested = element.getBoundingClientRect().top + before + 200
+      window.scrollTo(0, requested)
+      return { before, requested }
+    })
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    const afterScroll = await page.evaluate(() => window.scrollY)
+    assert.notEqual(afterScroll, scroll.before, 'The receipt layout check must exercise a changed page scroll position.')
+    recordStep({ actionPath, actions, name: 'scroll', assertion: 'Scroll the page through the candidate detail while retaining the receipt sidebar.', details: { ...scroll, after: afterScroll } })
+    await assertCandidateMapEvidenceLayout(page, actionPath, actions, 'after scrolling the page')
     await assertText(page, actionPath, actions, /Independent verification: not performed/, 'Candidate map keeps independent verification marked not performed.')
     return
   }

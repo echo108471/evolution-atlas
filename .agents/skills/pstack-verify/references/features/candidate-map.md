@@ -30,7 +30,9 @@ Preconditions:
 node scripts/control-atlas.mjs verify --feature candidate-map
 ~~~
 
-The journey asserts that output.json imports in the browser session, the UI states that file imports are never uploaded, and source receipt S1 opens with its saved text. It also asserts that independent verification is marked not performed. Inspect the report, action log, DOM capture, and screenshot. History lineage, review notes, and omissions are source-mapped but are not asserted by this journey.
+The journey asserts that output.json imports in the browser session, the UI states that file imports are never uploaded, and source receipt S1 opens with its saved text. At a 1440 × 1000 viewport, it measures the receipt inspector, source text, citation heading, ID, and path after opening S1 and after scrolling the page. The receipt and citations must occupy separate space, fit in the viewport, and pass browser hit tests for obscured content. Geometry measurements are retained in the action log. It also asserts that independent verification is marked not performed.
+
+Inspect both viewport.png and rendered.png along with the report, action log, and DOM capture; sticky behavior can differ between viewport and full-page captures. History lineage, review notes, omissions, other viewport sizes, and long-receipt scrolling are source-mapped or available in the UI but are not asserted by this journey.
 
 ## Gotchas
 
