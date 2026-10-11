@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
-import { createFreshCheckoutEvidenceDirectory, localRevisionFetchArguments, parseFreshCheckoutArguments, readCheckoutTooling, readPinnedNodeVersion } from '../scripts/fresh-checkout.mjs'
+import { createFreshCheckoutEvidenceDirectory, createRegistryInstallEnvironment, localRevisionFetchArguments, parseFreshCheckoutArguments, readCheckoutTooling, readPinnedNodeVersion } from '../scripts/fresh-checkout.mjs'
 import { fixtureEnvironment } from '../scripts/synthetic-fixtures.mjs'
 
 const CLI_PATH = fileURLToPath(new URL('../scripts/fresh-checkout.mjs', import.meta.url))
@@ -28,6 +28,57 @@ test('fresh-checkout rejects implicit network modes and moving or external revis
     ['--install-mode', 'automatic'], ['--cache'], ['--cache', '--help'], ['--force'],
   ]) assert.throws(() => parseFreshCheckoutArguments(args))
   assert.deepEqual(parseFreshCheckoutArguments(['--help']), { help: true })
+})
+
+test('explicit registry installation restores only routing and leaves offline validation guarded', () => {
+  const offline = {
+    PATH: '/synthetic/tools',
+    HOME: '/synthetic/empty-home',
+    USERPROFILE: '/synthetic/empty-home',
+    XDG_CONFIG_HOME: '/synthetic/empty-home',
+    NODE_OPTIONS: '--require="/synthetic/offline-preload.cjs"',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_ALLOW_PROTOCOL: 'file',
+    NPM_CONFIG_OFFLINE: 'true',
+    NPM_CONFIG_USERCONFIG: '/synthetic/empty-home/.npmrc',
+    NPM_CONFIG_GLOBALCONFIG: '/synthetic/empty-home/global-npmrc',
+    NPM_CONFIG_UPDATE_NOTIFIER: 'false',
+  }
+  const routing = {
+    HTTP_PROXY: 'http://upper-http.example.invalid:8080',
+    HTTPS_PROXY: 'http://upper-https.example.invalid:8080',
+    ALL_PROXY: 'http://upper-all.example.invalid:8080',
+    NO_PROXY: 'upper-local.example.invalid',
+    http_proxy: 'http://lower-http.example.invalid:8080',
+    https_proxy: 'http://lower-https.example.invalid:8080',
+    all_proxy: 'http://lower-all.example.invalid:8080',
+    no_proxy: 'lower-local.example.invalid',
+  }
+  const credentials = {
+    ANTHROPIC_API_KEY: 'synthetic-provider-key', OPENAI_API_KEY: 'synthetic-provider-key',
+    OPENROUTER_API_KEY: 'synthetic-provider-key', GITHUB_TOKEN: 'synthetic-github-key',
+    GH_TOKEN: 'synthetic-github-key', NPM_TOKEN: 'synthetic-npm-key', NODE_AUTH_TOKEN: 'synthetic-npm-key',
+    NPM_CONFIG__AUTH: 'synthetic-npm-key', npm_config__auth: 'synthetic-npm-key',
+    NPM_CONFIG_USERCONFIG: '/synthetic/caller/auth-npmrc', NODE_OPTIONS: '--require=/synthetic/caller/preload.cjs',
+  }
+  const original = { ...offline }
+  const registry = createRegistryInstallEnvironment(offline, { ...routing, ...credentials })
+  assert.deepEqual(offline, original)
+  assert.equal(registry.NODE_OPTIONS, undefined)
+  assert.equal(registry.NPM_CONFIG_OFFLINE, undefined)
+  for (const [key, value] of Object.entries(routing)) {
+    assert.equal(registry[key], value)
+    assert.equal(key in offline, false)
+  }
+  for (const key of Object.keys(credentials).filter(key => !['NODE_OPTIONS', 'NPM_CONFIG_USERCONFIG'].includes(key))) {
+    assert.equal(key in registry, false, key)
+  }
+  for (const key of ['HOME', 'USERPROFILE', 'XDG_CONFIG_HOME', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_ALLOW_PROTOCOL', 'NPM_CONFIG_USERCONFIG', 'NPM_CONFIG_GLOBALCONFIG', 'NPM_CONFIG_UPDATE_NOTIFIER']) {
+    assert.equal(registry[key], offline[key], key)
+  }
+  assert.equal(offline.NODE_OPTIONS, original.NODE_OPTIONS)
+  assert.equal(offline.NPM_CONFIG_OFFLINE, 'true')
 })
 
 test('fresh-checkout preserves existing evidence and refuses symlink parents into public assets', () => {

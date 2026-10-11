@@ -68,6 +68,18 @@ export function localRevisionFetchArguments(repository, revision) {
   return ['-c', 'core.hooksPath=/dev/null', 'fetch', '--no-tags', '--no-write-fetch-head', '--', resolve(repository), revision]
 }
 
+/** Permit required registry routing only; never inherit provider or package-auth variables. */
+export function createRegistryInstallEnvironment(offlineEnvironment, environment = process.env) {
+  const registryEnvironment = { ...offlineEnvironment }
+  delete registryEnvironment.NODE_OPTIONS
+  delete registryEnvironment.NPM_CONFIG_OFFLINE
+  const routing = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy']
+  for (const key of routing) {
+    if (typeof environment[key] === 'string') registryEnvironment[key] = environment[key]
+  }
+  return registryEnvironment
+}
+
 export function parseFreshCheckoutArguments(argv) {
   const options = {
     repository: REPOSITORY_ROOT,
@@ -152,11 +164,9 @@ export async function runFreshCheckout(options) {
     }
     // The exact checked source owns the guard used by its install and validation.
     environment.NODE_OPTIONS = `--require=${JSON.stringify(join(checkout, 'scripts', 'verification', 'offline-preload.cjs'))}`
-    const installEnvironment = { ...environment }
-    if (options.installMode === 'registry') {
-      delete installEnvironment.NODE_OPTIONS
-      delete installEnvironment.NPM_CONFIG_OFFLINE
-    }
+    const installEnvironment = options.installMode === 'registry'
+      ? createRegistryInstallEnvironment(environment)
+      : { ...environment }
     const installArgs = ['ci', '--cache', options.cache, '--no-audit', '--no-fund', '--update-notifier=false', '--registry', 'https://registry.npmjs.org']
     if (options.installMode === 'offline') installArgs.push('--offline')
     run('install-dependencies', 'npm', installArgs, { cwd: checkout, env: installEnvironment })

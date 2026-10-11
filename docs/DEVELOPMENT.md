@@ -144,6 +144,12 @@ node scripts/fresh-checkout.mjs \
   --install-mode registry --cache /absolute/path/to/new-empty-cache
 ```
 
+Only the registry dependency-install stage inherits the caller's HTTP, HTTPS,
+all-protocol, and bypass proxy routing variables, including their lowercase
+forms. Provider, GitHub, and npm authentication variables stay excluded, and
+the isolated home and Git transport limits remain in effect. Offline installs
+and subsequent validation omit all proxy routing variables.
+
 Inspect `report.json` and the ordered logs in the reported
 `scratch/fresh-checkout-evidence/` directory. The command retains its owned clone
 and logs for inspection and never removes user files. A passing offline cached
