@@ -153,12 +153,21 @@ the recorded timestamp reproduced all four files byte-for-byte. These hashes
 identify review candidates, not publication approval. No other demo or previous
 interpreted dataset is included.
 
-| Exact proposed source path | Exact emitted path | Type | Final SHA-256 / approval |
-| --- | --- | --- | --- |
-| `publication/assets/zod/manifest.json` | `gallery/manifest.json` | `application/json` | `09c0f3d91fea8a91142c0e8226cd0538fee06619586d9340d7b0baddbf46b407` (726 bytes); approval pending |
-| `publication/assets/zod/zod.json` | `gallery/zod.json` | `application/json` | `e37fd8f6826f746d47f1d25d78c47b0c4d21b68c48905ac577d77cffc7038558` (4,320,385 bytes); approval pending |
-| `publication/assets/zod/zod-LICENSE.txt` | `approved-snapshots/zod-LICENSE.txt` | `text/plain` | `3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8` (1,072 bytes); approval pending |
-| `publication/assets/zod/zod-PROVENANCE.json` | `approved-snapshots/zod-PROVENANCE.json` | `application/json` | `756675f6e334ef7d27feca7e9976e7d2d681b08327d644ed8078356d0f902da2` (4,504 bytes); approval pending |
+| Exact proposed source path | Exact emitted path | Type |
+| --- | --- | --- |
+| `publication/assets/zod/manifest.json` | `gallery/manifest.json` | `application/json` |
+| `publication/assets/zod/zod.json` | `gallery/zod.json` | `application/json` |
+| `publication/assets/zod/zod-LICENSE.txt` | `approved-snapshots/zod-LICENSE.txt` | `text/plain` |
+| `publication/assets/zod/zod-PROVENANCE.json` | `approved-snapshots/zod-PROVENANCE.json` | `application/json` |
+
+Exact candidate hashes; owner publication approval remains pending for every row:
+
+| Candidate file | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `manifest.json` | 726 | `09c0f3d91fea8a91142c0e8226cd0538fee06619586d9340d7b0baddbf46b407` |
+| `zod.json` | 4,320,385 | `e37fd8f6826f746d47f1d25d78c47b0c4d21b68c48905ac577d77cffc7038558` |
+| `zod-LICENSE.txt` | 1,072 | `3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8` |
+| `zod-PROVENANCE.json` | 4,504 | `756675f6e334ef7d27feca7e9976e7d2d681b08327d644ed8078356d0f902da2` |
 
 The runtime gallery manifest has `version`, a fixed `generatedAt`, and exactly
 one `subjects` entry with slug `zod`, dataset `zod.json`, upstream URL, exact
