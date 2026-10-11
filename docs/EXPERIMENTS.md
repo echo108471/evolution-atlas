@@ -10,10 +10,11 @@ engine and host workflow remain documented in [History workflow](HISTORY-WORKFLO
 
 The tracked `gallery/catalog.json` is a candidate catalog, not an approved demo
 list. Every selected subject needs a full lowercase 40-character `commit` SHA.
-The existing zod entry has a pin; esbuild and Flask still need deliberate pins
-before they can be selected. Their recorded license strings and descriptions
-are leads for later source review, not verified release permissions. No three
-public demos have been chosen.
+The catalog pins zod, esbuild, and Flask as proposed source candidates. The
+[demo source review](DEMO-REVIEW.md) records their exact revisions, selected
+license evidence, provenance gaps, and proposed contributor treatment. Those
+source pins do not approve generated snapshots or publication. No three public
+demo snapshots have been approved.
 
 The gallery defaults to observed-only analysis of an existing local cache,
 without fetching or model calls. It writes into ignored `scratch/` paths:
