@@ -31,6 +31,19 @@ node scripts/control-atlas.mjs verify --feature gallery
 
 The journey asserts that the gallery index and synthetic card render, opens the subject, and checks that its repository slug appears in the URL. It does not assert the provenance details or subject-switcher path.
 
+For an explicitly requested private production preview, use the skill's
+`verify-preview --directory ABS_PATH --inventory ABS_PATH` command. This
+separate path checks a sole prepared card's counts and revision, opens it,
+verifies the browser dataset response against the inventory hash and full
+repository revision, and checks the overview's rendered counts. It records
+inventoried license-notice and provenance link hrefs and checks their browser
+GET responses against exact hashes when those fields are present. It records
+both gallery and overview screenshots plus source/build fingerprints. A missing
+optional epochs.json is recorded as a scoped 404; other browser or request
+errors fail. It does not approve publication or attest that assets were emitted
+by the publication plugin. Synthetic `verify --feature gallery` stays the
+default; no prepared snapshot is loaded by that command.
+
 ## Gotchas
 
 - Without a valid manifest, the root opens the local single-dataset app rather than the gallery.

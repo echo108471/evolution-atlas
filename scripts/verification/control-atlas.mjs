@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url'
 
 import react from '@vitejs/plugin-react'
 import { FEATURE_REGISTRY, FEATURE_IDS, getFeature } from './features.mjs'
+import { loadPreviewBuild, runPreviewJourney, startPreviewServer } from './preview.mjs'
 import {
   syntheticAtlas,
   syntheticCandidateMap,
@@ -44,6 +45,7 @@ const HARNESS_SOURCE_FILES = [
   'scripts/verification/control-atlas.mjs',
   'scripts/verification/features.mjs',
   'scripts/verification/fixtures.mjs',
+  'scripts/verification/preview.mjs',
   'test/control-atlas.test.mjs',
   'tsconfig.json',
   'tsconfig.app.json',
@@ -304,8 +306,25 @@ export function listFeatures() {
   }
 }
 
+/** Validate output ancestors before any runtime, profile, manifest or screenshot is written. */
+export function prepareControlRoots({ repositoryRoot = REPOSITORY_ROOT } = {}) {
+  const root = resolve(repositoryRoot)
+  if (realpathSync(root) !== root || !lstatSync(root).isDirectory()) throw new Error('Verifier repository root must have real directory ancestors.')
+  const scratch = join(root, 'scratch')
+  const paths = [scratch, join(scratch, 'control-atlas-evidence'), join(scratch, 'control-atlas-runtime')]
+  // Check all existing ancestors before creating any missing directories.
+  for (const path of paths) {
+    try {
+      const stat = lstatSync(path)
+      if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('Verifier scratch, evidence and runtime roots must be real directories.')
+    } catch (error) { if (error.code !== 'ENOENT') throw error }
+  }
+  for (const path of paths) if (!existsSync(path)) mkdirSync(path, { recursive: false })
+  return { scratch, evidenceRoot: paths[1], runtimeRoot: paths[2] }
+}
+
 function createRuntime(runId) {
-  mkdirSync(RUNTIME_ROOT, { recursive: true })
+  prepareControlRoots()
   const runtimeDir = join(RUNTIME_ROOT, runId)
   mkdirSync(runtimeDir, { recursive: false })
   writeJsonFile(join(runtimeDir, OWNER_FILE), {
@@ -392,6 +411,7 @@ function browserHealthProblems(events) {
     failedRequests: events.failedRequests,
     blockedExternalRequests: events.blockedExternalRequests,
     httpErrors: events.httpErrors,
+    ...(events.blockedUnexpectedRequests ? { blockedUnexpectedRequests: events.blockedUnexpectedRequests } : {}),
   }
 }
 
@@ -646,19 +666,25 @@ async function captureFeatureEvidence({ featureDir, page, events, actions, trace
   return result
 }
 
-async function runOneFeature({ feature, baseUrl, browser, runtimeDir, evidenceDir, trace }) {
+async function runOneFeature({ feature, baseUrl, browser, runtimeDir, evidenceDir, trace, journey = runJourney, permittedPaths = null, allowMissingEpochs = false }) {
   const featureDir = join(evidenceDir, 'features', feature.id)
   mkdirSync(featureDir, { recursive: true })
   const actionPath = join(featureDir, 'actions.jsonl')
   const actions = []
   const events = { requests: [], consoleErrors: [], pageErrors: [], cancelledRequests: [], failedRequests: [], blockedExternalRequests: [], httpErrors: [], captureErrors: [] }
+  if (permittedPaths) events.blockedUnexpectedRequests = []
+  if (allowMissingEpochs) events.allowedOptionalEpochs = []
   let context = null
   let page = null
   let traceActive = false
   let failure = null
   let captured = { screenshot: null, viewportScreenshot: null, domText: null, domHtml: null, trace: null }
   try {
-    context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US' })
+    context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US', ...(permittedPaths ? { serviceWorkers: 'block' } : {}) })
+    if (permittedPaths) await context.routeWebSocket('**/*', socket => {
+      events.blockedUnexpectedRequests.push(safeExternalRequest(socket.url()))
+      socket.close()
+    })
     await context.route('**/*', async (route) => {
       const requestUrl = route.request().url()
       let requestOrigin = null
@@ -667,12 +693,20 @@ async function runOneFeature({ feature, baseUrl, browser, runtimeDir, evidenceDi
         events.blockedExternalRequests.push(safeExternalRequest(requestUrl))
         await route.abort()
       } else {
-        await route.continue()
+        const parsed = new URL(requestUrl)
+        if (permittedPaths && (!permittedPaths.has(parsed.pathname) || (parsed.search && parsed.pathname !== '/') || !['GET', 'HEAD'].includes(route.request().method()))) {
+          events.blockedUnexpectedRequests.push(safeExternalRequest(requestUrl))
+          await route.abort()
+        } else await route.continue()
       }
     })
     page = await context.newPage()
     page.on('console', (message) => {
-      if (message.type() === 'error') events.consoleErrors.push(message.text())
+      if (message.type() === 'error') {
+        const optionalEpochError = allowMissingEpochs && message.location().url === `${baseUrl}/epochs.json` && /404/.test(message.text())
+        if (optionalEpochError) events.allowedOptionalEpochs.push({ kind: 'console', path: '/epochs.json', message: message.text() })
+        else events.consoleErrors.push(message.text())
+      }
     })
     page.on('pageerror', (error) => events.pageErrors.push(error.message))
     page.on('requestfailed', (request) => {
@@ -698,17 +732,23 @@ async function runOneFeature({ feature, baseUrl, browser, runtimeDir, evidenceDi
       queryKeys: [...new Set(new URL(request.url()).searchParams.keys())].sort(),
     }))
     page.on('response', (response) => {
-      if (response.status() >= 400) events.httpErrors.push({ url: safeExternalRequest(response.url()), status: response.status() })
+      if (response.status() >= 400) {
+        if (allowMissingEpochs && response.status() === 404 && response.url() === `${baseUrl}/epochs.json` && response.request().method() === 'GET') {
+          events.allowedOptionalEpochs.push({ kind: 'response', path: '/epochs.json', status: 404 })
+        } else events.httpErrors.push({ url: safeExternalRequest(response.url()), status: response.status() })
+      }
     })
     if (trace) {
       await context.tracing.start({ screenshots: true, snapshots: true, sources: true })
       traceActive = true
     }
-    await runJourney({ feature, page, baseUrl, actionPath, actions, runtimeDir, events })
-    if (events.pageErrors.length || events.consoleErrors.length || events.httpErrors.length || events.failedRequests.length || events.blockedExternalRequests.length) {
+    await journey({ feature, page, baseUrl, actionPath, actions, runtimeDir, events, featureDir })
+    if (hasBrowserHealthProblems(events)) {
       throw new Error('Browser emitted a page/console error, failed request, blocked external request, or HTTP error; inspect browser-events.json.')
     }
-    recordStep({ actionPath, actions, name: 'assert-browser-health', assertion: 'No uncaught page errors, console errors, failed or external requests, or HTTP responses >= 400.' })
+    recordStep({ actionPath, actions, name: 'assert-browser-health', assertion: allowMissingEpochs
+      ? 'No browser errors or unexpected requests; only absent optional /epochs.json GET 404 responses are allowed and recorded.'
+      : 'No uncaught page errors, console errors, failed or external requests, or HTTP responses >= 400.', details: allowMissingEpochs ? events.allowedOptionalEpochs : null })
   } catch (error) {
     failure = error instanceof Error ? error : new Error(String(error))
     if (!actions.some((action) => action.result === 'failed')) {
@@ -764,7 +804,7 @@ export async function verifyFeatures({ featureIds, all = false, trace = false } 
   const selectedFeatures = selectedIds.map((id) => getFeature(id))
   const source = sourceManifest({ features: selectedFeatures })
   const runId = createRunId()
-  mkdirSync(EVIDENCE_ROOT, { recursive: true })
+  prepareControlRoots()
   const evidenceDir = join(EVIDENCE_ROOT, runId)
   mkdirSync(evidenceDir, { recursive: false })
   writeJsonFile(join(evidenceDir, EVIDENCE_MARKER), { kind: 'control-atlas-evidence', runId, createdAt: new Date().toISOString() })
@@ -848,6 +888,81 @@ export async function verifyFeatures({ featureIds, all = false, trace = false } 
   const summaryPath = join(evidenceDir, 'report.json')
   writeJsonFile(summaryPath, report)
   report.report = summaryPath
+  return report
+}
+
+/** Explicit private inspection of a prepared production build; this never approves publication. */
+export async function verifyPreview(options) {
+  const preview = loadPreviewBuild(options)
+  const readiness = await doctor()
+  if (!readiness.ok) return { ok: false, command: 'verify-preview', doctor: readiness, publicationApproval: false }
+  const features = [getFeature('gallery'), getFeature('overview')]
+  const source = sourceManifest({ features })
+  prepareControlRoots()
+  const runId = createRunId(), evidenceDir = join(EVIDENCE_ROOT, runId)
+  mkdirSync(evidenceDir, { recursive: false })
+  writeJsonFile(join(evidenceDir, EVIDENCE_MARKER), { kind: 'control-atlas-evidence', runId, createdAt: new Date().toISOString() })
+  writeJsonFile(join(evidenceDir, 'source-manifest.json'), source)
+  writeJsonFile(join(evidenceDir, 'build-manifest.json'), preview.build)
+  const limitations = [
+    'This is a private inspection of explicitly inventoried prepared production bytes; it does not approve publication or attest plugin emission.',
+    'The inventory code revision is caller-declared provenance. Served-byte hashes do not establish which source commit produced the bundle.',
+    'Only the sole gallery card and its repository overview are exercised at 1440 × 1000. This does not establish semantic accuracy, licensing approval, or other routes.',
+    'The browser has a fresh profile and sterile environment; external requests and requests outside the inventory are blocked.',
+  ]
+  const report = { ok: false, command: 'verify-preview', dataMode: 'prepared-private-preview', publicationApproval: false,
+    runId, startedAt: new Date().toISOString(), repositoryRoot: REPOSITORY_ROOT, headSha: source.headSha,
+    sourceFingerprint: source.sourceFingerprint, build: preview.build, expected: preview.expected,
+    directory: preview.directory, inventory: preview.inventory, evidenceDir, testedFeatures: ['gallery', 'overview'],
+    browser: { name: 'Playwright Chromium', isolatedProfile: true, host: '127.0.0.1' }, results: [], limitations,
+  }
+  let runtime, browser, hosted
+  try {
+    runtime = createRuntime(runId)
+    hosted = await startPreviewServer(preview)
+    report.baseUrl = hosted.baseUrl
+    const env = { PATH: process.env.PATH ?? '', TMPDIR: runtime.runtimeDir, TEMP: runtime.runtimeDir, TMP: runtime.runtimeDir, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' }
+    browser = await withBrowserPath(BROWSER_ROOT, async () => (await import('playwright')).chromium.launch({ headless: true, env }))
+    const feature = { ...features[0], title: 'Private production gallery preview', limits: limitations }
+    const result = await runOneFeature({ feature, baseUrl: hosted.baseUrl, browser, runtimeDir: runtime.runtimeDir, evidenceDir,
+      permittedPaths: new Set(['/', ...[...preview.files.keys()].map(path => `/${path}`), ...(preview.allowedMissingEpochs ? ['/epochs.json'] : [])]),
+      allowMissingEpochs: preview.allowedMissingEpochs,
+      journey: args => runPreviewJourney({ ...args, expected: preview.expected,
+        record: entry => recordStep({ actionPath: args.actionPath, actions: args.actions, ...entry }),
+        navigate: (url, label) => navigateAndRecord(args.page, args.actionPath, args.actions, url, label),
+        visible: (locator, label) => waitForVisible(args.page, args.actionPath, args.actions, locator, label),
+        click: (locator, label) => clickAndRecord(args.page, args.actionPath, args.actions, locator, label),
+      }),
+    })
+    result.artifacts.galleryViewport = join(evidenceDir, 'features', 'gallery', 'gallery-viewport.png')
+    result.artifacts.galleryScreenshot = join(evidenceDir, 'features', 'gallery', 'gallery-rendered.png')
+    report.results.push(result)
+  } catch (error) {
+    report.setupError = { name: error.name, message: error.message }
+  } finally {
+    if (browser) await browser.close().catch(error => { report.browserTeardownError = String(error) })
+    if (hosted) {
+      await new Promise(resolve => hosted.server.close(error => { if (error) report.serverTeardownError = String(error); resolve() }))
+      writeJsonFile(join(evidenceDir, 'server-requests.json'), hosted.requests)
+    }
+    if (runtime) {
+      try { report.runtimeTeardown = cleanupRun({ runId, apply: true, allowCurrentProcess: true }) }
+      catch (error) { report.runtimeTeardown = { ok: false, status: 'failed', error: String(error) } }
+    }
+  }
+  try {
+    const finalSource = sourceManifest({ features })
+    report.finalSourceFingerprint = finalSource.sourceFingerprint
+    report.sourceChanged = finalSource.sourceFingerprint !== source.sourceFingerprint
+    const finalBuild = loadPreviewBuild(options)
+    report.buildChanged = finalBuild.build.fingerprint !== preview.build.fingerprint || finalBuild.build.inventorySha256 !== preview.build.inventorySha256
+  } catch (error) { report.recheckError = String(error) }
+  report.finishedAt = new Date().toISOString()
+  report.ok = !report.setupError && !report.browserTeardownError && !report.serverTeardownError && !report.sourceChanged
+    && !report.buildChanged && !report.recheckError && report.results.length === 1 && report.results[0].status === 'passed' && report.runtimeTeardown?.status === 'cleaned'
+  const reportPath = join(evidenceDir, 'report.json')
+  writeJsonFile(reportPath, report)
+  report.report = reportPath
   return report
 }
 

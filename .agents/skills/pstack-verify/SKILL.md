@@ -16,7 +16,7 @@ artifacts before reporting a feature as verified.
 
 ## Launch
 
-The driver starts an isolated Vite server on an ephemeral loopback port and a
+For the default `verify` command, the driver starts an isolated Vite server on an ephemeral loopback port and a
 fresh headless Chromium profile for each run. It serves only synthetic fixture
 data, closes the browser and server after the journey, and removes the owned
 runtime directory. It does not need or drive a separately running app or the
@@ -73,6 +73,56 @@ between the two captures. Confirm the screenshots show the
 asserted state, the action log records the user path, the browser events contain
 no unexplained failures, and the source fingerprint matches the source under
 review. Evidence is retained when the owned runtime is cleaned.
+
+## Private production preview
+
+Use only when explicitly asked to inspect a prepared private production build.
+Default synthetic journeys remain unchanged. Run doctor first, then supply two
+absolute ignored paths from the same Git checkout:
+
+~~~sh
+node scripts/control-atlas.mjs verify-preview --directory /absolute/ignored/preview/dist --inventory /absolute/ignored/preview/inventory.json --json
+~~~
+
+The inventory lives outside dist and has exactly `version: 1`, a full
+caller-declared `sourceRevision` for the code used to build the app, and `files` entries with
+`path`, `sha256`, and `bytes`. It enumerates every build file. Sources must be
+regular files without symlinks; path, size, hash, and actual-tree mismatches fail
+before browser startup. Allowed namespaces are index.html, assets/, gallery/,
+approved-snapshots/, and optional epochs.json. The sole gallery subject and
+dataset must agree on a full repository revision and observed counts.
+
+The driver serves immutable validated bytes on its own ephemeral loopback
+server with no filesystem fallback. A fresh browser opens the sole card and
+checks the overview, dataset response hash, full revision, and visible counts.
+When the subject supplies license-notice or provenance links, their hrefs must
+name inventoried same-origin files; browser GETs must return 200 and exact hashes.
+It blocks external requests, WebSockets, service workers, and requests outside
+the inventory. Only a missing optional `/epochs.json` GET 404 is tolerated,
+when epochs.json is absent from the inventory; response and associated console
+messages are explicitly recorded. Other errors fail the journey.
+
+Inspect report.json, source-manifest.json, build-manifest.json,
+server-requests.json, the gallery and overview screenshots, action logs, and
+browser events under the returned ignored evidence directory. Source and build
+fingerprints are checked again at completion. The inventory revision is recorded
+as declared provenance; this command does not prove source-to-bundle binding.
+The server, browser, and owned
+runtime close while evidence remains. The report states
+`publicationApproval: false`: inspection does not authorize snapshots, attest publication-plugin
+emission, write a publication manifest, or establish semantic or licensing
+acceptance. It never opens raw runs or source caches and never runs a model.
+
+The optional offline synthetic exercise builds a private fixture preview and
+invokes the same canonical subcommand:
+
+~~~sh
+node scripts/verification/test-preview.mjs
+~~~
+
+It requires the bundled browser to be installed and retains its synthetic
+prepared build under ignored scratch. This exercise is separate from the
+default unit-test gate and from verification of a real prepared snapshot.
 
 ## Cleanup
 

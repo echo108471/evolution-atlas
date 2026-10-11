@@ -4,8 +4,9 @@ import {
   doctor,
   listFeatures,
   verifyFeatures,
+  verifyPreview,
 } from './verification/control-atlas.mjs'
-import { resolve } from 'node:path'
+import { isAbsolute, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const USAGE = `Evolution Atlas isolated UI verifier
@@ -15,10 +16,13 @@ Usage:
   node scripts/control-atlas.mjs list [--json]
   node scripts/control-atlas.mjs verify --feature FEATURE [--trace] [--json]
   node scripts/control-atlas.mjs verify --all [--trace] [--json]
+  node scripts/control-atlas.mjs verify-preview --directory ABS_PATH --inventory ABS_PATH [--json]
   node scripts/control-atlas.mjs cleanup --run-id ID [--dry-run | --apply] [--json]
 
-JSON is the default output format. Verification uses synthetic fixtures and a
-short-lived isolated Vite server and Chromium profile. Browser screenshots,
+JSON is the default output format. Default verification uses synthetic fixtures;
+verify-preview explicitly inspects an inventoried ignored private production build
+on an owned loopback static server. Neither command approves publication.
+Both use fresh Chromium profiles. Browser screenshots,
 DOM snapshots, action logs, browser events, and a source manifest remain under
 scratch/control-atlas-evidence/ after the runtime server and browser are closed.
 `
@@ -65,6 +69,19 @@ function parseOptions(args) {
 export function parseControlCommand(args) {
   if (!Array.isArray(args) || args.length === 0) throw usageError('Choose doctor, list, verify, or cleanup.')
   const [command, ...rest] = args
+  if (command === 'verify-preview') {
+    const options = { directory: null, inventory: null, json: false }
+    for (let index = 0; index < rest.length; index += 1) {
+      const option = rest[index]
+      if (option === '--json') { options.json = true; continue }
+      if (!['--directory', '--inventory'].includes(option)) throw usageError('verify-preview accepts only --directory, --inventory, and --json.')
+      const key = option.slice(2), value = rest[++index]
+      if (!value || !isAbsolute(value) || options[key] !== null) throw usageError(`${option} requires one absolute local path.`)
+      options[key] = value
+    }
+    if (!options.directory || !options.inventory) throw usageError('verify-preview requires --directory and --inventory.')
+    return { command, options }
+  }
   if (command === '--help' || command === '-h' || command === 'help') return { command: 'help', options: {} }
   if (!['doctor', 'list', 'verify', 'cleanup'].includes(command)) throw usageError(`Unknown command: ${command}`)
   const options = parseOptions(rest)
@@ -94,6 +111,7 @@ export async function runControlCommand(args) {
   if (parsed.command === 'help') return { ok: true, command: 'help', usage: USAGE }
   if (parsed.command === 'doctor') return doctor()
   if (parsed.command === 'list') return listFeatures()
+  if (parsed.command === 'verify-preview') return verifyPreview(parsed.options)
   if (parsed.command === 'verify') {
     return verifyFeatures({ featureIds: parsed.options.featureIds, all: parsed.options.all, trace: parsed.options.trace })
   }
