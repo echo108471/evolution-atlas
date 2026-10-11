@@ -97,3 +97,11 @@ inspect the actual built asset inventory. Preserve the Store / Decision session 
 History contracts and versioned replay throughout this work. No real snapshot
 or repository visibility change is authorized by this private development
 workflow; each requires the user's later explicit approval.
+
+The current [release audit](RELEASE-AUDIT.md) records the reviewed tree/history
+bounds, retained research narratives, and history-disposition choices. The
+[demo source review](DEMO-REVIEW.md) proposes three pinned sources while keeping
+actual snapshots and publication approval pending. The
+[artifact preservation proposal](ARTIFACT-PRESERVATION.md) verifies the existing
+cloud-local copies and defines the destination and restore checks needed for a
+durable private backup.

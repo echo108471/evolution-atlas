@@ -154,7 +154,7 @@ approved demo; do not compare models or contributor groups using this selection.
 1. **Confirm source selection and pins.** Accept or replace these three source
    candidates. This is distinct from approval to publish a dataset. Catalog
    rationale now records questions rather than unsupported corpus conclusions.
-2. **Acquire and generate privately in a separately authorized run.** Use
+2. **Acquire and generate privately in a separate explicit run.** Use
    [Explicit experiments](EXPERIMENTS.md): an explicit `--fetch` acquires only
    selected pinned sources into an ignored cache. Use a fresh ignored output
    directory and observed-only mode; no paid API is needed. Verify each cache's

@@ -184,6 +184,10 @@ Keep new real experiments in ignored `scratch/`. Production builds include no
 local `public/` data by default; publication uses an explicit path/hash manifest.
 See [private development and recovery](docs/PRIVATE-DEVELOPMENT.md) for the
 preserved outputs, free offline gate, and later snapshot/release approvals.
+The [release audit](docs/RELEASE-AUDIT.md),
+[three demo source review](docs/DEMO-REVIEW.md), and
+[durable preservation proposal](docs/ARTIFACT-PRESERVATION.md) record the remaining
+release decisions and their completion criteria.
 
 Epoch detection is a third optional stage, independent of interpretation. It divides the
 history into periods during which the work was about roughly the same thing, so later
