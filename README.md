@@ -84,7 +84,20 @@ slice:
 
 ## Start here
 
-Requires Node.js 22.12 or newer and Git.
+Use Node.js **24.19.0**, npm **11.9.0**, and Git for the pinned development
+baseline. The [development guide](docs/DEVELOPMENT.md) covers fresh installation,
+deterministic fictional fixtures, offline validation, and an exact-commit clean
+checkout check. Routine development needs no private dataset or provider key:
+
+```bash
+npm ci --cache scratch/npm-cache --no-audit --no-fund
+node scripts/synthetic-fixtures.mjs generate
+node scripts/synthetic-fixtures.mjs validate
+node scripts/check-offline.mjs
+```
+
+Dependency installation may use the package registry. The fixture generator and
+validation gate use local synthetic data and reject external requests.
 
 For the current **capability-discovery workflow**, use
 [`scripts/repository-engine.mjs`](scripts/repository-engine.mjs) and its

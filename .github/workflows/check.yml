@@ -25,6 +25,8 @@ jobs:
       - name: Pin npm
         run: npm install --global npm@11.9.0 --no-audit --no-fund
       - name: Install locked dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --cache "$HOME/.npm" --no-audit --no-fund
       - name: Run credential-free offline gate
         run: node scripts/check-offline.mjs
+      - name: Validate exact clean checkout from the prepared cache
+        run: node scripts/fresh-checkout.mjs --cache "$HOME/.npm"

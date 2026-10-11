@@ -41,7 +41,10 @@
     "check:offline": "node scripts/check-offline.mjs",
     "preserve:artifacts": "node scripts/preserve-private-artifacts.mjs",
     "render:reports": "node scripts/render-experiment-summary.mjs",
-    "check:artifacts": "node scripts/check-artifacts.mjs"
+    "check:artifacts": "node scripts/check-artifacts.mjs",
+    "fixtures:generate": "node scripts/synthetic-fixtures.mjs generate",
+    "fixtures:validate": "node scripts/synthetic-fixtures.mjs validate",
+    "check:fresh": "node scripts/fresh-checkout.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
