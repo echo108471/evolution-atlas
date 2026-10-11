@@ -153,13 +153,19 @@ export async function runPreviewJourney({ page, baseUrl, expected, commits, feat
   })
   for (const metadata of expected.metadata) {
     await step('assert-preview-metadata', `${metadata.label} points to the inventoried same-origin file and returns exact bytes.`, async () => {
-      assert.equal(await card.getByRole('link', { name: metadata.label, exact: true }).getAttribute('href'), metadata.path)
+      assert.equal(await card.getByRole('link', { name: metadata.label, exact: true }).getAttribute('href', { timeout: 8_000 }), metadata.path)
       const [response, result] = await Promise.all([
         page.waitForResponse(response => response.url() === `${baseUrl}${metadata.path}`, { timeout: 8_000 }),
-        page.evaluate(async path => ({ status: (await fetch(path)).status }), metadata.path),
+        page.evaluate(async path => {
+          const response = await fetch(path, { signal: AbortSignal.timeout(8_000) })
+          const bytes = await response.arrayBuffer()
+          const digest = await crypto.subtle.digest('SHA-256', bytes)
+          return { status: response.status, sha256: [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('') }
+        }, metadata.path),
       ])
       assert.equal(result.status, 200)
-      assert.equal(hash(await response.body()), metadata.sha256)
+      assert.equal(response.status(), 200)
+      assert.equal(result.sha256, metadata.sha256)
       return metadata
     })
   }

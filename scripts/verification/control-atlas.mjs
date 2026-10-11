@@ -681,6 +681,10 @@ async function runOneFeature({ feature, baseUrl, browser, runtimeDir, evidenceDi
   let captured = { screenshot: null, viewportScreenshot: null, domText: null, domHtml: null, trace: null }
   try {
     context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US', ...(permittedPaths ? { serviceWorkers: 'block' } : {}) })
+    if (permittedPaths) {
+      context.setDefaultTimeout(8_000)
+      context.setDefaultNavigationTimeout(15_000)
+    }
     if (permittedPaths) await context.routeWebSocket('**/*', socket => {
       events.blockedUnexpectedRequests.push(safeExternalRequest(socket.url()))
       socket.close()
