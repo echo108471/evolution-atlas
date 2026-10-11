@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * End-to-end Course Recommender Pilot Runner.
- * Executes Baseline Discovery -> Human Review Note -> Expansion with History Lineage -> Review Continuity.
+ * Synthetic Course Recommender contract exercise with hand-authored responses.
+ * It does not perform model inference or establish owner review.
+ * Executes baseline discovery -> sample review note -> history expansion -> review continuity.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
@@ -38,18 +39,13 @@ function runNode(script, args) {
   return out;
 }
 
-function cleanDir(dir) {
-  if (existsSync(dir)) {
-    console.log(`Cleaning existing directory: ${dir}`);
-    rmSync(dir, { recursive: true, force: true });
-  }
+for (const dir of [BASELINE_DIR, EXPANSION_DIR]) {
+  if (existsSync(dir)) throw new Error(`Existing run directory must be preserved: ${dir}`);
 }
 
 console.log('================================================================');
-console.log('COURSE RECOMMENDER PILOT: BASELINE DISCOVERY (e3d4704a)');
+console.log('SYNTHETIC COURSE RECOMMENDER CONTRACT EXERCISE: BASELINE (e3d4704a)');
 console.log('================================================================');
-
-cleanDir(BASELINE_DIR);
 
 const baselineConfig = {
   mode: 'discovery',
@@ -348,8 +344,8 @@ runNode('scripts/repository-engine.mjs', ['checkpoint', BASELINE_DIR, 'R']);
 runNode('scripts/repository-engine.mjs', ['publish', BASELINE_DIR]);
 console.log('Baseline published successfully!');
 
-// Human review note on baseline
-console.log('\n--- Attaching Baseline Review Note ---');
+// Synthetic owner-feedback note exercises the review overlay; no owner reviewed this run.
+console.log('\n--- Attaching Sample Baseline Review Note ---');
 const baseOutput = JSON.parse(readFileSync(resolve(BASELINE_DIR, 'output.json'), 'utf8'));
 const graphSha256 = createHash('sha256').update(JSON.stringify(baseOutput.graph)).digest('hex');
 const baselineNotes = {
@@ -361,7 +357,7 @@ const baselineNotes = {
       expectedText: 'Main user interface page providing interactive course search, category filters, and course detail panels',
       status: 'qualified',
       basis: 'owner-feedback',
-      message: 'Review authoring was not yet present at this baseline commit; users could only browse and search',
+      message: 'Synthetic example, not actual owner feedback: review authoring was not yet present at this baseline commit; users could only browse and search',
       evidenceIds: [receipt3.id]
     }
   ]
@@ -372,10 +368,8 @@ runNode('scripts/review-repository-map.mjs', [BASELINE_DIR, baselineNotesFile]);
 console.log('Baseline review companion generated (reviewed-output.json)!');
 
 console.log('\n================================================================');
-console.log('COURSE RECOMMENDER PILOT: EXPANSION RUN (e306b920, PR #153)');
+console.log('SYNTHETIC COURSE RECOMMENDER CONTRACT EXERCISE: EXPANSION (e306b920, PR #153)');
 console.log('================================================================');
-
-cleanDir(EXPANSION_DIR);
 
 const rawReadings = JSON.parse(readFileSync(READINGS_FILE, 'utf8'));
 const rTarget = rawReadings.readings.find(r => r.commitSha === EXPANSION_SHA);
@@ -963,7 +957,7 @@ console.log('================================================================');
 runNode('scripts/repository-review-history.mjs', [resolve(BASELINE_DIR, 'reviewed-output.json'), EXPANSION_DIR]);
 
 console.log('\n================================================================');
-console.log('PILOT EXECUTION COMPLETE!');
+console.log('SYNTHETIC CONTRACT EXERCISE COMPLETE!');
 console.log('================================================================');
 console.log('Artifacts generated:');
 console.log(`- Baseline: ${BASELINE_DIR}/output.json`);

@@ -15,7 +15,7 @@ import { dirname, resolve } from 'node:path'
 
 import { triage } from './lib/triage.mjs'
 import { buildContextIndex, situate, renderContext } from './lib/commit-context.mjs'
-import { readCommitDiff, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from './lib/commit-diff.mjs'
+import { readCommitDiff, partitionCommitDiffPaths, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from './lib/commit-diff.mjs'
 import {
   API_KEY_ENV,
   DEFAULT_TIER1_MODEL,
@@ -36,7 +36,7 @@ const TIER2_MAX_LINES = 1200
  * different evidence: the merge-diff fix changed the input for 68% of the pilot's units,
  * and without this every one of them would have been reused unchanged.
  */
-const EVIDENCE_VERSION = 2
+const EVIDENCE_VERSION = 3
 
 function usage() {
   return `Usage: npm run analyze-commits -- [options]
@@ -252,7 +252,9 @@ async function main() {
     const hit = cache.get(key)
     if (hit) { cached += 1; return hit }
 
-    const diff = readCommitDiff(repositoryPath, episode.commitSha, { maxLines, maxBytes })
+    const { paths, withheldCount } = partitionCommitDiffPaths(episode.changes)
+    const diff = readCommitDiff(repositoryPath, episode.commitSha, { maxLines, maxBytes, paths })
+    diff.withheldCount = withheldCount
     const contextText = renderContext(situate(dataset, contextIndex, index))
     const body = tier === 1
       ? buildTier1Request({ repositoryName: dataset.repository.name, contextText, subject: episode.subject, diff, model })
@@ -263,7 +265,14 @@ async function main() {
       { onNotice: (notice) => report(`  ${episode.shortSha}: ${notice}`) },
     )
     addUsage(totals, usage)
-    const enriched = { ...reading, diffLines: diff.totalLines, diffTruncated: diff.truncated, model }
+    const enriched = {
+      ...reading,
+      diffLines: diff.totalLines,
+      diffTruncated: diff.truncated,
+      diffWithheldFiles: withheldCount,
+      diffPartial: diff.truncated || withheldCount > 0,
+      model,
+    }
     remember(key, enriched)
     return enriched
   }

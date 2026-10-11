@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { writeImmutable } from '../scripts/run-behavior-ownership.mjs'
 import { claimsRequest, claimsDiagnostics, parserObservations, qualifyClaimIds } from '../scripts/lib/real-boundary-claims.mjs'
 import { runRealClaims } from '../scripts/compare-real-boundary-claims.mjs'
@@ -33,7 +33,8 @@ test('parser extraction retains inspected logic and records explicit projection;
   assert.throws(()=>parserObservations({text:'missing'}))
 })
 function temp(t) {
-  const dir=mkdtempSync(resolve('public/graph-reviews/real-claims-test-'));writeImmutable(`${dir}/baseline.json`,{nodes:[]})
+  mkdirSync('scratch', { recursive: true })
+  const dir=mkdtempSync(join(resolve('scratch'), 'evolution-atlas-real-claims-test-'));writeImmutable(`${dir}/baseline.json`,{nodes:[]})
   t.after(()=>{try{rmSync(dir,{recursive:true,force:true})}catch(e){if(!['EPERM','EACCES'].includes(e.code))throw e;t.diagnostic('Owned ignored fixture retained due cleanup permission')}})
   return {dir,o:{in:`${dir}/baseline.json`,out:`${dir}/live`}}
 }

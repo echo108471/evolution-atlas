@@ -1,12 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { runContrasts } from '../scripts/compare-behavior-contrasts.mjs'
 import { writeImmutable } from '../scripts/run-behavior-ownership.mjs'
 import { renderContrasts } from '../scripts/render-behavior-contrasts.mjs'
 function setup(t) {
-  const dir=mkdtempSync(resolve('public/graph-reviews/contrast-test-'))
+  mkdirSync('scratch', { recursive: true })
+  const dir=mkdtempSync(join(resolve('scratch'), 'evolution-atlas-contrast-test-'))
   t.after(()=>{try{rmSync(dir,{recursive:true,force:true})}catch(e){if(!['EPERM','EACCES'].includes(e.code))throw e;t.diagnostic(`Cleanup restricted; retained ignored synthetic test directory ${dir}`)}})
   const o={in:`${dir}/baseline.json`,prepared:`${dir}/prepared`,prior:`${dir}/prior`,previous:`${dir}/previous`,out:`${dir}/run`}
   writeImmutable(o.in,{synthetic:true}); writeImmutable(`${o.prepared}/packet.json`,{evidence:['S71375ea117d2451c','S7f89ea5b400deafb','S0235cc4de9fc2e84'].map(id=>({id,kind:'source',text:'synthetic'}))})

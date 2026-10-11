@@ -105,6 +105,7 @@ const text = (value, limit) => {
 
 /** The user-message body shared by both tiers. */
 export function renderCommitPrompt({ repositoryName, contextText, subject, diff }) {
+  const withheldCount = Number.isInteger(diff.withheldCount) ? diff.withheldCount : 0
   const parts = [
     `Repository: ${repositoryName}`,
     '',
@@ -114,10 +115,15 @@ export function renderCommitPrompt({ repositoryName, contextText, subject, diff 
     '',
   ]
 
-  if (diff.totalLines === 0) {
+  if (diff.totalLines === 0 && withheldCount > 0) {
+    parts.push(`No readable file changes are available. Content for ${withheldCount} restricted environment file(s) was withheld; the commit's effects are unknown from the supplied diff.`)
+  } else if (diff.totalLines === 0) {
     parts.push('This commit records no file changes.')
   } else if (diff.truncated) {
     parts.push(`Diff (partial - ${diff.included.length} of ${diff.files.length} files shown in full):`, '', diff.text)
+    if (withheldCount > 0) parts.push(`Content for ${withheldCount} restricted environment file(s) was withheld; treat this diff as partial.`)
+  } else if (withheldCount > 0) {
+    parts.push(`Diff (partial - ${diff.files.length} readable file(s) shown; ${withheldCount} restricted environment file(s) withheld):`, '', diff.text)
   } else {
     parts.push(`Diff (complete, ${diff.totalLines} changed lines):`, '', diff.text)
   }

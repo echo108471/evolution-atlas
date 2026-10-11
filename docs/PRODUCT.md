@@ -210,7 +210,7 @@ associations, and fourteen have fewer than fifteen commits.
 5. Done. The viewer reads the gallery manifest, resolves a subject from the
    `repo` query parameter, and falls back to the single local `/atlas.json`
    when no manifest is published.
-6. Add the gallery index page.
+6. Done. The gallery index page renders the available subjects before selection.
 7. Widen to eight or ten repositories and publish.
 8. Rewrite `README.md` for a maintainer analyzing their own repository
    rather than a reader learning about this one.

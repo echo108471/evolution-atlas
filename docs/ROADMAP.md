@@ -3,9 +3,14 @@
 The roadmap is organized around reversible learning milestones rather than a
 promise to productize Evolution Atlas.
 
+Milestones 0–4 below preserve the original pilot plan and its open research
+questions. For current execution, use [Immediate next steps](#immediate-next-steps)
+and the [history acceptance boundary](HISTORY-WORKFLOW.md#acceptance-boundary).
+
 ## Milestone 0 — observed-history vertical slice
 
-Status: in progress.
+Historical status: the initial observed slice was implemented; current work uses
+the consolidated repository engine.
 
 - Define the versioned evidence model.
 - Extract commits, Git author associations, changed paths, renames, and
@@ -139,27 +144,32 @@ stage actually produces. Three results change what the roadmap should prioritize
 
 ## Immediate next steps
 
-**Current priority: decision-scoped integration + history plane, then deliver.** Historical
-evolution is **in** the consolidation milestone (not snapshot-only). More VS Code coverage
-waves wait until `integrate` is restructured; raising the 1.5MB packet ceiling is not the
-scaling strategy. The repository-neutral entry point is `scripts/repository-engine.mjs`; its
+**Current priority: validate the version 3 history workflow, then deliver.** Historical
+evolution is **in** the consolidation milestone (not snapshot-only). Decision-scoped
+`integrate` and the history-plane mechanics are implemented; more VS Code coverage waves
+wait for real-revision validation. Raising the 1.5MB packet ceiling is not the scaling
+strategy. The repository-neutral entry point is `scripts/repository-engine.mjs`; its
 contract and operating sequence are in
 [the architecture](ARCHITECTURE.md#consolidated-repository-workflow).
 
 1. Landed decision-scoped `integrate` packaging (catalog + brokered receipt fetch + explicit
-   omissions) while keeping the complete candidate map available at publish. Next: finish remaining
-   history-plane gaps and host hardening before another coverage expansion. The completed second larger
-   wave delivered 113 nodes / 97 relationships across excerpts from 118 files; earlier runs
+   omissions) while keeping the complete candidate map available at publish. Next: validate
+   cross-revision history and host behavior on real runs before another coverage
+   expansion. The completed second larger wave delivered 113 nodes / 97
+   relationships across excerpts from 118 files; earlier runs
    still replay exactly under their pinned versions. Preserve owner review as broad usefulness
    feedback, not discovery labels or a fixed taxonomy.
-2. History plane partially landed: broker ops for commit meta, bounded diffs, and path history
-   (ancestors of the pinned revision). Still open: prior-map lookup across engine outputs and
-   brokered cached per-commit readings. Snapshot maps remain useful intermediates, not the success bar.
+2. History plane includes broker ops for commit meta, bounded diffs, and path history
+   (ancestors of the pinned revision). Version 3 also supports configured prior-map lookup
+   across engine outputs and brokered cached per-commit readings. Verify history-backed
+   claims across descendant revisions with explicit omissions; snapshot maps remain useful
+   intermediates, not the success bar.
 3. Address failures that prevent reliable operation or materially reduce map usefulness.
    Keep claim-local review qualifications separate from candidate-map availability.
-4. Consolidate generic review continuity and the host execution adapter, retaining the now
-   versioned runtime/replay contract; expose results in the app. Coordinate launch recording
-   before broker use, and keep host status checks from exposing prior outputs to blind workers.
+4. Maintain generic review continuity and host dispatch under the versioned runtime/replay
+   contract, and exercise their combined behavior in real-revision runs. The app exposes
+   candidate maps and reviewed companions. Reserve before spawning, bind the returned host
+   handle before broker use, and keep worker status free of other workers' outputs.
 
 ### Earlier research backlog — not the current execution plan
 

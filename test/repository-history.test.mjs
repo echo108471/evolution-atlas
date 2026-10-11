@@ -81,6 +81,47 @@ test('current history diffs ignore replacement refs and caller Git environment',
   }
 })
 
+test('pathless history diff withholds restricted paths before rendering a patch', t => {
+  const f = multiCommitFixture(t)
+  writeFileSync(f.repo + '/.env', 'SYNTHETIC_PRIVATE_ENV_SENTINEL=do-not-read\n')
+  writeFileSync(f.repo + '/main.go', 'package main\nfunc main() { run(); more() }\n')
+  f.git(['add', '--all'])
+  f.git(['commit', '-qm', 'update source and environment'])
+  const current = f.git(['rev-parse', 'HEAD'])
+  const history = historyReader(f.repo, current)
+  const diff = history.diff(current)
+  assert.equal(diff.path, null)
+  assert.equal(diff.withheldPathCount, 2)
+  assert.equal(diff.partial, true)
+  assert.deepEqual(diff.files, [])
+  assert.equal(diff.text, '')
+  assert.doesNotMatch(diff.text, /SYNTHETIC_PRIVATE_ENV_SENTINEL|\.env/)
+  assert.throws(() => history.diff(current, '.env'), /not eligible/)
+  const explicit = history.diff(current, 'main.go')
+  assert.equal(explicit.partial, true)
+  assert.deepEqual(explicit.files, [])
+  assert.equal(explicit.text, '')
+  history.verify({ ...diff, id: 'pathless-safe-diff' })
+})
+
+test('history diff withholds a safe-looking rename destination of a restricted file', t => {
+  const f = multiCommitFixture(t)
+  writeFileSync(f.repo + '/.env', 'SYNTHETIC_PRIVATE_ENV_SENTINEL=do-not-read\n')
+  f.git(['add', '--all'])
+  f.git(['commit', '-qm', 'add synthetic environment file'])
+  f.git(['mv', '.env', 'config.txt'])
+  f.git(['commit', '-qm', 'rename environment file'])
+  const current = f.git(['rev-parse', 'HEAD'])
+  const history = historyReader(f.repo, current)
+  for (const requestedPath of [undefined, 'config.txt']) {
+    const diff = history.diff(current, requestedPath)
+    assert.equal(diff.partial, true)
+    assert.equal(diff.withheldPathCount, 2)
+    assert.deepEqual(diff.files, [])
+    assert.equal(diff.text, '')
+  }
+})
+
 test('v2 broker history ops persist verifiable receipts and stay within ancestor scope', t => {
   const f = multiCommitFixture(t)
   prepareEngine(f.out, f.config)

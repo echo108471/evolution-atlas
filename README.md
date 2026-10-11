@@ -6,8 +6,9 @@ meaningful changes, connects them to the contributors and code areas involved,
 and visualizes how those relationships evolved from initial implementation
 through expansion, hardening, migration, or removal.
 
-The project is an experimental, personal exploration. Its first subject is
-`course-recommender`.
+The project is an experimental, personal exploration. Its first subject was
+`course-recommender`; current work centers on evidence-linked capability maps
+across repository revisions.
 
 ## Purpose
 
@@ -42,9 +43,9 @@ Evolution Atlas should not:
 - inherit AGC's implementation or data model by default merely because the two
   projects share an evidence-bounded approach to Git history.
 
-## First reversible experiment
+## Initial reversible experiment
 
-The first experiment will use `course-recommender` to test a narrow vertical
+The first experiment used `course-recommender` to test a narrow vertical
 slice:
 
 1. Extract a small, deterministic history dataset from Git.
@@ -60,14 +61,15 @@ slice:
 - Evolution Atlas is a separate project and repository from AGC.
 - Accuracy, traceability, and an engaging visual experience are all product
   requirements.
-- The initial scope is one repository: `course-recommender`.
+- The initial calibration used `course-recommender`; later experiments tested
+  other repositories and the consolidated engine.
 - The first implementation is a local Node.js analyzer plus a static
   React/TypeScript application built with Vite. D3 supplies temporal scales
   while React owns the chronology, comparison matrix, and evidence inspector.
 - Versioned JSON is the initial boundary between analysis and visualization.
 - No database, hosted service, or model-generated inference is required for the
   first pilot.
-- No license has been selected.
+- The project is licensed under Apache-2.0.
 
 ## Open questions
 
@@ -96,8 +98,22 @@ the engine does not call a model API. Follow the
 review continuity, and the app's **Candidate map** view. Earlier experiment
 runtimes remain frozen for replay.
 
+For a fast current-engine cycle, run the focused mechanics checks, inspect an
+existing prepared version 3 run without changing it, and use the complete gate
+before finishing. The [verification guide](docs/VERIFICATION.md) explains what
+each check establishes.
+
 ```bash
 npm install
+npm run test:engine
+npm run experiment:status -- /path/to/ignored/run
+npm run check
+```
+
+The original atlas pipeline remains available for its historical experiments
+and the standalone viewer:
+
+```bash
 npm run analyze -- --repo . --out public/atlas.json
 npm run dev
 ```
@@ -169,17 +185,29 @@ The viewer picks up `public/epochs.json` if it is present and adds a Periods tab
 `public/atlas.json`, it is gitignored and excluded from gallery builds, because it quotes
 commit subjects and dates.
 
-Useful checks:
+General checks:
 
 ```bash
 npm test
-npm run build
+npm run check
 ```
+
+## How we work
+
+This repository uses a local adaptation of [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack)
+for understanding changes, designing boundaries, implementing, debugging,
+verifying, and reviewing. The [engineering guide](docs/ENGINEERING.md) describes
+the workflow; the [pstack-atlas skill](.agents/skills/pstack-atlas/SKILL.md)
+routes broad tasks to focused skills in `.agents/skills/`. In Codex, ask for
+`$pstack-debug` to investigate a defect or `$pstack-review` to review a diff.
+The project evidence and validation rules remain in [AGENTS.md](AGENTS.md).
 
 ## Project documents
 
 - [Experiment summary and lessons](docs/EXPERIMENT-SUMMARY.md) — readable synthesis, corrected conclusions, and unresolved questions
-
+- [Engineering workflow](docs/ENGINEERING.md)
+- [Verification guide](docs/VERIFICATION.md)
+- [Capability history workflow](docs/HISTORY-WORKFLOW.md)
 - [Concept](docs/CONCEPT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Evidence model](docs/EVIDENCE-MODEL.md)

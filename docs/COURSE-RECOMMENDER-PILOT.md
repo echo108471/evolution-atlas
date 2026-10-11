@@ -1,5 +1,10 @@
 # Course Recommender pilot
 
+This records the initial pilot plan. The current engine procedure is in the
+[history workflow](HISTORY-WORKFLOW.md), and the current checks are in the
+[verification guide](VERIFICATION.md). This plan is not an access authorization
+for another project directory.
+
 ## Purpose
 
 Use `course-recommender` to test whether Evolution Atlas can create a coherent,

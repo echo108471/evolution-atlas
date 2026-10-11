@@ -32,6 +32,8 @@ function assertReading(value, commitSha, tier) {
   if (typeof value.model === 'string') clean.model = value.model.slice(0, 200)
   if (Number.isSafeInteger(value.diffLines) && value.diffLines >= 0) clean.diffLines = value.diffLines
   if (typeof value.diffTruncated === 'boolean') clean.diffTruncated = value.diffTruncated
+  if (Number.isSafeInteger(value.diffWithheldFiles) && value.diffWithheldFiles >= 0) clean.diffWithheldFiles = value.diffWithheldFiles
+  if (typeof value.diffPartial === 'boolean') clean.diffPartial = value.diffPartial
   if (tier === 1) {
     if (typeof value.needsDepth === 'boolean') clean.needsDepth = value.needsDepth
     if (['partial', 'consequential', 'unclear', 'none'].includes(value.depthCause)) clean.depthCause = value.depthCause

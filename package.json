@@ -28,10 +28,12 @@
     "interpret": "node scripts/interpret.mjs",
     "dev": "vite",
     "test": "GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 node --import tsx --test",
+    "test:engine": "npm test -- test/experiment-status.test.mjs test/repository-engine.test.mjs test/repository-runtime.test.mjs test/repository-host.test.mjs test/repository-evolution.test.mjs test/repository-engine-contract.test.mjs test/repository-review-history.test.mjs test/repositoryMap.test.ts",
+    "experiment:status": "node scripts/experiment-status.mjs",
     "typecheck": "tsc -b",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "check": "npm test && npm run build"
+    "check": "npm test && npm run build && git diff --check"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",

@@ -285,7 +285,8 @@ function catalogEntry(r) {
   if (r.kind === 'commit-meta') return { id: r.id, kind: 'commit-meta', contentSha256, bytes, pinnedCommitSha: r.pinnedCommitSha, commitSha: r.commitSha,
     subject: r.subject, authoredAt: r.authoredAt, isPinned: r.isPinned, omitted: ['body', 'authorName', 'authorEmail', 'parents', 'treeSha', 'committedAt'] }
   if (r.kind === 'diff') return { id: r.id, kind: 'diff', contentSha256, bytes, pinnedCommitSha: r.pinnedCommitSha, commitSha: r.commitSha, path: r.path,
-    maxLines: r.maxLines, maxBytes: r.maxBytes, totalLines: r.totalLines, truncated: r.truncated, omitted: ['text', 'files', 'included', 'omitted', 'binaryCount', 'totalBytes'] }
+    maxLines: r.maxLines, maxBytes: r.maxBytes, totalLines: r.totalLines, truncated: r.truncated,
+    partial: r.partial, withheldPathCount: r.withheldPathCount, omitted: ['text', 'files', 'included', 'omitted', 'binaryCount', 'totalBytes'] }
   if (r.kind === 'path-history') return { id: r.id, kind: 'path-history', contentSha256, bytes, pinnedCommitSha: r.pinnedCommitSha, path: r.path,
     limit: r.limit, skip: r.skip, returned: r.returned, omitted: r.omitted, note: r.note, omittedFields: ['commits'] }
   if (r.kind === 'prior-map') return { id: r.id, kind: 'prior-map', contentSha256, bytes, artifactId: r.artifactId,

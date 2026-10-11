@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { reviewFields, scopeReviewRequest, reviewDiagnostics } from '../scripts/lib/claim-scope-review.mjs'
 import { runScopeReview } from '../scripts/review-claim-scopes.mjs'
 import { writeImmutable } from '../scripts/run-behavior-ownership.mjs'
@@ -27,7 +27,8 @@ test('findings cannot silently cite another case or a global metadata field',()=
   assert(reviewDiagnostics(answer(),extra,false).some(i=>i.issue.includes('another case')))
 })
 function setup(t){
-  const dir=mkdtempSync(resolve('public/graph-reviews/scope-test-'))
+  mkdirSync('scratch', { recursive: true })
+  const dir=mkdtempSync(join(resolve('scratch'), 'evolution-atlas-scope-test-'))
   t.after(()=>{try{rmSync(dir,{recursive:true,force:true})}catch(e){if(!['EPERM','EACCES'].includes(e.code))throw e;t.diagnostic('Owned fixture directory retained due permissions')}})
   const o={in:`${dir}/baseline.json`,prior:`${dir}/prior`,out:`${dir}/run`}
   writeImmutable(o.in,{graph:{nodes:[]}})

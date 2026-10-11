@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { classify, substantiveIndices, triage } from '../scripts/lib/triage.mjs'
 import { buildContextIndex, renderContext, situate } from '../scripts/lib/commit-context.mjs'
+import { partitionCommitDiffPaths } from '../scripts/lib/commit-diff.mjs'
 import {
   TIER1_SYSTEM_PROMPT,
   TIER2_SYSTEM_PROMPT,
@@ -82,6 +83,35 @@ test('reverts stay substantive because undoing work is a lifecycle event', () =>
 test('lockfiles and build output are filtered', () => {
   assert.equal(classify(episode(7, { changes: [change('package-lock.json')] })).class, 'dependencies')
   assert.equal(classify(episode(8, { changes: [change('dist/bundle.min.js')] })).class, 'generated')
+})
+
+test('restricted environment paths are withheld from the commit diff allowlist', () => {
+  const result = partitionCommitDiffPaths([
+    change('src/app.ts'),
+    change('.env'),
+    change('config/.env.local'),
+    change('.env.example'),
+    change('src/renamed.ts', 'R', { previousPath: '.env.production' }),
+  ])
+  assert.deepEqual(result.paths, ['src/app.ts'])
+  assert.equal(result.withheldCount, 4)
+})
+
+test('withheld environment evidence is explicit in the model prompt', () => {
+  const noReadableFiles = renderCommitPrompt({
+    repositoryName: 'fixture', contextText: 'context', subject: 'update env',
+    diff: { totalLines: 0, truncated: false, text: '', files: [], included: [], withheldCount: 1 },
+  })
+  assert.match(noReadableFiles, /Content for 1 restricted environment file\(s\) was withheld/)
+  assert.match(noReadableFiles, /effects are unknown/)
+  assert.doesNotMatch(noReadableFiles, /records no file changes/)
+
+  const mixed = renderCommitPrompt({
+    repositoryName: 'fixture', contextText: 'context', subject: 'update app',
+    diff: { totalLines: 2, truncated: false, text: 'safe patch', files: [{}], included: ['src/app.ts'], withheldCount: 1 },
+  })
+  assert.match(mixed, /Diff \(partial - 1 readable file\(s\) shown; 1 restricted environment file\(s\) withheld\)/)
+  assert.match(mixed, /safe patch/)
 })
 
 test('triage reports what it removed', () => {
@@ -354,6 +384,71 @@ test('the diff budget counts bytes, not only lines', async () => {
     assert.ok(diff.included.includes('small.ts'), 'the small file should still be shown')
     assert.ok(!diff.included.includes('data.json'), 'the megabyte file should be summarized only')
   } finally {
+    rmSync(repository, { recursive: true, force: true })
+  }
+})
+
+test('allowlisted diff reads filter every Git diff-tree call before excluded contents are processed', async () => {
+  const { execFileSync } = await import('node:child_process')
+  const { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { delimiter, join } = await import('node:path')
+  const { readCommitDiff } = await import('../scripts/lib/commit-diff.mjs')
+
+  const repository = mkdtempSync(join(tmpdir(), 'atlas-path-filter-'))
+  const wrapperDirectory = join(repository, 'bin')
+  const realGit = process.env.PATH.split(delimiter).map((directory) => join(directory, 'git')).find(existsSync)
+  assert.ok(realGit, 'git must be available on PATH')
+  mkdirSync(wrapperDirectory)
+  const invocationLog = join(repository, 'git-invocations.log')
+  const wrapperPath = join(wrapperDirectory, 'git')
+  writeFileSync(wrapperPath, '#!/bin/sh\nprintf "%s\\n" "$*" >> "$ATLAS_GIT_LOG"\nexec "$ATLAS_REAL_GIT" "$@"\n')
+  chmodSync(wrapperPath, 0o755)
+
+  const git = (args) => execFileSync(realGit, ['-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', '-C', repository, ...args], { encoding: 'utf8' })
+  const originalPath = process.env.PATH
+  const originalLog = process.env.ATLAS_GIT_LOG
+  const originalRealGit = process.env.ATLAS_REAL_GIT
+  try {
+    git(['init', '--initial-branch=main', '.'])
+    git(['config', 'user.email', 'test@example.com'])
+    git(['config', 'user.name', 'Test'])
+    mkdirSync(join(repository, 'src'))
+    writeFileSync(join(repository, '.env'), 'PRIVATE_ENV_SENTINEL=do-not-read\n')
+    writeFileSync(join(repository, '.env.example'), 'EXAMPLE_ENV_SENTINEL=do-not-read\n')
+    writeFileSync(join(repository, 'src/safe.ts'), 'export const SAFE_SENTINEL = true\n')
+    git(['add', '-A'])
+    git(['commit', '-m', 'add environment files and safe source'])
+
+    process.env.PATH = `${wrapperDirectory}${delimiter}${originalPath}`
+    process.env.ATLAS_GIT_LOG = invocationLog
+    process.env.ATLAS_REAL_GIT = realGit
+    const diff = readCommitDiff(repository, 'HEAD', { paths: ['src/safe.ts'] })
+
+    assert.deepEqual(diff.files.map((file) => file.path), ['src/safe.ts'])
+    assert.match(diff.text, /SAFE_SENTINEL/)
+    assert.doesNotMatch(diff.text, /PRIVATE_ENV_SENTINEL|EXAMPLE_ENV_SENTINEL/)
+
+    const calls = readFileSync(invocationLog, 'utf8').trim().split('\n')
+    const diffTreeCalls = calls.filter((call) => call.includes('diff-tree'))
+    assert.equal(diffTreeCalls.length, 3, 'numstat, raw metadata, and patch all use Git')
+    for (const call of diffTreeCalls) {
+      assert.match(call, /--no-renames/)
+      assert.match(call, /-- src\/safe\.ts$/)
+      assert.doesNotMatch(call, /\.env/)
+    }
+
+    writeFileSync(invocationLog, '')
+    const empty = readCommitDiff(repository, 'HEAD', { paths: [] })
+    assert.equal(empty.text, '')
+    assert.deepEqual(empty.files, [])
+    assert.equal(readFileSync(invocationLog, 'utf8'), '', 'an empty allowlist invokes no Git diff command')
+  } finally {
+    process.env.PATH = originalPath
+    if (originalLog === undefined) delete process.env.ATLAS_GIT_LOG
+    else process.env.ATLAS_GIT_LOG = originalLog
+    if (originalRealGit === undefined) delete process.env.ATLAS_REAL_GIT
+    else process.env.ATLAS_REAL_GIT = originalRealGit
     rmSync(repository, { recursive: true, force: true })
   }
 })

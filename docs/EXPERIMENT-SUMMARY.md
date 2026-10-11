@@ -1,9 +1,10 @@
 # Capability discovery: experiments and lessons
 
-This is the readable synthesis of the experiment sequence through September 9, 2026.
-It owns the cross-experiment conclusions, not the detailed protocols. Follow the linked
-experiment notes and local reports for exact requests, responses, evidence and caveats.
-Historical measurements below are from saved run records, not newly rerun benchmarks.
+This is the readable synthesis of the experiment sequence through September 9, 2026,
+with the current workflow note updated September 27. It owns the cross-experiment
+conclusions, not the detailed protocols. Follow the linked experiment notes and local
+reports for exact requests, responses, evidence and caveats. Historical measurements
+below are from saved run records, not newly rerun benchmarks.
 
 ## The short version
 
@@ -35,14 +36,14 @@ before every claim is verified. Claim-local failures qualify the affected claims
 not automatically invalidate the entire map. Owner review stays broad, not a source-level
 answer key.
 
-**Current direction: history plane on top of decision-scoped integration, then deliver.**
-Version 2 `integrate` now freezes a receipt catalog with brokered on-demand fetch and explicit
-omissions rather than inlining the cumulative receipt corpus. Historical evolution remains
-**in** the consolidation milestone—not snapshot-only. Snapshot maps remain useful
-intermediates; milestone success still requires maps that can reason over git history via the
-history plane. Raising the 1.5MB packet ceiling is not the scaling strategy. Further semantic
-comparisons should be motivated by a concrete delivery failure, not by a desire for more
-polished explanations.
+**Current direction: verify the version 3 history workflow on real revisions, then deliver.**
+Decision-scoped integration now freezes a receipt catalog with brokered on-demand fetch and
+explicit omissions. Version 3 adds bounded Git-history retrieval, configured prior-map and
+cached-reading lookup, and separate candidate history lineage. Synthetic tests exercise these
+mechanics; a model-authored descendant-revision run with source-backed review remains the
+delivery check. Historical evolution remains **in** the consolidation milestone. Snapshot
+maps remain useful intermediates, and raising the 1.5MB packet ceiling is not the scaling
+strategy. Further semantic comparisons should answer a concrete delivery failure.
 
 ## What counts as evidence of progress
 

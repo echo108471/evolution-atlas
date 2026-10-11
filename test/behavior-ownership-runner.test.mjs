@@ -1,14 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { runOwnership, writeImmutable } from '../scripts/run-behavior-ownership.mjs'
 import { hash } from '../scripts/lib/capability-graph.mjs'
 import { ownershipRequest } from '../scripts/lib/behavior-ownership.mjs'
 
 function fixture(t) {
-  mkdirSync('public/graph-reviews', { recursive: true })
-  const root = mkdtempSync(resolve('public/graph-reviews/ownership-test-'))
+  mkdirSync('scratch', { recursive: true })
+  const root = mkdtempSync(join(resolve('scratch'), 'evolution-atlas-ownership-test-'))
   t.after(() => {
     try { rmSync(root, { recursive: true, force: true }) }
     catch (e) { if (!['EPERM', 'EACCES'].includes(e.code)) throw e; t.diagnostic(`Temporary fixture cleanup denied; retained ${root}`) }

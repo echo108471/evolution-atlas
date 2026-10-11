@@ -94,7 +94,8 @@ test('v3 links two revisions, withholds exact old blobs, brokers candidate conte
     coverage: { analyzed: 1, unitCount: 2, ofUnit: 0.5, ofHistory: 0.5 },
     readings: [{ commitSha: f.currentSha, subject: 'current', tier1: {
       tier: 1, summary: 'Candidate interpretation', capability: 'candidate capability', kind: 'introduce',
-      significance: 0.7, confidence: 0.6, interpretationStatus: 'candidate', model: 'fixture-model', diffLines: 2, diffTruncated: false,
+      significance: 0.7, confidence: 0.6, interpretationStatus: 'candidate', model: 'fixture-model',
+      diffLines: 2, diffTruncated: false, diffWithheldFiles: 2, diffPartial: true,
       reviewStatus: 'accepted', owner: 'should not escape',
     }, tier2: null }],
   })
@@ -136,6 +137,8 @@ test('v3 links two revisions, withholds exact old blobs, brokers candidate conte
   assert.equal(reading.artifactProvenance.method, 'synthetic/analyze-commits-compatible')
   assert.equal(reading.artifactProvenance.unit, 'first-parent')
   assert.deepEqual(reading.readings.map(value => value.model), ['fixture-model'])
+  assert.equal(reading.readings[0].diffWithheldFiles, 2)
+  assert.equal(reading.readings[0].diffPartial, true)
   assert.equal(Object.hasOwn(reading.readings[0], 'reviewStatus'), false)
   assert.equal(Object.hasOwn(reading.readings[0], 'owner'), false)
 

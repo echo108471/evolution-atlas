@@ -42,6 +42,25 @@ export const DEFAULT_CONTEXT_LINES = 3
  */
 export const DEFAULT_MAX_BYTES = 64 * 1024
 
+/** Split a commit's changed paths into readable paths and withheld dotenv paths. */
+export function partitionCommitDiffPaths(changes) {
+  const allowed = new Set()
+  const withheld = new Set()
+  for (const change of changes ?? []) {
+    const paths = [change.path, change.previousPath].filter((path) => typeof path === 'string' && path.length > 0)
+    const restricted = paths.filter((path) => {
+      const basename = path.split(/[\\/]/).at(-1).toLowerCase()
+      return basename === '.env' || basename.startsWith('.env.')
+    })
+    if (restricted.length > 0) {
+      for (const path of restricted) withheld.add(path)
+      continue
+    }
+    for (const path of paths) allowed.add(path)
+  }
+  return { paths: [...allowed], withheldCount: withheld.size }
+}
+
 function runGit(repositoryPath, args) {
   return execFileSync('git', [...gitArguments(repositoryPath), ...args], {
     env: gitEnvironment(),
@@ -57,10 +76,14 @@ function runGit(repositoryPath, args) {
  * be recognized without loading it - the largest commit in the pilot corpus is 106,221
  * lines, which is not something to pull into memory to then discard.
  */
-export function readNumstat(repositoryPath, sha) {
-  const raw = runGit(repositoryPath, [
-    'diff-tree', '--root', '--diff-merges=first-parent', '--no-ext-diff', '--no-textconv', '--no-commit-id', '--numstat', '-r', '-M', '-z', sha,
-  ])
+export function readNumstat(repositoryPath, sha, paths = null) {
+  if (Array.isArray(paths) && paths.length === 0) return []
+  const args = [
+    'diff-tree', '--root', '--diff-merges=first-parent', '--no-ext-diff', '--no-textconv', '--no-commit-id', '--numstat', '-r',
+    ...(Array.isArray(paths) ? ['--no-renames'] : ['-M']), '-z', sha,
+  ]
+  if (Array.isArray(paths)) args.push('--', ...paths)
+  const raw = runGit(repositoryPath, args)
 
   const tokens = raw.split('\0')
   const files = []
@@ -95,10 +118,14 @@ export function readNumstat(repositoryPath, sha) {
  * Byte sizes for the blobs on both sides of each change, read in two cheap calls. The sum
  * bounds how much patch text a file can produce, which numstat cannot tell us.
  */
-export function readBlobSizes(repositoryPath, sha) {
-  const raw = runGit(repositoryPath, [
-    'diff-tree', '--root', '--diff-merges=first-parent', '--no-ext-diff', '--no-textconv', '--no-commit-id', '--raw', '-r', '-M', '-z', sha,
-  ])
+export function readBlobSizes(repositoryPath, sha, paths = null) {
+  if (Array.isArray(paths) && paths.length === 0) return new Map()
+  const args = [
+    'diff-tree', '--root', '--diff-merges=first-parent', '--no-ext-diff', '--no-textconv', '--no-commit-id', '--raw', '-r',
+    ...(Array.isArray(paths) ? ['--no-renames'] : ['-M']), '-z', sha,
+  ]
+  if (Array.isArray(paths)) args.push('--', ...paths)
+  const raw = runGit(repositoryPath, args)
 
   const tokens = raw.split('\0')
   const entries = []
@@ -144,11 +171,13 @@ export function readBlobSizes(repositoryPath, sha) {
 }
 
 function readPatch(repositoryPath, sha, paths, contextLines) {
+  if (Array.isArray(paths) && paths.length === 0) return ''
   const args = [
-    'diff-tree', '--root', '--diff-merges=first-parent', '--no-ext-diff', '--no-textconv', '--no-commit-id', '-p', '-r', '-M',
+    'diff-tree', '--root', '--diff-merges=first-parent', '--no-ext-diff', '--no-textconv', '--no-commit-id', '-p', '-r',
+    ...(Array.isArray(paths) ? ['--no-renames'] : ['-M']),
     `--unified=${contextLines}`, '--no-color', sha,
   ]
-  if (paths.length > 0) args.push('--', ...paths)
+  if (Array.isArray(paths)) args.push('--', ...paths)
   return runGit(repositoryPath, args)
 }
 
@@ -165,24 +194,20 @@ const summaryLine = (file) =>
  * hidden: a tier that saw a partial diff should be able to say so.
  */
 export function readCommitDiff(repositoryPath, sha, { maxLines = DEFAULT_MAX_LINES, maxBytes = DEFAULT_MAX_BYTES, contextLines = DEFAULT_CONTEXT_LINES, paths = null } = {}) {
-  let files = readNumstat(repositoryPath, sha)
-  if (Array.isArray(paths)) {
-    const wanted = new Set(paths)
-    files = files.filter((file) => wanted.has(file.path) || (file.previousPath && wanted.has(file.previousPath)))
-  }
+  const files = readNumstat(repositoryPath, sha, paths)
   const totalLines = files.reduce((sum, file) => sum + file.added + file.deleted, 0)
 
   if (files.length === 0) {
     return { text: '', files, totalLines: 0, totalBytes: 0, truncated: false, included: [], omitted: [], binaryCount: 0 }
   }
 
-  const blobSizes = readBlobSizes(repositoryPath, sha)
+  const blobSizes = readBlobSizes(repositoryPath, sha, paths)
   const sizeOf = (file) => blobSizes.get(file.path) ?? 0
   const totalBytes = files.reduce((sum, file) => sum + sizeOf(file), 0)
 
   const binaryCount = files.filter((file) => file.binary).length
   const textFiles = files.filter((file) => !file.binary)
-  const patchPaths = Array.isArray(paths) ? files.map((file) => file.path) : []
+  const patchPaths = Array.isArray(paths) ? files.map((file) => file.path) : null
 
   if (totalLines <= maxLines && totalBytes <= maxBytes) {
     return {

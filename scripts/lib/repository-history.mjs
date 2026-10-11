@@ -130,7 +130,20 @@ export function readBoundedCommitDiff(repo, pinnedCommitSha, revision, {
   if (path != null) {
     if (typeof path !== 'string' || !path || !safeRepositoryPath(path)) throw new Error('Diff path is not eligible')
   }
-  const paths = path ? [path] : undefined
+  // A pathless diff must not ask Git to render restricted files. Name-only tree
+  // comparison is metadata; the positive path list is applied before numstat,
+  // blob-size lookup, or patch generation in readCommitDiff.
+  const changedPaths = [...new Set(runGit(repo, [
+    'diff-tree', '--root', '--diff-merges=first-parent', '--no-ext-diff', '--no-textconv',
+    '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', commitSha,
+  ]).split('\0').filter(Boolean))]
+  // A sensitive file can be renamed to an ordinary-looking destination.
+  // With --no-renames the destination would appear as a new safe file and
+  // disclose the old content, even for an explicit destination-path request.
+  // Withhold the entire commit's patch whenever any changed path is restricted.
+  const hasRestrictedPath = changedPaths.some(changedPath => !safeRepositoryPath(changedPath))
+  const paths = hasRestrictedPath ? [] : path ? [path] : changedPaths
+  const withheldPathCount = hasRestrictedPath ? changedPaths.length : 0
   const diff = readCommitDiff(repo, commitSha, { maxLines, maxBytes, contextLines, paths })
   return {
     kind: 'diff',
@@ -142,6 +155,8 @@ export function readBoundedCommitDiff(repo, pinnedCommitSha, revision, {
     totalLines: diff.totalLines,
     totalBytes: diff.totalBytes,
     truncated: diff.truncated,
+    partial: diff.truncated || withheldPathCount > 0,
+    withheldPathCount,
     included: diff.included,
     omitted: diff.omitted,
     binaryCount: diff.binaryCount,
