@@ -3,9 +3,15 @@
 Choose a check for the claim being made, then inspect the resulting artifact.
 The required implementation gate is `npm test`, `npm run build`, and
 `git diff --check`, as [AGENTS.md](../AGENTS.md) specifies. `npm run check` runs
-all three in that order. A focused check helps while changing one area; it does
+the pstack and tracked-artifact policy checks, then all three in that order.
+Use `node scripts/check-offline.mjs` to run this gate with credentials removed and external
+Node requests blocked. Dependency installation is a separate step. A focused check helps while changing one area; it does
 not replace the final gate. `npm run build` already runs `tsc -b` before Vite.
 `npm run typecheck` runs that TypeScript step alone.
+
+The direct Node launch avoids npm's own optional registry update check before a
+package script starts. For strictly offline focused tests, use
+`node scripts/test.mjs test/FILE.test.mjs`.
 
 For one test file, use `npm test -- test/FILE.test.mjs` (or a `.test.ts` file).
 For the current engine, `npm run test:engine` covers the CLI, host, versioned
@@ -26,7 +32,7 @@ semantic accuracy on a real repository.
 | Cross-revision integration and historical claims | [evolution](../test/repository-evolution.test.mjs), [engine contract](../test/repository-engine-contract.test.mjs), and [review history](../test/repository-review-history.test.mjs) tests | Before/after revisions, explicit omissions, `historyLineage` and `historyEdgeLineage`, and cited post-baseline Git evidence |
 | Candidate interpretations and review | The owning [capability](../test/capabilities.test.mjs), [candidate revision](../test/candidate-revision.test.mjs), [report](../test/repository-map-report.test.mjs), or [review history](../test/repository-review-history.test.mjs) test | Whether the proposed label or explanation is actually supported; validation of citations and accounting alone cannot decide that |
 | Viewer and interaction | [Map parsing](../test/repositoryMap.test.ts), [URL state](../test/urlState.test.ts), relevant story/model tests, and `npm run control:atlas -- verify --feature candidate-map` or another [mapped feature](../.agents/skills/pstack-verify/references/features/README.md) | Inspect screenshots, action assertions, and the run report. Scripted journeys use synthetic data; import the named real `output.json` or `reviewed-output.json` separately when the claim concerns that artifact. A smoke journey is not exhaustive interaction coverage |
-| Generated data and build privacy | `git check-ignore -v PATH` for a specific run path, `git status`, and `npm run build` | Inspect the intended `dist/`, especially `dist/graph-reviews/`, before publication. A gallery build requires Git and keeps tracked files under two approved review roots while stripping local run directories; a personal build without a gallery manifest can still include local data |
+| Generated data and build inclusion | `git check-ignore -v PATH`, `git status`, [actual build leakage tests](../test/vite-public-privacy.test.mjs), and `npm run build` | Production disables automatic `public/` copying. Inspect the actual `dist/` against the explicit publication manifest; default assets are empty. See [private development boundaries](PRIVATE-DEVELOPMENT.md) |
 | Project documents | Render the changed Markdown and inspect headings, tables, code blocks, and links | A source-text or link check alone does not establish the rendered document is readable |
 
 ## Browser control
@@ -89,7 +95,7 @@ reserve and bind real worker handles, observe terminal states, checkpoint,
 integrate, and publish. Expand at a descendant revision and inspect
 `output.json`, `index.html`, receipts, omissions, and any
 `reviewed-output.json`/`reviewed.html` companion. Keep runs in an ignored local
-directory such as `public/graph-reviews/history-delivery-*`; repository data
+directory such as `scratch/history-delivery-*`; repository data
 may still be sensitive even when ignored.
 
 The automated engine tests call exported functions. If command-line argument

@@ -7,8 +7,24 @@ dist/
 coverage/
 *.tsbuildinfo
 
+# Credentials and machine-local configuration never belong in source control.
+.env
+.env.*
+.npmrc
+.pypirc
+.netrc
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+.aws/
+.codex/
+
 # Local analysis output can contain contributor and repository metadata.
 # Covers observed, interpreted, and per-model comparison datasets alike.
+/public/
 /public/atlas*.json
 /public/epochs*.json
 /public/sweep/
@@ -19,11 +35,27 @@ coverage/
 /public/readings*.json
 *.cache.jsonl
 /public/capabilities*.json
-/public/graph-reviews/*
-!/public/graph-reviews/consolidated-engine/
-/public/graph-reviews/consolidated-engine/*
-!/public/graph-reviews/consolidated-engine/larger-demonstration/
-!/public/graph-reviews/consolidated-engine/larger-demonstration/**
-!/public/graph-reviews/experiment-summary/
-!/public/graph-reviews/experiment-summary/**
+/public/graph-reviews/
 /scratch/
+
+# Private experiments, saved responses, reports, clones and caches.
+# Approved synthetic fixtures belong under test/ or scripts/verification/.
+/data/
+/datasets/
+/runs/
+/responses/
+/raw-runs/
+/raw-responses/
+/model-responses/
+/results/
+/reports/
+/clones/
+/repos/
+/repositories/
+/repos/
+/repositories/
+/cache/
+/caches/
+.cache/
+/private-artifacts/
+/public/raw-responses/

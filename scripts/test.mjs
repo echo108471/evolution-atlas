@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createOfflineEnvironment } from './verification/offline-environment.mjs'
 
 const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -35,13 +37,18 @@ export function buildRunnerArgs(testRoot, args = [], cwd = process.cwd()) {
 
 export function runTests(args = process.argv.slice(2), { cwd = REPOSITORY_ROOT } = {}) {
   const testRoot = join(cwd, 'test')
-  const runner = spawnSync(process.execPath, buildRunnerArgs(testRoot, args, cwd), {
-    cwd,
-    env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' },
-    stdio: 'inherit',
-  })
-  if (runner.error) throw runner.error
-  return runner.status ?? 1
+  const home = mkdtempSync(join(tmpdir(), 'atlas-test-home-'))
+  try {
+    const concurrency = args.some(arg => arg === '--test-concurrency' || arg.startsWith('--test-concurrency='))
+      ? [] : ['--test-concurrency=1']
+    const runner = spawnSync(process.execPath, [...concurrency, ...buildRunnerArgs(testRoot, args, cwd)], {
+      cwd, env: createOfflineEnvironment({ home }), stdio: 'inherit', timeout: 240_000,
+    })
+    if (runner.error) throw runner.error
+    return runner.status ?? 1
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

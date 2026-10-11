@@ -1,8 +1,0 @@
-{
-  "outputSha256": "87a115516e0361c0c5dff8f4ca54ff275b5629c60ec0420152efd4c1f5fe7638",
-  "receipts": {
-    "receipts/R/R-001.json": "dcb136e656e484f24e5f1685717a2134b190a8269d6ff354839cd89ded05d4a9",
-    "receipts/R/R-002.json": "80faff7dfd31a4fe2b0d2aa74780992c394ee742a31c03019ebac38a879fe35d",
-    "receipts/R/R-003.json": "8c68a926ff143c9bdfae144668b0d3c01e40e7f80d724254f4b19ff2918a77d6"
-  }
-}

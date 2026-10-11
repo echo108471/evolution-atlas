@@ -104,10 +104,10 @@ before finishing. The [verification guide](docs/VERIFICATION.md) explains what
 each check establishes.
 
 ```bash
-npm install
+npm ci
 npm run test:engine
 npm run experiment:status -- /path/to/ignored/run
-npm run check
+node scripts/check-offline.mjs
 ```
 
 The original atlas pipeline remains available for its historical experiments
@@ -157,6 +157,11 @@ field, so interpretations from different routes stay distinguishable.
 The generated `public/atlas.json` is intentionally ignored because repository
 history can contain contributor and project metadata. The application remains
 useful without it: it explains how to generate a local dataset.
+
+Keep new real experiments in ignored `scratch/`. Production builds include no
+local `public/` data by default; publication uses an explicit path/hash manifest.
+See [private development and recovery](docs/PRIVATE-DEVELOPMENT.md) for the
+preserved outputs, free offline gate, and later snapshot/release approvals.
 
 Epoch detection is a third optional stage, independent of interpretation. It divides the
 history into periods during which the work was about roughly the same thing, so later

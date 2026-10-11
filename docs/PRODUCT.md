@@ -24,8 +24,10 @@ curated gallery avoids all three:
 - The hosted site never reads a repository. It serves the JSON artifact.
 - Interpretation cost is bounded by how many repositories the owner chooses,
   paid once per repository rather than once per visitor.
-- Every gallery subject is a public repository, so its atlas is safe to
-  publish and to commit as a fixture.
+- Public source repositories still require snapshot review before their derived
+  data is committed or published: exact revisions, licenses, copied material,
+  contributor metadata, provenance, and interpretation limits matter. Publish
+  only explicitly approved paths and hashes.
 
 The analyzer/JSON/viewer boundary described in `ARCHITECTURE.md` is what
 makes this work. The sensitive operation stays local by construction.
@@ -211,7 +213,8 @@ associations, and fourteen have fewer than fifteen commits.
    `repo` query parameter, and falls back to the single local `/atlas.json`
    when no manifest is published.
 6. Done. The gallery index page renders the available subjects before selection.
-7. Widen to eight or ten repositories and publish.
+7. Choose three demo datasets later, review their exact snapshots and paths, and
+   obtain explicit publication approval after the release checks.
 8. Rewrite `README.md` for a maintainer analyzing their own repository
    rather than a reader learning about this one.
 
