@@ -7,7 +7,7 @@
       "url": "https://github.com/colinhacks/zod",
       "license": "MIT",
       "description": "TypeScript-first schema validation with static type inference.",
-      "why": "Mixed commit conventions and a v3-to-v4 monorepo rewrite that exercises the migrated-versus-structural boundary.",
+      "why": "Candidate TypeScript library comparison: review whether v3/v4 paths and commit evidence support migration or structural interpretations; corpus characteristics remain unverified.",
       "commit": "43f729db4aa0cedff6d6b3261f33f8556b3c7102"
     },
     {
@@ -16,7 +16,8 @@
       "url": "https://github.com/evanw/esbuild",
       "license": "MIT",
       "description": "An extremely fast bundler for the web.",
-      "why": "Disciplined commit subjects, a linear history with no merge commits, and a small identity set. The opposite corpus-quality case."
+      "why": "Candidate Go bundler comparison: measure commit conventions, merge structure, and identity coverage at the pinned revision before drawing interpretation conclusions.",
+      "commit": "609683d892977362a0f99026cb74b96263d728a9"
     },
     {
       "slug": "flask",
@@ -24,7 +25,8 @@
       "url": "https://github.com/pallets/flask",
       "license": "BSD-3-Clause",
       "description": "A lightweight WSGI web application framework.",
-      "why": "Highest merge share, bot share, and identity count in the surveyed set. The deliberate stress case."
+      "why": "Candidate Python framework comparison: inspect merge structure, bot attribution, and identity ambiguity without contributor ranking or assumed corpus extremes.",
+      "commit": "22d924701a6ae2e4cd01e9a15bbaf3946094af65"
     }
   ]
 }
