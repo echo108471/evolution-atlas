@@ -1,5 +1,12 @@
 # Release audit: retained history and research narratives
 
+**Current disposition (2026-10-12):** the owner has selected publication of the
+existing repository and accepted the disclosed old reports, contact-like text
+and local paths. The expanded remote-ref and hosted-surface review is recorded
+in [Existing repository release](EXISTING-REPOSITORY-RELEASE.md). This document
+remains the earlier pinned assessment; its clean-export recommendation and
+three-demo decisions are superseded.
+
 Public release is not cleared by this audit. Private development can continue;
 the remaining decisions concern historical material, research narratives, and
 the exact snapshots approved for publication.

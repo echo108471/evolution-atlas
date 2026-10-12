@@ -94,7 +94,10 @@ feature labels track its published documentation more closely than its commit re
 `buildCorpus` sends commit subjects truncated to 160 characters plus up to twelve paths.
 Commit **bodies are never captured at all** — `ChangeEpisode` has no field for them.
 
-708 zod commits carry a substantial body. One example in full:
+708 zod commits carry a substantial body. The following adapted example is based
+on [Zod commit 21a6f0cbd3bef24d47e488a48cc9cb4d0bf97743](https://github.com/colinhacks/zod/commit/21a6f0cbd3bef24d47e488a48cc9cb4d0bf97743),
+not a verbatim full commit body. See the
+[source attribution and MIT notice](../THIRD_PARTY_NOTICES.md#historical-zod-example-and-proposed-demo).
 
 > **subject** `feat(v4): let z.nanoid() take a custom length (#4004)`
 >

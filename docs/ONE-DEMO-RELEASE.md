@@ -1,5 +1,12 @@
 # One-demo public release proposal
 
+**Superseded disposition (2026-10-12):** the owner has chosen to publish the
+existing repository with its history, rather than create a separate public
+repository. The current proposal is the
+[existing-repository release audit](EXISTING-REPOSITORY-RELEASE.md) and
+[four-file Zod inventory](ZOD-DEMO-RELEASE-INVENTORY.md). The remainder below
+records the earlier clean-export assessment; it is not the current release plan.
+
 Prepare a separate reviewed public repository with a clean initial history and
 one observed-only Zod demo. Keep the existing repository, its history, saved
 outputs, and recovery copies private. This document is a private proposal: it
