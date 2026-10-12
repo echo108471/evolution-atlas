@@ -57,5 +57,6 @@ Those revisions have the earlier MIT notice preserved in
 The two notice versions retain their original copyright dates.
 
 The [four-file Zod proposal](docs/ZOD-DEMO-RELEASE-INVENTORY.md) includes its
-separate full MIT notice. The proposed snapshot and that notice are not yet
-approved publication assets; their canonical manifest entries remain pending.
+separate full MIT notice. The owner approved those exact files in the
+[release decision](docs/RELEASE-APPROVAL.md#owner-approval-2026-10-12); the canonical
+manifest includes the notice without changing its bytes.

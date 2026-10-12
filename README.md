@@ -99,6 +99,18 @@ node scripts/check-offline.mjs
 Dependency installation may use the package registry. The fixture generator and
 validation gate use local synthetic data and reject external requests.
 
+To view the approved observed-only Zod demo, build the application and open the
+local preview URL printed by Vite:
+
+```bash
+npm run build
+npm run preview -- --host 127.0.0.1
+```
+
+The [demo inventory](docs/ZOD-DEMO-RELEASE-INVENTORY.md) records its pinned source,
+exact four files, license and disclosure limits. No model call or experiment
+repository download is needed to view it.
+
 For the current **capability-discovery workflow**, use
 [`scripts/repository-engine.mjs`](scripts/repository-engine.mjs) and its
 [operating sequence](docs/ARCHITECTURE.md#consolidated-repository-workflow).

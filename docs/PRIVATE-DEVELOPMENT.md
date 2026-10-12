@@ -85,7 +85,10 @@ journeys remain separate checks described in [Verification](VERIFICATION.md).
 
 ## Later public release
 
-Choose three demo datasets separately. Record exact repository revisions,
+The current release uses one approved Zod snapshot; see the
+[approved inventory](ZOD-DEMO-RELEASE-INVENTORY.md) and
+[owner decision](RELEASE-APPROVAL.md#owner-approval-2026-10-12). Any additional
+demo dataset requires a separate decision. Record exact repository revisions,
 source licenses and notices, provenance, copied material, contributor metadata
 treatment, interpretation limits, and the explicitly approved snapshot paths
 and hashes. Real research narratives and saved reports need review even when
@@ -98,7 +101,9 @@ History contracts and versioned replay throughout this work. No real snapshot
 or repository visibility change is authorized by this private development
 workflow; each requires the user's later explicit approval.
 
-The current [release audit](RELEASE-AUDIT.md) records the reviewed tree/history
+The current [existing-repository release audit](EXISTING-REPOSITORY-RELEASE.md)
+records the expanded remote-ref and hosted review. The earlier
+[release audit](RELEASE-AUDIT.md) records the reviewed tree/history
 bounds, retained research narratives, and history-disposition choices. The
 [demo source review](DEMO-REVIEW.md) proposes three pinned sources while keeping
 actual snapshots and publication approval pending. The
