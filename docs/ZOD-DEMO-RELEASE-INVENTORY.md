@@ -1,9 +1,10 @@
-# Zod demo: exact release proposal
+# Zod demo: approved release inventory
 
-This proposes one demo in the existing
+This records the approved demo in the existing
 [Evolution Atlas repository](https://github.com/echo108471/evolution-atlas).
 The owner has selected publication of that repository with its existing history.
-This proposal does not grant asset publication or change repository visibility.
+The owner approved these exact bytes and conditional public visibility in the
+[release decision](RELEASE-APPROVAL.md#owner-approval-2026-10-12).
 The broader scope and any material blockers are recorded in the
 [existing-repository release audit](EXISTING-REPOSITORY-RELEASE.md).
 
@@ -11,9 +12,10 @@ The broader scope and any material blockers are recorded in the
 
 The machine-readable proposal is
 [publication/zod-demo.proposed.json](../publication/zod-demo.proposed.json).
-Every `approval` is currently `null`. The active
-[publication manifest](../publication/manifest.json) still contains zero assets;
-these proposed source files are not yet committed or included by the build.
+That proposal preserves its earlier `null` references. The active
+[publication manifest](../publication/manifest.json) now binds these four files
+to the actual owner approval record. The build validates and emits their exact
+approved bytes.
 
 | Proposed repository source | Served build path | Bytes |
 | --- | --- | ---: |
@@ -29,10 +31,9 @@ Total: **4,326,789 bytes**. Exact SHA-256 hashes:
 - `zod-LICENSE.txt`: `3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8`
 - `zod-PROVENANCE.json`: `42ca0418704cc3d2a0f40f8e462cbc5503f874e849674f49313fb2b63bda6204`
 
-Approval must identify these paths and bytes. Filling the active manifest with
-an actual owner decision reference and copying the approved files are later
-implementation steps. A proposed manifest with `null` approvals fails closed;
-it is not a second active manifest.
+The owner approval identifies these paths and bytes. The canonical manifest
+references that decision; the retained preapproval proposal is not a second
+active manifest.
 
 ## Source and contents
 
@@ -75,11 +76,11 @@ commit evidence. Eight screenshots and request logs were reviewed. This is
 coverage of that desktop journey, not exhaustive history navigation or a
 semantic interpretation assessment.
 
-The app build has three files; the private assembled preview has those three
-plus exactly these four candidate assets. The private assembly did not claim
-approved canonical-plugin emission. After owner approval, run a fresh checkout,
-synthetic fixtures and the offline gate, then inspect a canonical production
-build whose files equal the app bundle plus these four approved paths/hashes.
+The app build has three files; the canonical production build must have those
+three plus exactly these four approved assets. Final release validation runs
+an exact fresh checkout, synthetic fixtures and the offline gate, then checks
+that canonical emission matches this inventory. The earlier manually assembled
+preview is prior evidence, separate from this canonical build validation.
 Follow the [private development boundaries](PRIVATE-DEVELOPMENT.md); preserve
-the original outputs and history. Repository visibility requires the later
-explicit publication authorization.
+the original outputs and history. The owner authorized visibility
+change after those final checks; publication does not alter the pinned bytes.

@@ -4,7 +4,8 @@ The owner has chosen to make [echo108471/evolution-atlas](https://github.com/ech
 public with its existing history. The earlier clean-export recommendation is
 superseded. Old reports, contact-like text, local paths and ordinary Git
 attribution are part of the accepted disclosure; this document does not request
-that decision again. Repository visibility remains **private** during preparation.
+that decision again. The repository stayed **private** during assessment. The owner subsequently
+[approved the four demo assets and conditional public visibility](RELEASE-APPROVAL.md#owner-approval-2026-10-12).
 
 ## Exact assessed scope
 
@@ -95,7 +96,11 @@ recognized credential-URL match was a deliberate denial-test fixture using a
 reserved example domain. No attachment URL was found in those records.
 
 The connector omitted 26 PR file patches. Git-object review covers the fetched
-PR tips separately. The connector rejected commit-comment, deployment, direct
+PR tips separately. A supported per-commit follow-up checked all 99 captured
+reachable commits plus merged main `7e25872beea9efe670d0ddb8a93a85d5971576d7`:
+100 complete empty comment lists, no inaccessible reads or truncation. The
+repository-wide comment endpoint remains unsupported. The connector rejected
+deployment, direct
 Pages, forks and wiki inventories; package listing was unavailable. Repository
 metadata reports Pages disabled and fork/network counts zero. Wiki is enabled,
 but its Git endpoint returned Repository not found. This does not establish
@@ -108,10 +113,11 @@ coverage limits, not findings of secret content or proof of absence.
 The [Zod release inventory](ZOD-DEMO-RELEASE-INVENTORY.md) gives the exact four
 proposed source paths, served paths, byte sizes, SHA-256 hashes, omissions and
 identification limits. The machine-readable
-[proposal](../publication/zod-demo.proposed.json) has four entries with
-`approval: null`. The [active manifest](../publication/manifest.json) has zero
-assets. Candidate files remain outside the Git tree; this change commits only
-proposal metadata, notices and documentation.
+[proposal](../publication/zod-demo.proposed.json) retains its four earlier
+`approval: null` entries as a historical record. The [active manifest](../publication/manifest.json)
+now includes exactly the four owner-approved files, with references to the
+[actual decision](RELEASE-APPROVAL.md#owner-approval-2026-10-12). Only those approved
+snapshot bytes are added; raw inputs, clones, caches and reports remain ignored.
 
 The existing code's exact checked revision
 `db6d284cc4010ae5bc2b595920affe64bdbaa83a` has the same tree as assessed main.
@@ -124,26 +130,26 @@ publication destination. Desktop preview acceptance covered the sole card,
 notice/provenance downloads, overview and selected history evidence. It does
 not establish exhaustive interaction coverage or semantic interpretation truth.
 
-After the owner reviews the concrete audit and four-file proposal:
+Following the owner approval, complete these release checks:
 
-1. Record actual owner approval for those four exact paths/hashes. Resolve any
-   remaining concrete material finding; inspect relevant inaccessible hosted
-   stores through owner access if they contain publishable material.
-2. Copy only the approved files to their proposed sources and populate the
-   canonical manifest with the real decision reference. Keep raw outputs,
+1. Preserve the recorded approval for the four exact paths/hashes. Do not expand
+   access to the disclosed unavailable hosted stores. Report newly discovered
+   consequential sensitive material before publication.
+2. Verify only the approved files are present at their canonical sources and
+   the manifest binds the actual decision. Keep raw outputs,
    clones, caches and generated reports ignored.
 3. Validate an exact final checkout: locked install, synthetic fixtures and the
    free offline gate. Inspect canonical production output: the app bundle plus
    exactly the four approved paths/hashes, with no automatically copied public
    directory or unapproved report.
-4. Obtain explicit authorization for changing this existing repository's
-   visibility. Recheck its actual identity, main revision and remote ref delta
-   immediately before that specific operation. Hosting is a separate optional
+4. Use the owner's conditional authorization to change this existing repository's
+   visibility only after the checks pass. Recheck its actual identity, main
+   revision and remote ref/log delta immediately before that specific operation. Hosting is a separate optional
    action.
 
 No new repository or release-commit identity decision is needed. Generic
 acceptance of the old history has already been given; this proposal leaves the
-specific asset approval and visibility operation pending.
+visibility operation conditional on final validation.
 
 ## Exact remote tips at the audit snapshot
 

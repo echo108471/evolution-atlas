@@ -1,4 +1,33 @@
 {
   "version": 1,
-  "assets": []
+  "assets": [
+    {
+      "source": "publication/assets/zod/zod.json",
+      "path": "gallery/zod.json",
+      "sha256": "e37fd8f6826f746d47f1d25d78c47b0c4d21b68c48905ac577d77cffc7038558",
+      "mediaType": "application/json",
+      "approval": "docs/RELEASE-APPROVAL.md#owner-approval-2026-10-12"
+    },
+    {
+      "source": "publication/assets/zod/manifest.json",
+      "path": "gallery/manifest.json",
+      "sha256": "b9b9809b5cf925ba1f3fad957b5a0163cd2858ec359b0ff18669b9593419a09d",
+      "mediaType": "application/json",
+      "approval": "docs/RELEASE-APPROVAL.md#owner-approval-2026-10-12"
+    },
+    {
+      "source": "publication/assets/zod/zod-LICENSE.txt",
+      "path": "approved-snapshots/zod-LICENSE.txt",
+      "sha256": "3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8",
+      "mediaType": "text/plain",
+      "approval": "docs/RELEASE-APPROVAL.md#owner-approval-2026-10-12"
+    },
+    {
+      "source": "publication/assets/zod/zod-PROVENANCE.json",
+      "path": "approved-snapshots/zod-PROVENANCE.json",
+      "sha256": "42ca0418704cc3d2a0f40f8e462cbc5503f874e849674f49313fb2b63bda6204",
+      "mediaType": "application/json",
+      "approval": "docs/RELEASE-APPROVAL.md#owner-approval-2026-10-12"
+    }
+  ]
 }
