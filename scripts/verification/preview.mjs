@@ -139,7 +139,7 @@ export async function runPreviewJourney({ page, baseUrl, expected, commits, feat
     catch (error) { record({ name, assertion, result: 'failed', details: String(error) }); throw error }
   }
   await navigate(`${baseUrl}/`, 'Open the inventoried private production gallery.')
-  await visible(page.getByRole('heading', { name: 'How a codebase grew, read from its commits.', exact: true }), 'Prepared production gallery renders.')
+  await visible(page.getByRole('heading', { name: 'Understand a codebase through evidence.', exact: true }), 'Prepared production gallery renders.')
   const card = page.locator('.gallery-card')
   await step('assert-preview-card', 'The sole gallery card agrees with the prepared dataset counts and pinned revision.', async () => {
     assert.equal(await card.count(), 1)

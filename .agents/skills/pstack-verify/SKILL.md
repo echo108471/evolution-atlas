@@ -38,6 +38,8 @@ Chromium is missing, install it into ignored project scratch:
 PLAYWRIGHT_BROWSERS_PATH=scratch/verification-browsers npx playwright install chromium
 ~~~
 
+An already installed system Chromium can be selected explicitly with `ATLAS_BROWSER_EXECUTABLE=/absolute/path/to/chromium` for both doctor and verification. The report identifies that executable and its actual version; do not describe it as the bundled browser. This changes no security settings.
+
 If project dependencies are missing, install them with npm before retrying
 doctor. Do not drive a run that doctor reports as unhealthy.
 

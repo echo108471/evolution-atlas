@@ -80,6 +80,16 @@ to ancestors of the pinned revision. Searches navigate; they do not prove
 behavior. Cached model readings and earlier maps are interpretations, not raw
 Git observations.
 
+An empty diff is not evidence that a commit made no change. When any changed
+path is restricted, the broker withholds the entire commit patch, including an
+explicitly requested ordinary path, to prevent a restricted-file rename from
+exposing its earlier contents. Inspect `partial` and `withheldPathCount`; keep
+unsupported lifecycle claims unresolved rather than bypassing that boundary.
+Source windows use `read PATH START_LINE LINE_COUNT` (not an ending line
+number). A `diff` request names one commit, compared with its first parent,
+followed by the path and optional line/byte limits; it does not take a revision
+range.
+
 ```sh
 node scripts/repository-engine.mjs broker RUN A diff COMMIT_SHA PATH MAX_LINES MAX_BYTES
 node scripts/repository-engine.mjs integrate RUN

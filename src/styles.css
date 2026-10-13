@@ -6233,3 +6233,32 @@ p {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Current engine entry and projections share the existing artifact viewer. */
+.engine-entry { margin: 28px 0 44px; padding: clamp(20px, 4vw, 36px); border: 1px solid var(--line-strong); background: var(--surface); }
+.engine-entry-heading { display: flex; align-items: center; justify-content: space-between; gap: 28px; }
+.engine-entry-heading h2 { margin: 8px 0 12px; font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 500; letter-spacing: -0.035em; }
+.engine-entry-heading p { max-width: 60ch; }
+.engine-entry p, .gallery-demo-heading p { color: var(--muted); line-height: 1.65; }
+.engine-entry .map-primary-action { flex-shrink: 0; text-decoration: none; text-align: center; }
+.engine-planes { list-style: none; padding: 24px 0 0; margin: 24px 0 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
+.engine-planes span, .engine-planes strong { display: block; }
+.engine-planes span { color: var(--teal); font-size: .7rem; text-transform: uppercase; letter-spacing: .09em; margin-bottom: 12px; }
+.engine-planes p, .engine-entry-note { font-size: .8rem; }
+.gallery-demo-heading { margin-bottom: 24px; max-width: 75ch; }
+.gallery-run-your-own a { color: var(--teal); }
+.gallery-run-your-own details { margin-top: 24px; }
+.map-workspace-nav { display: flex; gap: 8px; flex-wrap: wrap; margin: 22px 0; }
+.map-workspace-nav a { color: var(--ink); border: 1px solid var(--line); padding: 10px 14px; text-decoration: none; font-size: .8rem; }
+.map-workspace-nav a:hover, .map-workspace-nav a:focus-visible { border-color: var(--teal); color: var(--teal); }
+.map-anchor-section, #map-capabilities, #map-evidence { scroll-margin-top: 24px; }
+.map-receipt-catalog { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; }
+.map-receipt-catalog button { width: 100%; height: 100%; padding: 12px; display: grid; gap: 6px; text-align: left; border: 1px solid var(--line); background: transparent; color: var(--ink); }
+.map-receipt-catalog span, .map-receipt-catalog code { color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
+.map-receipt-catalog button:hover, .map-receipt-catalog button:focus-visible { border-color: var(--teal); }
+.load-card .engine-entry { max-width: 900px; }
+@media (max-width: 760px) {
+  .engine-entry-heading { align-items: stretch; flex-direction: column; }
+  .engine-planes { grid-template-columns: 1fr; gap: 12px; }
+  .engine-planes p { margin-bottom: 4px; }
+}

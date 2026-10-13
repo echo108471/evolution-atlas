@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import {
   asRecord,
   parseCandidateMapText,
+  receiptProvenance,
   resolveLocalMapUrl,
   safeText,
   safeTextList,
@@ -17,7 +18,7 @@ const ARTIFACT_SIZE_MESSAGE = 'This artifact exceeds the browser’s 64 MB map l
 
 interface RepositoryMapExplorerProps {
   sourceUrl: string | null
-  onSourceUrl: (value: string) => void
+  onSourceUrl: (value: string | null) => void
   onBack: () => void
 }
 
@@ -324,7 +325,7 @@ function EvidenceInspector({ receipt, missingId }: { receipt: JsonRecord | null;
       </section>
     )
   }
-  const kind = safeText(receipt.kind, 'receipt')
+  const provenance = receiptProvenance(receipt.kind)
   const path = safeText(receipt.path)
   const text = safeText(receipt.text)
   const commitSha = safeText(receipt.commitSha)
@@ -332,7 +333,7 @@ function EvidenceInspector({ receipt, missingId }: { receipt: JsonRecord | null;
   const endLine = receipt.endLine
   return (
     <section className="map-evidence-inspector" aria-label="Evidence detail">
-      <p className="map-kicker">{kind === 'source' ? 'Observed source receipt' : 'History receipt'}</p>
+      <p className="map-kicker">{provenance.label}</p>
       <h2>{safeText(receipt.id, 'Evidence')}</h2>
       <dl className="map-evidence-facts">
         {path && <div><dt>Path</dt><dd><code>{path}</code></dd></div>}
@@ -344,9 +345,12 @@ function EvidenceInspector({ receipt, missingId }: { receipt: JsonRecord | null;
       {text ? (
         <pre className="map-source-text">{text}</pre>
       ) : (
-        <p className="map-empty-field">This receipt has metadata but no saved body in this artifact.</p>
+        <p className="map-empty-field">No plain-text excerpt is included. Inspect the saved receipt fields below.</p>
       )}
       <p className="map-review-boundary">A citation points to recorded material; it does not establish that the material supports the interpretation.</p>
+      {receipt.kind === 'search' && <p className="map-history-boundary">Search results are navigation only; they cannot support behavior claims without inspected source evidence.</p>}
+      {!provenance.observed && <p className="map-history-boundary">This is not observed Git evidence. Cached readings and prior maps are candidate interpretations; they cannot independently support a historical source claim.</p>}
+      <ObjectDetails value={receipt} label="Full saved receipt" />
       <ObjectDetails value={receipt.payload} label="Receipt payload" />
       <ObjectDetails value={receipt.omitted} label="Fields omitted from this receipt" />
     </section>
@@ -595,7 +599,17 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
   const [routeInput, setRouteInput] = useState(sourceUrl ?? '')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [routeAttempt, setRouteAttempt] = useState(0)
   const fileInput = useRef<HTMLInputElement>(null)
+  const inspector = useRef<HTMLElement>(null)
+  const loadSequence = useRef(0)
+  const routeController = useRef<AbortController | null>(null)
+
+  function selectEvidence(id: string) {
+    setSelectedEvidenceId(id)
+    inspector.current?.scrollIntoView({ block: 'center', behavior: 'instant' })
+    inspector.current?.focus({ preventScroll: true })
+  }
 
   useEffect(() => {
     setRouteInput(sourceUrl ?? '')
@@ -604,6 +618,9 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
   useEffect(() => {
     if (!sourceUrl) return
     const controller = new AbortController()
+    routeController.current = controller
+    const sequence = ++loadSequence.current
+    setFilter('')
     setArtifact(null)
     setSelectedEvidenceId(null)
     setError(null)
@@ -622,18 +639,18 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
         if (!response.ok) throw new Error(`The local route returned ${response.status}.`)
         const body = await readLimitedResponseText(response)
         const loaded = await parseCandidateMapText(body)
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted && sequence === loadSequence.current) {
           setArtifact(loaded)
           setSelectedNodeId(loaded.graph.nodes[0]?.id ?? null)
         }
       } catch (cause) {
-        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'The local artifact could not be read.')
+        if (!controller.signal.aborted && sequence === loadSequence.current) setError(cause instanceof Error ? cause.message : 'The local artifact could not be read.')
       } finally {
-        if (!controller.signal.aborted) setLoading(false)
+        if (!controller.signal.aborted && sequence === loadSequence.current) setLoading(false)
       }
     })()
     return () => controller.abort()
-  }, [sourceUrl])
+  }, [sourceUrl, routeAttempt])
 
   const nodes = artifact?.graph.nodes ?? []
   const edges = artifact?.graph.edges ?? []
@@ -662,19 +679,24 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
     const file = event.currentTarget.files?.[0]
     event.currentTarget.value = ''
     if (!file) return
+    routeController.current?.abort()
+    const sequence = ++loadSequence.current
     setError(null)
     setLoading(true)
     try {
       if (file.size > MAX_ARTIFACT_BYTES) throw new Error(ARTIFACT_SIZE_MESSAGE)
       const body = await file.text()
       const loaded = await parseCandidateMapText(body)
+      if (sequence !== loadSequence.current) return
+      onSourceUrl(null)
+      setFilter('')
       setArtifact(loaded)
       setSelectedNodeId(loaded.graph.nodes[0]?.id ?? null)
       setSelectedEvidenceId(null)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'The selected file is not valid candidate map JSON.')
+      if (sequence === loadSequence.current) setError(cause instanceof Error ? cause.message : 'The selected file is not valid candidate map JSON.')
     } finally {
-      setLoading(false)
+      if (sequence === loadSequence.current) setLoading(false)
     }
   }
 
@@ -682,7 +704,8 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
     event.preventDefault()
     try {
       const resolved = resolveLocalMapUrl(routeInput, window.location.href)
-      onSourceUrl(resolved)
+      if (resolved === sourceUrl) setRouteAttempt((attempt) => attempt + 1)
+      else onSourceUrl(resolved)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Enter a valid same-origin JSON route.')
     }
@@ -715,11 +738,11 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
       <section className="map-trust-panel" aria-label="Evidence boundaries">
         <div>
           <span className="map-trust-mark map-trust-mark--observed" aria-hidden="true">G</span>
-          <p><strong>Observed Git</strong><br />Commit, path, blob and saved source or history receipts.</p>
+          <p><strong>Observed Git</strong><br />Commit, path, blob, saved source and bounded Git diffs.</p>
         </div>
         <div>
           <span className="map-trust-mark map-trust-mark--candidate" aria-hidden="true">C</span>
-          <p><strong>Candidate interpretation</strong><br />Capabilities, claims, relationships and dispositions proposed from that evidence.</p>
+          <p><strong>Candidate interpretation</strong><br />Capabilities, relationships, cached readings and prior maps. Review notes qualify claims without verifying them.</p>
         </div>
         <p className="map-verification-state">Independent verification: not performed</p>
       </section>
@@ -782,9 +805,15 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
             <div><strong>{reviewNotes.length}</strong><span>review notes</span></div>
           </section>
 
-          {transition && <RevisionTransition transition={transition} />}
+          <nav className="map-workspace-nav" aria-label="Map sections">
+            <a href="#map-capabilities">Capabilities</a>
+            <a href="#map-history">History</a>
+            <a href="#map-evidence">Evidence store</a>
+            <a href="#map-review">Review context</a>
+            <a href="#map-coverage">Coverage &amp; omissions</a>
+          </nav>
 
-          <section className="map-explorer" aria-label="Candidate capability map">
+          <section id="map-capabilities" className="map-explorer" aria-label="Candidate capability map">
             <nav className="map-node-index" aria-label="Capability list">
               <div className="map-index-heading">
                 <div>
@@ -827,14 +856,14 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
                   relatedEdges={relatedEdges}
                   notes={reviewNotes}
                   onSelectNode={(id) => { setSelectedNodeId(id); setSelectedEvidenceId(null) }}
-                  onSelectEvidence={setSelectedEvidenceId}
+                  onSelectEvidence={selectEvidence}
                 />
               ) : (
                 <div className="map-no-nodes"><h2>No candidate capabilities were proposed.</h2><p>The source and coverage records remain available below.</p></div>
               )}
             </div>
 
-            <aside className="map-inspector-column">
+            <aside className="map-inspector-column" ref={inspector} tabIndex={-1} aria-label="Selected evidence">
               <EvidenceInspector receipt={selectedReceipt} missingId={selectedEvidenceId} />
               {selectedNode && (
                 <section className="map-inspector-sources">
@@ -843,7 +872,7 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
                   <ul>
                     {selectedNode.evidenceIds.map((id, index) => (
                       <li key={`${index}:${id}`}>
-                        <button type="button" onClick={() => setSelectedEvidenceId(id)}>
+                        <button type="button" onClick={() => selectEvidence(id)}>
                           <span>{id}</span>
                           <small>{safeText(evidenceById.get(id)?.path, safeText(evidenceById.get(id)?.kind, 'source unavailable'))}</small>
                         </button>
@@ -855,9 +884,35 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
             </aside>
           </section>
 
-          {history && <HistoryLineage history={history} onSelectEvidence={setSelectedEvidenceId} />}
-          {reviewHistory && <ReviewHistory reviewHistory={reviewHistory} onSelectEvidence={setSelectedEvidenceId} />}
-          <CoverageSection artifact={artifact} />
+          <div id="map-history" className="map-anchor-section">
+            {transition && <RevisionTransition transition={transition} />}
+            {history && <HistoryLineage history={history} onSelectEvidence={selectEvidence} />}
+            {!transition && !recordList(history?.lineage).length && !recordList(history?.edgeLineage).length && (
+              <section className="map-history-section"><p className="map-kicker">History</p><h2>No cross-revision history included</h2><p>This artifact supplies a snapshot candidate map. It does not establish capability evolution. Open a descendant-revision expansion to inspect observed changes and candidate lineage.</p></section>
+            )}
+          </div>
+          <section id="map-evidence" className="map-history-section" aria-label="Evidence store">
+            <p className="map-kicker">Store · saved receipts</p>
+            <h2>Inspect the evidence behind the map</h2>
+            <p>Open any included receipt, including material not cited by the selected capability. These are the receipts packaged in this output, not the repository's entire evidence store.</p>
+            <ul className="map-receipt-catalog">
+              {receipts.map((receipt, index) => (
+                <li key={`${safeText(receipt.id)}:${index}`}><button type="button" onClick={() => selectEvidence(safeText(receipt.id))}>
+                  <strong>{safeText(receipt.id)}</strong><span>{receiptProvenance(receipt.kind).label}</span><code>{safeText(receipt.path, safeText(receipt.commitSha))}</code>
+                </button></li>
+              ))}
+            </ul>
+            {!receipts.length && <p>No receipts were included in this artifact.</p>}
+          </section>
+          <div id="map-review" className="map-anchor-section">
+            <section className="map-history-section"><p className="map-kicker">Post-inference review</p><h2>Current review context</h2>
+              <p>{reviewNotes.length ? `${reviewNotes.length} claim-local notes qualify the current map. Select a capability to read its notes alongside the claim.` : 'No current claim-local review notes were included. Absence of notes is not approval.'}</p>
+              <p>Review does not rewrite the candidate graph or become a discovery label. Earlier notes stay attached to their original revision.</p>
+              {!recordList(reviewHistory?.entries).length && <p>No earlier review notes were included.</p>}
+            </section>
+            {reviewHistory && <ReviewHistory reviewHistory={reviewHistory} onSelectEvidence={selectEvidence} />}
+          </div>
+          <div id="map-coverage" className="map-anchor-section"><CoverageSection artifact={artifact} /></div>
         </>
       )}
       <footer className="map-footer">

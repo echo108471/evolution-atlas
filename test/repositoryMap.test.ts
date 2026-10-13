@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import test from 'node:test'
 
-import { parseCandidateMapArtifact, parseCandidateMapText, resolveLocalMapUrl } from '../src/repositoryMap'
+import { parseCandidateMapArtifact, parseCandidateMapText, resolveLocalMapUrl, receiptProvenance } from '../src/repositoryMap'
 
 function fixture() {
   const graph = {
@@ -182,4 +182,13 @@ test('same-origin JSON route validation rejects redirects, external hosts, and a
   assert.throws(() => resolveLocalMapUrl('data:application/json,{}', base), /same-origin path/i)
   assert.throws(() => resolveLocalMapUrl('/maps/output.json?token=private', base), /without query or fragment/i)
   assert.throws(() => resolveLocalMapUrl('/maps/output.html', base), /output.json/i)
+})
+
+
+test('receipt provenance never upgrades cached interpretations or unknown kinds to observed Git', () => {
+  for (const kind of ['source', 'search', 'commit-meta', 'diff', 'path-history']) assert.equal(receiptProvenance(kind).observed, true)
+  for (const kind of ['commit-reading', 'prior-map', 'reading', 'future-kind', undefined]) assert.equal(receiptProvenance(kind).observed, false)
+  assert.equal(receiptProvenance('commit-reading').label, 'Cached candidate reading')
+  assert.equal(receiptProvenance('search').label, 'Observed source search (navigation only)')
+  assert.equal(receiptProvenance('prior-map').label, 'Earlier candidate map')
 })

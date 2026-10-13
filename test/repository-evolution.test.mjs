@@ -225,3 +225,53 @@ test('prior-map pages report boundary-edge omissions and candidate-only attribut
   assert.equal(page.omittedEdges, 1)
   assert.equal(page.directSourceProof, false)
 })
+
+test('v3 frozen integrator instructions define the decision schema and executable broker route', t => {
+  const f = fixture(t), out = resolve(f.root, "explicit protocol's run")
+  prepareEngine(out, { mode: 'discovery', repo: f.repo, revision: f.baselineSha, displayName: 'Synthetic protocol', partitionCount: 1 })
+  const protocol = readFileSync(resolve(out, 'protocol.md'), 'utf8')
+  assert.match(protocol, /decisions is an array of objects \{question,decision,reason,evidenceIds,uncertainty\}/)
+  assert.match(protocol, /never use bare strings/)
+  assert.match(protocol, /Every successor shared by multiple input originals must have only merge rows/)
+  assert.match(protocol, /Compound split-and-merge transactions need separate versions/)
+  assert.match(protocol, /Do not relabel a split as a merge or remove an input merely to satisfy cardinality/)
+  assert.match(protocol, /preserve justified distinct candidates/)
+  assert.match(protocol, /Indices are zero-based in baseline.graph.edges/)
+  assert.match(protocol, /entire edge record is exactly unchanged, including endpoints, type, reason, evidenceIds and assessment/)
+  assert.match(protocol, /does not authorize semantic retries/)
+  assert.match(protocol, /comparisons.newNodeId names a DISCOVERY INPUT node/)
+  assert.match(protocol, /Include at least one comparison for EVERY discovery input, even if merged away or removed/)
+  assert.match(protocol, /lineage.originalId names one baseline OR discovery input node/)
+  assert.match(protocol, /lineage.successorIds names output nodes/)
+  assert.match(protocol, /they do not index output edges/)
+  assert.match(protocol, /Discovery input nodes are not historical predecessors/)
+  assert.match(protocol, /History row id is a unique claim label/)
+  assert.match(protocol, /Node IDs, commit SHAs, prior-map IDs and cached-reading IDs are not evidence receipt IDs/)
+
+
+  assert.match(protocol, /verified source or diff receipt IDs/)
+  const a = launch(out, 'A'), receipt = engineBroker(out, 'A', 'read', ['src/changed.ts'])
+  const capability = node('A1', receipt.id)
+  save(resolve(out, 'proposals/A.json'), { agent: 'A', scopeSummary: 'Synthetic fixture', coverage: { inspected: [receipt.path], omissions: [] },
+    crossPartitionLeads: [], nodes: [capability], edges: [], limitations: ['Synthetic fixture; no model inference.'] })
+  finish(out, 'A', a)
+  freezeIntegration(out)
+  const task = JSON.parse(readFileSync(resolve(out, 'tasks/R.json')))
+  const shellPath = "'" + out.replaceAll("'", "'\"'\"'") + "'"
+  assert.ok(task.instruction.includes(`node scripts/repository-engine.mjs broker ${shellPath} R receipt RECEIPT_ID`))
+  const statusCommand = `node scripts/repository-engine.mjs status ${shellPath} R`
+  assert.ok(task.instruction.includes(statusCommand))
+  assert.match(task.instruction, /forbidden compound split-and-merge transactions/)
+  assert.match(task.instruction, /comparisons.newNodeId always uses discovery input IDs, including merged-away inputs/)
+  const status = JSON.parse(execFileSync('/bin/sh', ['-c', statusCommand], { encoding: 'utf8' }))
+  assert.equal(status.assignment, 'R')
+  const r = launch(out, 'R')
+  const graph = { nodes: [capability], edges: [], lineage: [{ originalId: 'A1', decision: 'retain', successorIds: ['A1'], reason: 'Synthetic retain' }],
+    edgeLineage: [], decisions: [{ question: 'Keep this candidate?', decision: 'Retain', reason: 'Source-backed synthetic fixture', evidenceIds: [receipt.id], uncertainty: [] }],
+    limitations: ['Synthetic fixture'], comparisons: [], historyLineage: [], historyEdgeLineage: [] }
+  save(resolve(out, 'reconciled.json'), graph)
+  finish(out, 'R', r)
+  assert.equal(publishEngine(out).status, 'candidate-map-produced')
+  const strings = { ...graph, decisions: ['Retain the candidate'] }
+  assert.ok(reconciledIssuesV3(strings, { nodes: [], edges: [] }, [{ nodes: [capability], edges: [] }], [receipt], false).some(issue => issue.target === 'decisions'))
+})

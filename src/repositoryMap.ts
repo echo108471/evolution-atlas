@@ -385,3 +385,17 @@ export function safeText(value: unknown, fallback = ''): string {
 export function safeTextList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
 }
+
+/** Receipt provenance comes from the saved contract, never from the claim citing it. */
+export function receiptProvenance(kind: unknown): { label: string; observed: boolean } {
+  switch (kind) {
+    case 'search': return { label: 'Observed source search (navigation only)', observed: true }
+    case 'source': return { label: 'Observed source receipt', observed: true }
+    case 'commit-meta': return { label: 'Observed commit metadata', observed: true }
+    case 'diff': return { label: 'Observed Git diff', observed: true }
+    case 'path-history': return { label: 'Observed path history', observed: true }
+    case 'commit-reading': return { label: 'Cached candidate reading', observed: false }
+    case 'prior-map': return { label: 'Earlier candidate map', observed: false }
+    default: return { label: 'Unclassified receipt', observed: false }
+  }
+}

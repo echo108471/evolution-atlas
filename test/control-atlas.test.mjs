@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
 import { parseControlCommand } from '../scripts/control-atlas.mjs'
-import { cleanupRun, doctor, sourceManifest } from '../scripts/verification/control-atlas.mjs'
+import { cleanupRun, doctor, sourceManifest, selectedBrowserExecutable } from '../scripts/verification/control-atlas.mjs'
 import { FEATURE_IDS } from '../scripts/verification/features.mjs'
 import { buildRunnerArgs, discoverTestFiles } from '../scripts/test.mjs'
 
@@ -184,4 +184,13 @@ test('cleanup reports live owners in dry-run and refuses to remove their runtime
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+})
+
+
+test('explicit browser selection requires an absolute executable regular file', () => {
+  assert.equal(selectedBrowserExecutable(''), undefined)
+  assert.throws(() => selectedBrowserExecutable('chromium'), /absolute executable path/)
+  assert.throws(() => selectedBrowserExecutable('/no-such-atlas-browser'))
+  assert.throws(() => selectedBrowserExecutable('/tmp'), /regular file/)
+  assert.equal(selectedBrowserExecutable(process.execPath), realpathSync(process.execPath))
 })

@@ -3,16 +3,20 @@ import { execFileSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import {
   appendFileSync,
+  accessSync,
+  constants,
   existsSync,
   lstatSync,
   mkdirSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { tmpdir } from 'node:os'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import react from '@vitejs/plugin-react'
@@ -21,6 +25,7 @@ import { loadPreviewBuild, runPreviewJourney, startPreviewServer } from './previ
 import {
   syntheticAtlas,
   syntheticCandidateMap,
+  syntheticHistoryCandidateMap,
   syntheticGallery,
   syntheticPeriods,
 } from './fixtures.mjs'
@@ -37,6 +42,7 @@ const EXPECTED_FETCH_CANCEL_PATHS = new Set([
   '/gallery/synthetic-atlas.json',
   '/atlas.json',
   '/epochs.json',
+  '/maps/output.json',
 ])
 const HARNESS_SOURCE_FILES = [
   'package-lock.json',
@@ -196,6 +202,15 @@ export function sourceManifest({ repositoryRoot = REPOSITORY_ROOT, features = FE
   }
 }
 
+export function selectedBrowserExecutable(value = process.env.ATLAS_BROWSER_EXECUTABLE) {
+  if (!value) return undefined
+  if (!isAbsolute(value)) throw new Error('ATLAS_BROWSER_EXECUTABLE must be an absolute executable path.')
+  const path = realpathSync(value)
+  if (!lstatSync(path).isFile()) throw new Error('ATLAS_BROWSER_EXECUTABLE must resolve to a regular file.')
+  accessSync(path, constants.X_OK)
+  return path
+}
+
 async function withBrowserPath(browserRoot, callback) {
   const previous = process.env.PLAYWRIGHT_BROWSERS_PATH
   process.env.PLAYWRIGHT_BROWSERS_PATH = browserRoot
@@ -252,7 +267,7 @@ export async function doctor({ repositoryRoot = REPOSITORY_ROOT } = {}) {
   try {
     await withBrowserPath(browserRoot, async () => {
       const { chromium } = await import('playwright')
-      browserPath = chromium.executablePath()
+      browserPath = selectedBrowserExecutable() ?? chromium.executablePath()
       browserOk = existsSync(browserPath)
     })
   } catch (error) {
@@ -262,7 +277,7 @@ export async function doctor({ repositoryRoot = REPOSITORY_ROOT } = {}) {
       id: 'playwright-chromium',
     ok: browserOk,
     detail: browserOk
-      ? `Bundled Chromium is installed at ${browserPath}.`
+      ? `${process.env.ATLAS_BROWSER_EXECUTABLE ? 'Explicit system Chromium' : 'Bundled Chromium'} is installed at ${browserPath}.`
       : `Install bundled Chromium with: PLAYWRIGHT_BROWSERS_PATH=scratch/verification-browsers npx playwright install chromium${browserError ? ` (${browserError})` : ''}`,
   })
 
@@ -348,6 +363,7 @@ function populateRuntime(runtime) {
   writeJsonFile(join(publicDir, 'gallery', 'manifest.json'), syntheticGallery(dataset))
   writeJsonFile(join(publicDir, 'gallery', 'synthetic-atlas.json'), dataset)
   writeJsonFile(join(publicDir, 'maps', 'output.json'), syntheticCandidateMap())
+  writeJsonFile(join(publicDir, 'maps', 'history-output.json'), syntheticHistoryCandidateMap())
   return { ...runtime, dataset }
 }
 
@@ -525,7 +541,7 @@ async function runJourney({ feature, page, baseUrl, actionPath, actions, runtime
     recordStep({ actionPath, actions, name: 'assert-local-import-side-effect', assertion: 'File import produces no network requests.', details: { baselineRequestCount: requestCountBeforeImport, subsequentRequests: requestsAfterImport } })
     await assertText(page, actionPath, actions, /File imports are never uploaded\./, 'The UI states that file imports are never uploaded.')
     await clickAndRecord(page, actionPath, actions, page.getByRole('button', { name: 'S1', exact: true }).first(), 'Select cited source receipt S1.')
-    await waitForVisible(page, actionPath, actions, page.getByText('export function lookup(key)', { exact: false }), 'Evidence inspector displays the cited source text.')
+    await waitForVisible(page, actionPath, actions, page.locator('.map-source-text').filter({ hasText: 'export function lookup(key)' }), 'Evidence inspector displays the cited source text.')
     await assertCandidateMapEvidenceLayout(page, actionPath, actions, 'after opening the receipt')
     const scroll = await page.locator('.map-explorer').evaluate(element => {
       const before = window.scrollY
@@ -539,12 +555,60 @@ async function runJourney({ feature, page, baseUrl, actionPath, actions, runtime
     recordStep({ actionPath, actions, name: 'scroll', assertion: 'Scroll the page through the candidate detail while retaining the receipt sidebar.', details: { ...scroll, after: afterScroll } })
     await assertCandidateMapEvidenceLayout(page, actionPath, actions, 'after scrolling the page')
     await assertText(page, actionPath, actions, /Independent verification: not performed/, 'Candidate map keeps independent verification marked not performed.')
+    await clickAndRecord(page, actionPath, actions, page.getByRole('link', { name: 'History', exact: true }), 'Navigate to history without inferring evolution from a snapshot.')
+    await waitForVisible(page, actionPath, actions, heading('No cross-revision history included'), 'Snapshot-only artifact exposes the missing history boundary.')
+    await clickAndRecord(page, actionPath, actions, page.getByRole('link', { name: 'Evidence store', exact: true }), 'Open the included evidence catalog.')
+    await clickAndRecord(page, actionPath, actions, page.locator('.map-receipt-catalog button').first(), 'Open a stored receipt from outside the selected capability.')
+    await waitForVisible(page, actionPath, actions, page.locator('.map-source-text').filter({ hasText: 'export function lookup(key)' }), 'Evidence catalog returns to the focused receipt inspector.')
+    await page.locator('#map-capability-search').fill('no matching capability')
+    await input.setInputFiles(join(runtimeDir, 'public', 'maps', 'output.json'))
+    await waitForVisible(page, actionPath, actions, page.getByRole('button', { name: 'Synthetic catalog lookup', exact: false }).first(), 'Repeated import clears the previous map search.')
+    await input.setInputFiles({ name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from('{') })
+    await waitForVisible(page, actionPath, actions, page.getByRole('alert'), 'Invalid replacement reports an error without discarding the current map.')
+    await clickAndRecord(page, actionPath, actions, page.getByRole('button', { name: 'Dismiss', exact: true }), 'Dismiss the invalid import error.')
+    await waitForVisible(page, actionPath, actions, mapHeading, 'Dismissal retains the valid candidate map.')
+
+    let releaseRoute
+    const delayedRoute = new Promise(resolve => { releaseRoute = resolve })
+    await page.route('**/maps/output.json', async route => { await delayedRoute; await route.continue().catch(() => undefined) }, { times: 1 })
+    await page.locator('#map-local-route').fill('/maps/output.json')
+    const requestStarted = page.waitForRequest('**/maps/output.json')
+    await clickAndRecord(page, actionPath, actions, page.getByRole('button', { name: 'Open map', exact: true }), 'Begin a delayed same-origin map request.')
+    await requestStarted
+    await input.setInputFiles({ name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from('{') })
+    await waitForVisible(page, actionPath, actions, page.getByRole('alert'), 'Invalid file interrupts the pending route with a visible error.')
+    await clickAndRecord(page, actionPath, actions, page.getByRole('button', { name: 'Dismiss', exact: true }), 'Dismiss the interrupted import error.')
+    releaseRoute()
+    await clickAndRecord(page, actionPath, actions, page.getByRole('button', { name: 'Open map', exact: true }), 'Retry the unchanged map route after interruption.')
+    await waitForVisible(page, actionPath, actions, mapHeading, 'An unchanged route can be retried after a failed replacement.')
+    await input.setInputFiles(join(runtimeDir, 'public', 'maps', 'history-output.json'))
+    await waitForVisible(page, actionPath, actions, heading('Synthetic History Map'), 'A descendant map replaces the snapshot.')
+    await clickAndRecord(page, actionPath, actions, page.getByRole('link', { name: 'History', exact: true }), 'Open the cross-revision history projection.')
+    await waitForVisible(page, actionPath, actions, heading('What changed between revisions'), 'Observed revision changes remain separate from candidate lineage.')
+    await clickAndRecord(page, actionPath, actions, page.getByRole('button', { name: 'H1', exact: true }), 'Follow a history claim to its diff receipt.')
+    await waitForVisible(page, actionPath, actions, page.getByText('Observed Git diff', { exact: true }).first(), 'History selection opens an observed diff in the focused inspector.')
+    await clickAndRecord(page, actionPath, actions, page.locator('.map-receipt-catalog button').filter({ hasText: 'R1' }), 'Inspect a cached interpretation from the evidence catalog.')
+    await waitForVisible(page, actionPath, actions, page.locator('.map-evidence-inspector').getByText('Cached candidate reading', { exact: true }), 'Cached model readings are not labeled observed Git.')
+    await clickAndRecord(page, actionPath, actions, page.getByText('Full saved receipt', { exact: true }), 'Inspect the structured reading without hiding its interpretation status.')
+    await waitForVisible(page, actionPath, actions, page.getByText('A fictional cached reading of catalog lookup.', { exact: false }), 'Structured receipt content remains inspectable.')
+    await clickAndRecord(page, actionPath, actions, page.locator('.map-receipt-catalog button').filter({ hasText: 'Q1' }), 'Inspect source-search navigation provenance.')
+    await waitForVisible(page, actionPath, actions, page.locator('.map-evidence-inspector').getByText('Observed source search (navigation only)', { exact: true }), 'Source search is observed navigation.')
+    await waitForVisible(page, actionPath, actions, page.getByText('Search results are navigation only; they cannot support behavior claims without inspected source evidence.', { exact: true }), 'Search hits do not establish behavioral claims.')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await clickAndRecord(page, actionPath, actions, page.getByRole('link', { name: 'Evidence store', exact: true }), 'Open evidence navigation on a narrow viewport.')
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'The mobile map must not overflow horizontally.')
+    recordStep({ actionPath, actions, name: 'assert-mobile-width', assertion: 'Candidate map fits a 390px viewport without horizontal overflow.' })
     return
   }
 
   if (feature.id === 'gallery') {
     await navigateAndRecord(page, actionPath, actions, `${baseUrl}/`, 'Open the synthetic gallery index.')
-    await waitForVisible(page, actionPath, actions, heading('How a codebase grew, read from its commits.'), 'Gallery index renders from the synthetic manifest.')
+    await waitForVisible(page, actionPath, actions, heading('Understand a codebase through evidence.'), 'Gallery index renders from the synthetic manifest.')
+    await page.screenshot({ path: join(dirname(actionPath), 'entry.png'), fullPage: true, animations: 'disabled' })
+    await clickAndRecord(page, actionPath, actions, page.getByRole('link', { name: 'Open a candidate capability map', exact: true }), 'Open the current engine workspace from the primary entry.')
+    await waitForVisible(page, actionPath, actions, heading('Open a candidate map'), 'Current engine entry opens without an atlas dataset.')
+    await page.goBack()
+    await waitForVisible(page, actionPath, actions, heading('Understand a codebase through evidence.'), 'Browser Back restores the front door.')
     await clickAndRecord(page, actionPath, actions, page.getByRole('button', { name: /Synthetic Gallery Project/ }), 'Open the synthetic gallery subject.')
     await waitForVisible(page, actionPath, actions, heading('Read the codebase as a history of capabilities.'), 'Gallery subject opens its matching synthetic dataset.')
     try {
@@ -832,24 +896,28 @@ export async function verifyFeatures({ featureIds, all = false, trace = false } 
   let runtime = null
   let browser = null
   let vite = null
+  let browserTemp = null
   try {
     runtime = createRuntime(runId)
     runtime = populateRuntime(runtime)
     const { baseUrl, server } = await startIsolatedVite(runtime)
     vite = server
     report.baseUrl = baseUrl
+    // Chromium's Unix socket path must fit even when the checkout is deeply nested.
+    browserTemp = mkdtempSync(join(tmpdir(), 'atlas-ui-'))
     const env = {
       PATH: process.env.PATH ?? '',
-      TMPDIR: runtime.runtimeDir,
-      TEMP: runtime.runtimeDir,
-      TMP: runtime.runtimeDir,
+      TMPDIR: browserTemp,
+      TEMP: browserTemp,
+      TMP: browserTemp,
       LANG: 'en_US.UTF-8',
       LC_ALL: 'en_US.UTF-8',
     }
     browser = await withBrowserPath(BROWSER_ROOT, async () => {
       const { chromium } = await import('playwright')
-      return chromium.launch({ headless: true, env })
+      return chromium.launch({ headless: true, env, executablePath: selectedBrowserExecutable() })
     })
+    report.browser = { ...report.browser, executablePath: selectedBrowserExecutable() ?? 'bundled Chromium', version: browser.version() }
     for (const feature of selectedFeatures) {
       const result = await runOneFeature({ feature, baseUrl, browser, runtimeDir: runtime.runtimeDir, evidenceDir, trace })
       report.results.push(result)
@@ -858,6 +926,7 @@ export async function verifyFeatures({ featureIds, all = false, trace = false } 
     report.setupError = error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { message: String(error) }
   } finally {
     if (browser) await browser.close().catch((error) => { report.browserTeardownError = String(error) })
+    if (browserTemp) rmSync(browserTemp, { recursive: true, force: true })
     if (vite) await vite.close().catch((error) => { report.viteTeardownError = String(error) })
     if (runtime) {
       try {
@@ -920,13 +989,15 @@ export async function verifyPreview(options) {
     directory: preview.directory, inventory: preview.inventory, evidenceDir, testedFeatures: ['gallery', 'overview', 'repository'],
     browser: { name: 'Playwright Chromium', isolatedProfile: true, host: '127.0.0.1' }, results: [], limitations,
   }
-  let runtime, browser, hosted
+  let runtime, browser, hosted, browserTemp
   try {
     runtime = createRuntime(runId)
     hosted = await startPreviewServer(preview)
     report.baseUrl = hosted.baseUrl
-    const env = { PATH: process.env.PATH ?? '', TMPDIR: runtime.runtimeDir, TEMP: runtime.runtimeDir, TMP: runtime.runtimeDir, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' }
-    browser = await withBrowserPath(BROWSER_ROOT, async () => (await import('playwright')).chromium.launch({ headless: true, env }))
+    browserTemp = mkdtempSync(join(tmpdir(), 'atlas-ui-'))
+    const env = { PATH: process.env.PATH ?? '', TMPDIR: browserTemp, TEMP: browserTemp, TMP: browserTemp, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' }
+    browser = await withBrowserPath(BROWSER_ROOT, async () => (await import('playwright')).chromium.launch({ headless: true, env, executablePath: selectedBrowserExecutable() }))
+    report.browser = { ...report.browser, executablePath: selectedBrowserExecutable() ?? 'bundled Chromium', version: browser.version() }
     const feature = { ...features[0], title: 'Private production gallery preview', limits: limitations }
     const result = await runOneFeature({ feature, baseUrl: hosted.baseUrl, browser, runtimeDir: runtime.runtimeDir, evidenceDir,
       permittedPaths: new Set(['/', ...[...preview.files.keys()].map(path => `/${path}`), ...(preview.allowedMissingEpochs ? ['/epochs.json'] : [])]),
@@ -949,6 +1020,7 @@ export async function verifyPreview(options) {
     report.setupError = { name: error.name, message: error.message }
   } finally {
     if (browser) await browser.close().catch(error => { report.browserTeardownError = String(error) })
+    if (browserTemp) rmSync(browserTemp, { recursive: true, force: true })
     if (hosted) {
       await new Promise(resolve => hosted.server.close(error => { if (error) report.serverTeardownError = String(error); resolve() }))
       writeJsonFile(join(evidenceDir, 'server-requests.json'), hosted.requests)

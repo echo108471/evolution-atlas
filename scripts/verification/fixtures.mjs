@@ -240,3 +240,24 @@ export function syntheticGallery(dataset = syntheticAtlas()) {
     }],
   }
 }
+
+
+/** A fictional descendant comparison, including a cached interpretation that is not Git proof. */
+export function syntheticHistoryCandidateMap() {
+  const artifact = syntheticCandidateMap()
+  return { ...artifact, displayName: 'Synthetic History Map', mode: 'expansion', history: {
+    transition: { fromCommitSha: 'b'.repeat(40), toCommitSha: artifact.commitSha, relation: 'descendant',
+      added: [], changed: [{ path: 'src/catalog.ts', fromBlobSha: 'd'.repeat(40), toBlobSha: 'e'.repeat(40) }], unchanged: [], deleted: [],
+      omissions: ['Only the fictional catalog path was compared.'] },
+    receipts: [
+      { id: 'Q1', kind: 'search', query: 'catalog', hits: [{ path: 'src/catalog.ts', line: 3 }] },
+      { id: 'H1', kind: 'diff', path: 'src/catalog.ts', commitSha: artifact.commitSha, text: '+ return catalog.get(key)' },
+      { id: 'R1', kind: 'commit-reading', commitSha: artifact.commitSha, interpretationStatus: 'candidate', directSourceProof: false,
+        readings: [{ summary: 'A fictional cached reading of catalog lookup.' }] },
+    ],
+    lineage: [{ id: 'history:catalog', from: { commitSha: 'b'.repeat(40), nodeId: 'old:cap:catalog' },
+      to: [{ commitSha: artifact.commitSha, nodeId: 'cap:catalog' }], decision: 'revise', assessment: 'partial',
+      claim: 'Catalog lookup changed in the compared revision.', reason: 'A synthetic diff illustrates the receipt route.', evidenceIds: ['H1'] }],
+    edgeLineage: [], omissions: ['Synthetic history does not establish real semantic behavior.'],
+  } }
+}

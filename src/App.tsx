@@ -1,3 +1,4 @@
+import { EngineEntry } from './EngineEntry'
 import { useEffect, useMemo, useState } from 'react'
 
 import { ContributorTrail } from './ContributorTrail'
@@ -1021,7 +1022,7 @@ export default function App() {
     return (
       <RepositoryMapExplorer
         sourceUrl={url.mapUrl}
-        onSourceUrl={(value) => setUrl({ section: 'map', mapUrl: value })}
+        onSourceUrl={(value) => setUrl({ section: 'map', mapUrl: value }, { replace: value === null })}
         onBack={() => setUrl({ section: 'overview', mapUrl: null })}
       />
     )
@@ -1043,7 +1044,8 @@ export default function App() {
         {loadError ? (
           <div className="load-card">
             <span className="eyebrow">{manifest ? 'Gallery dataset missing' : 'Local dataset needed'}</span>
-            <h1>Map a committed history.</h1>
+            <h1>Explore repository evidence.</h1>
+            <EngineEntry />
             {manifest ? (
               <>
                 <p>This gallery subject has no dataset yet. Rebuild it, then reload.</p>
@@ -1051,11 +1053,10 @@ export default function App() {
               </>
             ) : (
               <>
-                <p>Generate the ignored local dataset, then reload the page.</p>
+                <p>For the legacy observed-atlas viewer, generate the ignored local dataset, then reload.</p>
                 <code>npm run analyze -- --repo . --out public/atlas.json</code>
               </>
             )}
-            <a className="load-map-link" href="?view=map">Open a candidate capability map</a>
             <small>{loadError}</small>
           </div>
         ) : (

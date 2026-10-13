@@ -120,3 +120,52 @@ test('expansion requires evidenced new-to-existing comparison, not a specific se
   g.comparisons.push(structuredClone(g.comparisons[0])); assert.match(messages(reconciledIssues(g, baseline, proposals, receipts, true)), /duplicate alternative set/)
   g.comparisons = []; assert.match(messages(reconciledIssues(g, baseline, proposals, receipts, true)), /missing new-to-existing/)
 })
+
+test('compound split-and-merge ownership is rejected without changing the authored graph', () => {
+  const before = ['old:X', 'old:Y', 'A'].map(node)
+  for (const action of ['revise', 'merge']) {
+    const g = { ...graph(), nodes: ['P', 'Q'].map(node), lineage: [
+      line('old:X', ['P'], action), line('old:Y', ['Q'], action), line('A', ['P', 'Q'], 'split'),
+    ] }
+    const saved = structuredClone(g), issues = lineageIssues(g, before, {})
+    assert.match(messages(issues), /shared successor requires explicit merge accounting/)
+    if (action === 'merge') assert.match(messages(issues), /at least two explicitly merging originals/)
+    assert.deepEqual(g, saved, 'validation must never repair semantic choices')
+  }
+  const deferred = { ...graph(), nodes: before, lineage: before.map(n => line(n.id)) }
+  assert.deepEqual(lineageIssues(deferred, before, {}), [], 'distinct candidates may remain while consolidation is deferred')
+})
+
+test('edge retention compares the complete record even when its identity is unchanged', () => {
+  const before = graph().nodes, original = edge('A', 'B')
+  for (const patch of [{ reason: 'Different explanation' }, { evidenceIds: ['S2'] }, { assessment: 'unresolved' }]) {
+    const g = { ...graph(), edges: [{ ...original, ...patch }], edgeLineage: [
+      { source: 'discovery', originalIndex: 0, decision: 'retain', successorEdges: [{ from: 'A', to: 'B', type: 'contains' }], reason: 'Same endpoints' },
+    ] }
+    assert.match(messages(lineageIssues(g, before, { discovery: [original] })), /retained edge changed/)
+    g.edgeLineage[0].decision = 'revise'
+    assert.deepEqual(lineageIssues(g, before, { discovery: [original] }), [])
+  }
+})
+
+test('comparison IDs refer to discovery inputs even when consolidation consumes their identities', () => {
+  const baseline = { nodes: [node('old:B')], edges: [] }, proposal = { nodes: [node('A')], edges: [] }
+  const comparison = { newNodeId: 'A', existingNodeIds: ['old:B'], relation: 'same', reason: 'Synthetic source-backed overlap',
+    disposition: 'Merge both inputs into output R', evidenceIds: ['S1'], uncertainty: [] }
+  const merged = { ...graph(), nodes: [node('R')], lineage: [line('old:B', ['R'], 'merge'), line('A', ['R'], 'merge')], comparisons: [comparison] }
+  assert.deepEqual(reconciledIssues(merged, baseline, [proposal], receipts, true), [])
+  const wrongOutput = structuredClone(merged); wrongOutput.comparisons[0].newNodeId = 'R'
+  const saved = structuredClone(wrongOutput), issues = reconciledIssues(wrongOutput, baseline, [proposal], receipts, true)
+  assert.ok(issues.some(issue => issue.target === 'R' && issue.message === 'unknown new comparison node'))
+  assert.ok(issues.some(issue => issue.target === 'A' && issue.message === 'missing new-to-existing comparison'))
+  assert.deepEqual(wrongOutput, saved, 'validation cannot silently remap comparison semantics')
+  for (const wrongExisting of ['B', 'A', 'R']) {
+    const invalid = structuredClone(merged); invalid.comparisons[0].existingNodeIds = [wrongExisting]
+    assert.match(messages(reconciledIssues(invalid, baseline, [proposal], receipts, true)), /invalid existing comparison nodes/)
+  }
+  const removed = { ...graph(), nodes: baseline.nodes, lineage: [line('old:B'), line('A', [], 'remove')],
+    comparisons: [{ ...comparison, disposition: 'Omit the redundant discovery candidate from this map; no lifecycle removal claim' }] }
+  assert.deepEqual(reconciledIssues(removed, baseline, [proposal], receipts, true), [])
+  removed.comparisons = []
+  assert.match(messages(reconciledIssues(removed, baseline, [proposal], receipts, true)), /missing new-to-existing comparison/)
+})

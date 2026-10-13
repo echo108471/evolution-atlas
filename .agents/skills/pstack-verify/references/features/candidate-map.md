@@ -17,7 +17,7 @@ Source basis: [src/App.tsx](../../../../../src/App.tsx), [src/RepositoryMapExplo
 - Choose **Candidate map** in the product navigation, or open the map view at ?view=map.
 - Choose **output.json** or **reviewed-output.json**, or enter a same-origin JSON route and choose **Open map**.
 - Select a capability, then choose a cited receipt to inspect its saved text and Git metadata.
-- Inspect the history, coverage, omissions, or review sections when they are present in the artifact.
+- Use the section navigation for History, Evidence store, Review context, and Coverage & omissions. The receipt catalog includes both observed Git receipts and separately labeled cached interpretations. Opening a receipt returns focus to the inspector. Missing history and review notes remain explicit.
 
 ## Driving it with control-atlas
 
@@ -32,7 +32,7 @@ node scripts/control-atlas.mjs verify --feature candidate-map
 
 The journey asserts that output.json imports in the browser session, the UI states that file imports are never uploaded, and source receipt S1 opens with its saved text. At a 1440 × 1000 viewport, it measures the receipt inspector, source text, citation heading, ID, and path after opening S1 and after scrolling the page. The receipt and citations must occupy separate space, fit in the viewport, and pass browser hit tests for obscured content. Geometry measurements are retained in the action log. It also asserts that independent verification is marked not performed.
 
-Inspect both viewport.png and rendered.png along with the report, action log, and DOM capture; sticky behavior can differ between viewport and full-page captures. History lineage, review notes, omissions, other viewport sizes, and long-receipt scrolling are source-mapped or available in the UI but are not asserted by this journey.
+Inspect both viewport.png and rendered.png along with the report, action log, and DOM capture; sticky behavior can differ between viewport and full-page captures. The journey also checks the snapshot-only history boundary, evidence-catalog navigation, repeated import, invalid replacement and dismissal. A second fictional descendant map exercises observed revision changes, a diff-backed candidate lineage link, and a cached reading with structured receipt details. The final map is checked at 390px width for horizontal overflow. Review-note continuity and long-receipt scrolling remain outside this journey.
 
 ## Gotchas
 
