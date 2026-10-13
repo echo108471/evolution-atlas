@@ -1,6 +1,6 @@
 # Gallery
 
-The gallery index introduces the available repository atlases, summarizes their observed Git shape and interpretation provenance, and opens a selected repository's atlas.
+The front door leads with the current repository-engine workflow and a candidate-map entry. Prepared observed-history atlases remain a separate demo section with observed Git shape and provenance.
 
 Source basis: [src/App.tsx](../../../../../src/App.tsx), [src/GalleryIndex.tsx](../../../../../src/GalleryIndex.tsx), and [src/gallery.ts](../../../../../src/gallery.ts).
 
@@ -16,7 +16,7 @@ Source basis: [src/App.tsx](../../../../../src/App.tsx), [src/GalleryIndex.tsx](
 - Open the site root when a non-empty gallery manifest is served and no repository subject is selected.
 - Choose a repository card to open that subject's atlas.
 - Use the subject selector to switch repositories when multiple subjects exist.
-- Choose **Open a candidate capability map** from the run-your-own section to enter Candidate map.
+- Choose **Open a candidate capability map** from the primary current-workflow section to enter Candidate map.
 
 ## Driving it with control-atlas
 
@@ -29,7 +29,7 @@ Preconditions:
 node scripts/control-atlas.mjs verify --feature gallery
 ~~~
 
-The journey asserts that the gallery index and synthetic card render, opens the subject, and checks that its repository slug appears in the URL. It does not assert the provenance details or subject-switcher path.
+The journey asserts that the current-engine entry opens Candidate map, browser Back restores the front door, and a synthetic demo card opens its matching atlas with its repository slug in the URL. It saves entry.png before navigation. It does not assert provenance details or subject switching.
 
 For an explicitly requested private production preview, use the skill's
 `verify-preview --directory ABS_PATH --inventory ABS_PATH` command. This

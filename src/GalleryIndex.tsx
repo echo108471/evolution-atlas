@@ -1,3 +1,4 @@
+import { EngineEntry } from './EngineEntry'
 import { formatDate } from './dateFormat'
 import type { GallerySubject } from './gallery'
 
@@ -28,15 +29,19 @@ export function GalleryIndex({ subjects, onSelectSubject }: GalleryIndexProps) {
     <main className="gallery-index">
       <header className="gallery-masthead">
         <p className="brand-mark">EVOLUTION ATLAS</p>
-        <h1>How a codebase grew, read from its commits.</h1>
+        <h1>Understand a codebase through evidence.</h1>
         <p className="gallery-lede">
-          Each atlas below was prepared from a public repository's Git history. The observed
-          layer records commits, paths and renames. Contributor identities may be omitted from
-          an exported demo. When features or lifecycle episodes are present, they are candidate
-          interpretations linked to supporting commits.
+          Explore candidate capabilities and their evolution, with every interpretation kept
+          separate from the Git evidence behind it.
         </p>
       </header>
 
+      <EngineEntry />
+      <section className="gallery-demo-heading" aria-label="Prepared atlas demos">
+        <p className="map-kicker">Observed-history viewer</p>
+        <h2>Explore a prepared atlas</h2>
+        <p>These separately prepared demos show commits, paths and renames. Any feature or lifecycle labels are candidate interpretations. Contributor identities may be omitted.</p>
+      </section>
       <ul className="gallery-grid">
         {subjects.map((subject) => (
           <li key={subject.slug}>
@@ -92,26 +97,15 @@ export function GalleryIndex({ subjects, onSelectSubject }: GalleryIndexProps) {
       </ul>
 
       <section className="gallery-run-your-own">
-        <h2>Run it on your own repository</h2>
-        <p>
-          This gallery is a set of pre-generated artifacts. The hosted site never reads a
-          repository — it only serves datasets that were built ahead of time. To map a repository
-          of your own, clone the project and analyze it locally; nothing leaves your machine.
-        </p>
-        <code>
-          git clone &lt;your-evolution-atlas-url&gt; evolution-atlas{'\n'}
-          cd evolution-atlas{'\n'}
-          npm ci{'\n'}
-          npm run analyze -- --repo /path/to/your/repo --out public/atlas.json{'\n'}
-          npm run dev
-        </code>
-        <p className="gallery-footnote">
-          The observed atlas needs no credentials. The optional interpretation pass calls a model
-          provider and requires your own API key.
-        </p>
-        <p className="gallery-map-entry">
-          Already have an engine artifact? <a href="?view=map">Open a candidate capability map</a> from a local JSON file.
-        </p>
+        <h2>Prepare a capability map locally</h2>
+        <p>The version 3 repository engine prepares pinned source evidence, brokers bounded worker requests, and publishes a complete offline candidate map. A host supplies model execution; the engine does not call a model API.</p>
+        <p>Follow the <a href="https://github.com/echo108471/evolution-atlas/blob/main/docs/HISTORY-WORKFLOW.md">history workflow</a> for discovery, descendant-revision expansion, worker coordination and review continuity.</p>
+        <details>
+          <summary>Legacy observed-atlas workflow</summary>
+          <p>For the commit-and-path viewer used by the demos, generate an ignored local dataset and start the development app.</p>
+          <code>npm run analyze -- --repo /path/to/your/repo --out public/atlas.json{'\n'}npm run dev</code>
+          <p className="gallery-footnote">Observed analysis needs no model credentials. Optional legacy interpretation makes paid provider calls only when explicitly enabled.</p>
+        </details>
       </section>
     </main>
   )

@@ -18,7 +18,7 @@ function fixture(t) {
   git(['-C', repo, 'add', '--all']); git(['-C', repo, 'commit', '-qm', 'Synthetic'])
   const config = { mode: 'discovery', repo, displayName: 'Synthetic', partitionCount: 1 }
   prepareEngine(run, config)
-  return { root, repo, run, config }
+  return { root, repo, run, config, git }
 }
 function dispatch(run, agent) {
   const reservation = reserveEngineLaunch(run, agent)
@@ -79,4 +79,40 @@ test('rejects symlinked task directories rather than writing through them', t =>
   symlinkSync(target, f.run + '/coverage-tasks')
   assert.throws(() => prepareCoverageRouting(f.run), /Regular coverage task directory/)
   assert.equal(existsSync(target + '/A.json'), false)
+})
+
+
+test('descendant coverage counts only baseline source windows whose path and blob remain current', t => {
+  const f = fixture(t)
+  writeFileSync(join(f.repo, 'lib/c.go'), 'package removed\n')
+  f.git(['-C', f.repo, 'add', '--all']); f.git(['-C', f.repo, 'commit', '-qm', 'Add removable source'])
+  const base = join(f.root, 'baseline'); prepareEngine(base, f.config)
+  dispatch(base, 'A')
+  const paths = ['lib/a.go', 'lib/b.go', 'lib/c.go']
+  for (const path of paths) engineBroker(base, 'A', 'read', [path])
+  const sha = f.git(['-C', f.repo, 'rev-parse', 'HEAD'])
+  engineBroker(base, 'A', 'commit-meta', [sha])
+  mkdirSync(base + '/proposals', { recursive: true })
+  writeFileSync(base + '/proposals/A.json', JSON.stringify({ agent: 'A', scopeSummary: 'Synthetic navigation only',
+    coverage: { inspected: paths, omissions: ['No semantic discovery'] }, crossPartitionLeads: [], nodes: [], edges: [], limitations: ['Synthetic fixture'] }))
+  recordEngineTerminal(base, 'A', 'synthetic-A', 'completed'); checkpointEngine(base, 'A')
+  freezeIntegration(base); dispatch(base, 'R')
+  writeFileSync(base + '/reconciled.json', JSON.stringify({ nodes: [], edges: [], lineage: [], edgeLineage: [], comparisons: [], decisions: [], limitations: ['Synthetic fixture'], historyLineage: [], historyEdgeLineage: [] }))
+  recordEngineTerminal(base, 'R', 'synthetic-R', 'completed'); checkpointEngine(base, 'R'); publishEngine(base)
+  const baselineBytes = readFileSync(base + '/output.json')
+  writeFileSync(join(f.repo, 'lib/b.go'), 'package changed\n// new content\n')
+  rmSync(join(f.repo, 'lib/c.go'))
+  writeFileSync(join(f.repo, 'lib/d.go'), 'package added\n')
+  f.git(['-C', f.repo, 'add', '--all']); f.git(['-C', f.repo, 'commit', '-qm', 'Change remove and add sources'])
+  const run = join(f.root, 'descendant')
+  prepareEngine(run, { ...f.config, mode: 'expansion', baseline: base + '/output.json' })
+  const frozenBaseline = readFileSync(run + '/baseline-input.json')
+  const result = prepareCoverageRouting(run), task = JSON.parse(readFileSync(run + '/coverage-tasks/A.json'))
+  assert.equal(result.inventory.inspectedFileCount, 1)
+  assert.equal(result.inventory.uniqueInspectedLineCount, 2)
+  assert.deepEqual(task.regions.flatMap(r => r.unreadFilePaths), ['lib/b.go', 'lib/d.go'])
+  assert.equal(task.regions[0].fileCount, 3)
+  assert.deepEqual(readFileSync(base + '/output.json'), baselineBytes)
+  assert.deepEqual(readFileSync(run + '/baseline-input.json'), frozenBaseline)
+  assert.deepEqual(prepareCoverageRouting(run), result)
 })

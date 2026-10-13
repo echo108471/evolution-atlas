@@ -20,7 +20,15 @@ export function prepareCoverageRouting(directory) {
   const state = inspectEngine(directory), run = state.out, path = run + '/coverage-routing.json'
   if (existsSync(run + '/coverage-tasks') && !lstatSync(run + '/coverage-tasks').isDirectory()) throw new Error('Regular coverage task directory required')
   if (!existsSync(path) && state.jobs.some(job => !['ready-to-dispatch', 'waiting-for-discovery'].includes(job.state))) throw new Error('Freeze coverage routing before discovery starts')
-  const plan = planRepositoryCoverage(state.full, state.baseline.receipts, { assignmentCount: state.manifest.partitions.length })
+  // inspectEngine already verifies the original receipt bytes and ancestry. Route
+  // by exact current path/blob identity, not by historical path alone. This is
+  // metadata accounting only: original evidence keeps its original revision.
+  const currentBlobs = new Map(state.full.files.map(file => [file.path, file.blobSha]))
+  const inspectedWindows = state.baseline.receipts
+    .filter(receipt => receipt.kind === 'source' && currentBlobs.has(receipt.path)
+      && currentBlobs.get(receipt.path) === receipt.blobSha)
+    .map(({ path, startLine, endLine, totalLines }) => ({ kind: 'source', path, startLine, endLine, totalLines }))
+  const plan = planRepositoryCoverage(state.full, inspectedWindows, { assignmentCount: state.manifest.partitions.length })
   const packet = { ...plan, provenance: {
     engineRunPlanSha256: hash(readFileSync(run + '/run-plan.json')),
     baselineProjectionSha256: hash(readFileSync(run + '/baseline-input.json')),

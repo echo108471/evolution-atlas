@@ -83,6 +83,22 @@ the real two-revision milestone. Traces are diagnostic artifacts; compare
 performance with separately controlled measurements as described in the
 [performance workflow](../.agents/skills/pstack-atlas/references/performance.md).
 
+
+If the bundled browser is unavailable, explicitly select an already installed
+Chromium executable. Run doctor with the same selection before verification:
+
+```bash
+ATLAS_BROWSER_EXECUTABLE=/absolute/path/to/chromium node scripts/control-atlas.mjs doctor
+ATLAS_BROWSER_EXECUTABLE=/absolute/path/to/chromium node scripts/control-atlas.mjs verify --all
+```
+
+The report identifies the selected executable and actual browser version; this
+is a system-browser check, not verification with the pinned Playwright browser.
+Both paths use an isolated profile and a short, uniquely owned temporary
+directory for browser sockets, removed on teardown. No existing browser profile
+is attached. Missing launch permissions remain a blocker; this option does not
+change system or browser security settings.
+
 After a skill or map change, run `npm run check:pstack` for native skill
 metadata, links, feature wiring, and provenance consistency. To also verify
 the recorded upstream source hashes against a downloaded pstack directory:
