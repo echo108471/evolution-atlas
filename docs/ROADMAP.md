@@ -170,6 +170,16 @@ contract and operating sequence are in
    contract, and exercise their combined behavior in real-revision runs. The app exposes
    candidate maps and reviewed companions. Reserve before spawning, bind the returned host
    handle before broker use, and keep worker status free of other workers' outputs.
+   Version 3 host locks now wait for a live holder to release them, with a configurable
+   bounded timeout (`ATLAS_HOST_LOCK_WAIT_MS`, default 5,000 ms); dead holders or unreadable
+   locks fail closed and no lock expires by age. Run-wide `statusEngine` and CLI status expose
+   state metadata and validation counts, withholding proposal/result bodies and raw
+   validation text. Privileged inspection still supplies checkpoint, integration and
+   publication. Focused synthetic regressions were added for contention, dead locks, timeout
+   diagnostics, multiple-worker status isolation and full privileged inspection. The full
+   local gate passes: `npm test` (650/650), `npm run build`, `git diff --check`, and
+   `node scripts/check-offline.mjs` (exit 0). These checks establish synthetic mechanics and
+   local validation; real-revision run acceptance of these changes has not been performed.
 
 ### Earlier research backlog — not the current execution plan
 
