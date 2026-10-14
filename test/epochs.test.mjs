@@ -249,7 +249,7 @@ test('a truncated window fails loudly instead of yielding partial boundaries', (
 })
 
 for (const { name, options, expectedModel } of [
-  { name: 'synchronous workaround', options: { model: 'openai/gpt-6-luna' }, expectedModel: 'openai/gpt-6-luna' },
+  { name: 'synchronous', options: { model: 'openai/gpt-6-luna' }, expectedModel: 'openai/gpt-6-luna' },
   { name: 'explicit override', options: { model: 'x-ai/grok-4.6' }, expectedModel: 'x-ai/grok-4.6' },
 ]) {
   test(`phase requests send the ${name} model with OpenRouter chat completions`, async () => {
@@ -357,7 +357,7 @@ test('epochs keeps the configured batch default', () => {
 })
 
 for (const options of [{}, { model: 'synthetic/explicit:batch' }]) {
-  test(`epoch requests reject ${options.model ?? 'the batch default'} before dispatch or failure recovery`, async () => {
+  test(`direct synchronous epoch requests reject ${options.model ?? 'the batch default'} without a batch runner`, async () => {
     const dataset = { repository: { name: 'fixture' }, episodes: splitHistory(300) }
     const [windowPlan] = planWindows(dataset.episodes)
     const epochs = buildEpochs([], dataset.episodes, UNCAPPED)
@@ -373,8 +373,8 @@ for (const options of [{}, { model: 'synthetic/explicit:batch' }]) {
     for (const request of requests) {
       await assert.rejects(request, (error) => {
         assert.ok(error.message.includes(model))
-        assert.match(error.message, /Batch API submission is not implemented/)
-        assert.match(error.message, /--model openai\/gpt-6-luna/)
+        assert.match(error.message, /synchronous/i)
+        assert.match(error.message, /Batch API/)
         return true
       })
     }

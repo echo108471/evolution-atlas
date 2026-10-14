@@ -6,8 +6,8 @@ export const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-6-luna:batch'
 export function requireSynchronousModel(model) {
   if (typeof model === 'string' && model.endsWith(':batch')) {
     throw new Error(
-      `Model "${model}" requires the OpenRouter Batch API; Batch API submission is not implemented in Atlas. ` +
-      'Synchronous requests cannot use model IDs ending in ":batch". Pass --model openai/gpt-6-luna to use a synchronous model.',
+      `Model "${model}" requires the OpenRouter Batch API; this synchronous transport cannot submit batches. ` +
+      'Use the interpret or epochs batch runner, or pass --model openai/gpt-6-luna to use a synchronous model.',
     )
   }
 }

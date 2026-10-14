@@ -19,8 +19,8 @@ const BATCH_MODEL = 'openai/gpt-6-luna:batch'
 function assertBatchModelRejected(result, model = BATCH_MODEL) {
   assert.equal(result.status, 1, result.stderr)
   assert.ok(result.stderr.includes(`Model "${model}" requires the OpenRouter Batch API`), result.stderr)
-  assert.match(result.stderr, /Batch API submission is not implemented in Atlas/)
-  assert.match(result.stderr, /Pass --model openai\/gpt-6-luna to use a synchronous model/)
+  assert.match(result.stderr, /this synchronous transport cannot submit batches/)
+  assert.match(result.stderr, /pass --model openai\/gpt-6-luna to use a synchronous model/)
 }
 
 function assertNoModelRequests(f) {
@@ -104,7 +104,20 @@ export default class SyntheticProvider {
   }\n`)
   const networkGuard = join(root, 'network-guard.mjs')
   writeFileSync(networkGuard, `import { appendFileSync } from 'node:fs'
-    globalThis.fetch = async () => {
+    let submitted
+    globalThis.fetch = async (url, options) => {
+      if (process.env.ATLAS_TEST_BATCH === '1') {
+        if (options.method === 'POST') {
+          submitted = JSON.parse(options.body)
+          appendFileSync(process.env.ATLAS_TEST_PAID_LOG, JSON.stringify({ batch: submitted }) + '\\n')
+          return { ok: true, status: 202, json: async () => ({ id: 'batch_mock', status: 'validating' }) }
+        }
+        return { ok: true, status: 200, json: async () => ({ id: 'batch_mock', status: 'completed', results: submitted.requests.map(({custom_id}) => ({
+          custom_id, error: null, response: { status_code: 200, body: submitted.endpoint === '/v1/messages'
+            ? { content: [{ type: 'text', text: '{"features":[]}' }], stop_reason: 'end_turn' }
+            : { choices: [{ message: { content: JSON.stringify({boundaries:[], label:'Synthetic period', summary:'Synthetic', coherent:true, confidence:0.5}) }, finish_reason:'stop' }] } },
+        })) }) }
+      }
       appendFileSync(process.env.ATLAS_TEST_PAID_LOG, '{"forbiddenFetch":true}\\n')
       throw new Error('HTTP is forbidden in synthetic CLI tests')
     }\n`)
@@ -512,7 +525,7 @@ test('interpret CLI keeps credential detection, explicit providers and synchrono
   }
 })
 
-test('interpret CLI rejects default and explicit batch models before requests or output writes', (t) => {
+test('interpret CLI submits default and explicit batch models with immutable outputs', (t) => {
   const cases = [
     { env: { OPENROUTER_API_KEY: 'synthetic' }, args: [], model: BATCH_MODEL },
     { env: { OPENROUTER_API_KEY: 'synthetic', ANTHROPIC_API_KEY: 'synthetic' }, args: ['--provider', 'openrouter'], model: BATCH_MODEL },
@@ -522,11 +535,17 @@ test('interpret CLI rejects default and explicit batch models before requests or
     const f = setup(t)
     const output = join(f.root, 'interpreted.json')
     const before = readFileSync(f.dataset)
-    const result = f.invoke('interpret.mjs', ['--in', f.dataset, '--out', output, '--allow-paid', ...entry.args], entry.env)
-    assertBatchModelRejected(result, entry.model)
-    assert.equal(existsSync(output), false)
+    const result = f.invoke('interpret.mjs', ['--in', f.dataset, '--out', output, '--allow-paid', '--batch-poll-ms', '1', ...entry.args], { ...entry.env, ATLAS_TEST_BATCH: '1' })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(existsSync(output), true)
     assert.deepEqual(readFileSync(f.dataset), before)
-    assertNoModelRequests(f)
+    const batches = f.events(f.paidLog).filter(event => event.batch)
+    assert.equal(batches.length, 1)
+    assert.equal(batches[0].batch.model, entry.model)
+    assert.equal(batches[0].batch.endpoint, '/v1/messages')
+    assert.equal(f.events(f.paidLog).some(event => event.constructor === true), false)
+    const sidecar = JSON.parse(readFileSync(`${output}.batch-state.json`))
+    assert.equal(sidecar.stages.features.batchId, 'batch_mock')
   }
 })
 
@@ -587,7 +606,7 @@ test('epochs requires paid permission for either missing proposals or period nam
   }
 })
 
-test('epochs proposal discovery rejects default and explicit batch models, including histories too short for a window', (t) => {
+test('epochs batches proposal windows and skips paid submission for histories too short for a window', (t) => {
   for (const episodeCount of [1, 40]) {
     const f = setup(t)
     if (episodeCount > 1) {
@@ -605,31 +624,38 @@ test('epochs proposal discovery rejects default and explicit batch models, inclu
     for (const [index, model] of [BATCH_MODEL, 'synthetic/explicit:batch'].entries()) {
       const output = join(f.root, `epochs-${index}.json`)
       const proposals = join(f.root, `proposals-${index}.json`)
-      const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, '--save-proposals', proposals, '--allow-paid', '--no-labels', ...(index ? ['--model', model] : [])], { OPENROUTER_API_KEY: 'synthetic' })
-      assertBatchModelRejected(result, model)
-      assert.equal(existsSync(output), false)
-      assert.equal(existsSync(proposals), false)
+      const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, '--save-proposals', proposals, '--allow-paid', '--no-labels', '--batch-poll-ms', '1', ...(index ? ['--model', model] : [])], { OPENROUTER_API_KEY: 'synthetic', ATLAS_TEST_BATCH: '1' })
+      assert.equal(result.status, 0, result.stderr)
+      assert.equal(existsSync(output), true)
+      assert.equal(existsSync(proposals), true)
       assert.deepEqual(readFileSync(f.dataset), before)
-      assertNoModelRequests(f)
+      assert.equal(JSON.parse(readFileSync(output)).method, `epoch-boundaries:openrouter:${model}`)
+      if (episodeCount > 1) {
+        assert.equal(f.events(f.paidLog).at(-1).batch.model, model)
+        assert.equal(f.events(f.paidLog).at(-1).batch.endpoint, '/v1/chat/completions')
+      }
     }
-    assert.equal(existsSync(f.paidLog), false)
+    assert.equal(f.events(f.paidLog).length, episodeCount > 1 ? 2 : 0)
   }
 })
 
-test('epochs period naming rejects default and explicit batch models when reusing saved proposals', (t) => {
+test('epochs batches period naming when reusing saved proposals', (t) => {
   const f = setup(t)
   const proposals = join(f.root, 'proposals.json')
   const bytes = Buffer.from(JSON.stringify({ repository: 'fixture', headSha: f.pin, model: 'synthetic-model', proposals: [] }))
   writeFileSync(proposals, bytes)
   for (const [index, model] of [BATCH_MODEL, 'synthetic/explicit:batch'].entries()) {
     const output = join(f.root, `epochs-${index}.json`)
-    const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, '--proposals', proposals, '--allow-paid', ...(index ? ['--model', model] : [])], { OPENROUTER_API_KEY: 'synthetic' })
-    assertBatchModelRejected(result, model)
-    assert.equal(existsSync(output), false)
+    const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, '--proposals', proposals, '--allow-paid', '--batch-poll-ms', '1', ...(index ? ['--model', model] : [])], { OPENROUTER_API_KEY: 'synthetic', ATLAS_TEST_BATCH: '1' })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(existsSync(output), true)
     assert.deepEqual(readFileSync(proposals), bytes)
-    assertNoModelRequests(f)
+    assert.equal(f.events(f.paidLog).at(-1).batch.model, model)
+    const document = JSON.parse(readFileSync(output))
+    assert.equal(document.levels[0][0].label, 'Synthetic period')
+    assert.equal(document.levels[0][0].labelMethod, `period-label:openrouter:${model}`)
   }
-  assert.equal(existsSync(f.paidLog), false)
+  assert.equal(f.events(f.paidLog).length, 2)
 })
 
 test('epochs replay preserves synchronous or batch provenance despite current defaults or batch overrides', (t) => {

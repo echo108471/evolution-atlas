@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto'
 import { buildStructuralEpisodes } from '../../src/structure.mjs'
-import { DEFAULT_OPENROUTER_MODEL, requireSynchronousModel } from './model-defaults.mjs'
+import { DEFAULT_OPENROUTER_MODEL } from './model-defaults.mjs'
+import { batchResultBody, isBatchModel } from './openrouter-batch.mjs'
 
 /**
  * OpenRouter serves the Anthropic Messages API, so the same client and request shape
- * work against either provider for synchronous models. Batch-only IDs need a separate
- * Batch API submission path, which is not implemented.
+ * work against either provider for synchronous models. Batch models use the same
+ * Messages shape through OpenRouter's asynchronous Batch API.
  */
 export const PROVIDERS = {
   anthropic: {
@@ -583,13 +584,14 @@ function aggregateUsage(...usages) {
 }
 
 /**
- * Propose feature candidates for an observed dataset. The client is injected so the
- * validation path above stays testable without a network call or an API key.
+ * Propose feature candidates for an observed dataset. The live client or persistent
+ * batch runner is injected so validation stays testable without network or keys.
  */
 export async function interpretAtlas(
   dataset,
   {
     client,
+    batchRunner,
     provider = DEFAULT_PROVIDER,
     model: modelOverride = null,
     maxFeatures = 40,
@@ -611,7 +613,19 @@ export async function interpretAtlas(
     }
   }
 
-  requireSynchronousModel(model)
+  const batch = isBatchModel(model)
+  if (batch && typeof batchRunner !== 'function') {
+    throw new Error(`Model "${model}" requires a persistent OpenRouter batchRunner`)
+  }
+  const requestMessage = async (stage, body) => {
+    if (!batch) return client.messages.stream(body).finalMessage()
+    const results = await batchRunner({
+      stage,
+      endpoint: '/v1/messages',
+      requests: [{ custom_id: stage, body }],
+    })
+    return batchResultBody(results.get(stage))
+  }
   const corpus = buildCorpus(dataset)
   let featureMessage = null
   let validated
@@ -629,7 +643,7 @@ export async function interpretAtlas(
     )
   } else {
     onProgress?.(`Discovering candidate features with ${label} (${model})`)
-    const stream = client.messages.stream({
+    featureMessage = await requestMessage('features', {
       model,
       max_tokens: 32000,
       system: SYSTEM_PROMPT,
@@ -661,7 +675,6 @@ export async function interpretAtlas(
       ],
     })
 
-    featureMessage = await stream.finalMessage()
     const parsedFeatures = parseInterpretationMessage(
       featureMessage,
       'feature discovery',
@@ -684,7 +697,7 @@ export async function interpretAtlas(
         dataset.episodes.find((episode) => episode.commitSha === reference.commitSha)?.shortSha,
       ).filter(Boolean),
     }))
-    const lifecycleStream = client.messages.stream({
+    lifecycleMessage = await requestMessage('lifecycle', {
       model,
       max_tokens: 32000,
       system: LIFECYCLE_SYSTEM_PROMPT,
@@ -713,7 +726,6 @@ export async function interpretAtlas(
         },
       ],
     })
-    lifecycleMessage = await lifecycleStream.finalMessage()
     const parsedLifecycle = parseInterpretationMessage(
       lifecycleMessage,
       'lifecycle discovery',

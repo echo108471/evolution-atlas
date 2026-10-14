@@ -10,6 +10,7 @@
  */
 
 import { DEFAULT_OPENROUTER_MODEL, requireSynchronousModel } from './model-defaults.mjs'
+import { batchResultBody } from './openrouter-batch.mjs'
 
 export const DEFAULT_MODEL = DEFAULT_OPENROUTER_MODEL
 export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
@@ -153,11 +154,23 @@ export async function requestWindow(dataset, windowPlan, { model = DEFAULT_MODEL
  */
 export async function proposePhaseBoundaries(
   dataset,
-  { model = DEFAULT_MODEL, apiKey, window, stride, request = requestWindow, onProgress } = {},
+  { model = DEFAULT_MODEL, apiKey, window, stride, request = requestWindow, batchRunner, onProgress } = {},
 ) {
   // Configuration errors must abort, not become recoverable per-window failures.
-  requireSynchronousModel(model)
+  if (!batchRunner) requireSynchronousModel(model)
   const windows = planWindows(dataset.episodes, { window, stride })
+  // All windows are independent. Await the complete batch before per-window error
+  // recovery so failed batches and timeouts cannot masquerade as partial success.
+  const batchResults = batchRunner && windows.length > 0
+    ? await batchRunner({
+      stage: 'proposals',
+      endpoint: '/v1/chat/completions',
+      requests: windows.map((windowPlan) => ({
+        custom_id: `window-${windowPlan.start}`,
+        body: buildWindowRequest(dataset, windowPlan, model),
+      })),
+    })
+    : null
   const shaIndex = new Map()
   dataset.episodes.forEach((episode, index) => {
     shaIndex.set(episode.shortSha, index)
@@ -172,7 +185,9 @@ export async function proposePhaseBoundaries(
   for (const [order, windowPlan] of windows.entries()) {
     const startedAt = Date.now()
     try {
-      const result = await request(dataset, windowPlan, { model, apiKey })
+      const result = batchResults
+        ? parseWindowResponse(batchResultBody(batchResults.get(`window-${windowPlan.start}`)))
+        : await request(dataset, windowPlan, { model, apiKey })
       for (const boundary of result.boundaries) {
         const index = shaIndex.get(String(boundary.shortSha ?? '').trim())
         if (index === undefined) {

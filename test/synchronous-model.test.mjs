@@ -22,7 +22,7 @@ const transports = [
 function rejectsBatch(model) {
   return (error) => {
     assert.ok(error.message.includes(model))
-    assert.match(error.message, /Batch API submission is not implemented/)
+    assert.match(error.message, /this synchronous transport cannot submit batches/)
     assert.match(error.message, /--model openai\/gpt-6-luna/)
     return true
   }

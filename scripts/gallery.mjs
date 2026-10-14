@@ -60,8 +60,8 @@ Options:
 A whole gallery should be interpreted by one provider and model. Candidates
 produced by different models are not comparable across subjects, so the
 manifest records which route produced each dataset.
-Batch API submission is not implemented; :batch models fail before acquisition
-or interpretation requests. For OpenRouter, pass --model openai/gpt-6-luna.
+Gallery interpretation uses live requests; :batch models fail before acquisition
+or interpretation. Pass --model openai/gpt-6-luna, or use interpret for batch runs.
 `
 }
 

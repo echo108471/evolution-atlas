@@ -522,29 +522,13 @@ test('extractJson recovers an object from fenced or prose-wrapped output', () =>
   assert.throws(() => extractJson('no object here'), /no JSON object/)
 })
 
-for (const options of [{}, { model: 'synthetic/explicit:batch' }]) {
-  for (const reuseFeatures of [false, true]) {
-    test(`interpretAtlas rejects ${options.model ?? 'the batch default'} before ${reuseFeatures ? 'lifecycle' : 'feature'} dispatch`, async () => {
-      const dataset = observedDataset()
-      dataset.featureCandidates = validateFeatures(
-        [{ label: 'Ranking', rationale: '', confidence: 0.8, commitShas: ['aaaa1111'] }],
-        dataset,
-      ).featureCandidates
-      let calls = 0
-      const client = { messages: { stream: () => { calls += 1; throw new Error('Unexpected dispatch') } } }
-      await assert.rejects(
-        interpretAtlas(dataset, { client, provider: 'openrouter', reuseFeatures, ...options }),
-        (error) => {
-          assert.ok(error.message.includes(options.model ?? 'openai/gpt-6-luna:batch'))
-          assert.match(error.message, /Batch API submission is not implemented/)
-          assert.match(error.message, /--model openai\/gpt-6-luna/)
-          return true
-        },
-      )
-      assert.equal(calls, 0)
-    })
-  }
-}
+test('interpretAtlas requires persistent batch transport for the OpenRouter default', async () => {
+  const client = { messages: { stream: () => { throw new Error('Unexpected synchronous dispatch') } } }
+  await assert.rejects(
+    interpretAtlas(observedDataset(), { client, provider: 'openrouter' }),
+    /requires a persistent OpenRouter batchRunner/,
+  )
+})
 
 test('interpretationMethod distinguishes provider and model', () => {
   assert.equal(interpretationMethod('openrouter', 'anthropic/claude-opus-5'), 'llm-induction:openrouter:anthropic/claude-opus-5')

@@ -13,6 +13,7 @@
 
 import { OPENROUTER_ENDPOINT, extractJson } from './phase-model.mjs'
 import { requireSynchronousModel } from './model-defaults.mjs'
+import { batchResultBody } from './openrouter-batch.mjs'
 
 const REQUEST_TIMEOUT_MS = 180000
 const MAX_SAMPLED_COMMITS = 60
@@ -113,6 +114,25 @@ ${described}
 Name the era these periods form.`
 }
 
+export function buildLabelRequest(prompt, systemPrompt, model) {
+  return {
+    model,
+    max_tokens: 1500,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: prompt },
+    ],
+  }
+}
+
+export function parseLabelResponse(payload) {
+  if (payload.error) throw new Error(`provider error: ${JSON.stringify(payload.error).slice(0, 180)}`)
+  const choice = payload.choices?.[0]
+  if (!choice) throw new Error('response contained no choices')
+  if (choice.finish_reason === 'length') throw new Error('label output truncated')
+  return { label: extractJson(choice.message?.content ?? ''), usage: payload.usage ?? null }
+}
+
 export async function requestLabel(prompt, systemPrompt, { model, apiKey, fetchImpl = fetch } = {}) {
   requireSynchronousModel(model)
   const controller = new AbortController()
@@ -123,25 +143,13 @@ export async function requestLabel(prompt, systemPrompt, { model, apiKey, fetchI
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
       signal: controller.signal,
-      body: JSON.stringify({
-        model,
-        max_tokens: 1500,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt },
-        ],
-      }),
+      body: JSON.stringify(buildLabelRequest(prompt, systemPrompt, model)),
     })
   } finally {
     clearTimeout(timer)
   }
   if (!response.ok) throw new Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 180)}`)
-  const payload = await response.json()
-  if (payload.error) throw new Error(`provider error: ${JSON.stringify(payload.error).slice(0, 180)}`)
-  const choice = payload.choices?.[0]
-  if (!choice) throw new Error('response contained no choices')
-  if (choice.finish_reason === 'length') throw new Error('label output truncated')
-  return { label: extractJson(choice.message?.content ?? ''), usage: payload.usage ?? null }
+  return parseLabelResponse(await response.json())
 }
 
 function applyLabel(period, parsed, method) {
@@ -164,10 +172,10 @@ function applyLabel(period, parsed, method) {
 export async function labelPeriodLevels(
   dataset,
   levels,
-  { model, apiKey, request = requestLabel, onProgress } = {},
+  { model, apiKey, request = requestLabel, batchRunner, onProgress } = {},
 ) {
   // Configuration errors must abort, not become recoverable per-period failures.
-  requireSynchronousModel(model)
+  if (!batchRunner) requireSynchronousModel(model)
   const method = `period-label:openrouter:${model}`
   const labeled = []
   const failures = []
@@ -175,15 +183,28 @@ export async function labelPeriodLevels(
   const byId = new Map()
 
   for (const [level, periods] of levels.entries()) {
+    const systemPrompt = level === 0 ? EPOCH_SYSTEM_PROMPT : GROUP_SYSTEM_PROMPT
+    const promptFor = (period) => level === 0
+      ? buildEpochPrompt(dataset, period, dataset.episodes)
+      : buildGroupPrompt(dataset, period, period.childIds.map((id) => byId.get(id)).filter(Boolean))
+    // Coarser labels depend on the preceding level's validated labels, so submit
+    // one batch per level, only after the children have been applied below.
+    const batchResults = batchRunner && periods.length > 0
+      ? await batchRunner({
+        stage: `labels-${level}`,
+        endpoint: '/v1/chat/completions',
+        requests: periods.map((period) => ({
+          custom_id: period.id,
+          body: buildLabelRequest(promptFor(period), systemPrompt, model),
+        })),
+      })
+      : null
     const named = []
     for (const period of periods) {
       try {
-        const children = period.childIds.map((id) => byId.get(id)).filter(Boolean)
-        const prompt =
-          level === 0
-            ? buildEpochPrompt(dataset, period, dataset.episodes)
-            : buildGroupPrompt(dataset, period, children)
-        const result = await request(prompt, level === 0 ? EPOCH_SYSTEM_PROMPT : GROUP_SYSTEM_PROMPT, { model, apiKey })
+        const result = batchResults
+          ? parseLabelResponse(batchResultBody(batchResults.get(period.id)))
+          : await request(promptFor(period), systemPrompt, { model, apiKey })
         const withLabel = applyLabel(period, result.label, method)
         named.push(withLabel)
         byId.set(period.id, withLabel)
