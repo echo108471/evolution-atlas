@@ -53,7 +53,8 @@ above them. Depth is capped at 3 because each level of summarizing is lossy.
 The free replay path is --proposals <path> --no-labels. Saved proposals must
 match the dataset's repository and full head SHA. Other paths require --allow-paid
 and ${API_KEY_ENV}; there are no automatic retries.
-Expect roughly 40-180 seconds per window: the model reasons at length over each slice.
+New requests use --model or the default above; replay retains the saved proposal model.
+Requests use OpenRouter /api/v1/chat/completions; there is no model env override.
 `
 }
 

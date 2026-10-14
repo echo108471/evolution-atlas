@@ -42,7 +42,10 @@ Options:
 Providers:
 ${providers}
 
-OpenRouter serves the Anthropic Messages API, so both paths send an identical request.
+Both providers use the Anthropic Messages API; OpenRouter uses /api/v1/messages.
+Without --provider, OpenRouter is selected only when OPENROUTER_API_KEY is set
+and ANTHROPIC_API_KEY is absent; otherwise Anthropic keeps its own default model.
+Neither this command nor epochs reads a model environment variable; use --model.
 Anthropic also accepts an 'ant auth login' profile instead of an API key.
 `
 }

@@ -12,13 +12,15 @@ import {
   levelName,
   planHierarchy,
 } from '../scripts/lib/epochs.mjs'
-import { labelPeriodLevels, sampleCommits } from '../scripts/lib/period-labels.mjs'
+import { labelPeriodLevels, requestLabel, sampleCommits } from '../scripts/lib/period-labels.mjs'
 import {
+  DEFAULT_MODEL,
   extractJson,
   parseWindowResponse,
   planWindows,
   proposePhaseBoundaries,
   renderWindow,
+  requestWindow,
 } from '../scripts/lib/phase-model.mjs'
 
 function episode(index, { prefix = 'frontend', subject = `work on ${prefix}` } = {}) {
@@ -245,6 +247,110 @@ test('a truncated window fails loudly instead of yielding partial boundaries', (
     /truncated/,
   )
 })
+
+for (const { name, options, expectedModel } of [
+  { name: 'default', options: {}, expectedModel: 'openai/gpt-6-luna:batch' },
+  { name: 'explicit override', options: { model: 'x-ai/grok-4.6' }, expectedModel: 'x-ai/grok-4.6' },
+]) {
+  test(`phase requests send the ${name} model with OpenRouter chat completions`, async () => {
+    const dataset = { repository: { name: 'fixture' }, episodes: splitHistory(80) }
+    const [windowPlan] = planWindows(dataset.episodes)
+    const requests = []
+    const result = await requestWindow(dataset, windowPlan, {
+      ...options,
+      apiKey: 'sk-or-synthetic',
+      fetchImpl: async (url, request) => {
+        requests.push({ url, ...request, body: JSON.parse(request.body) })
+        return {
+          ok: true,
+          json: async () => ({
+            choices: [{ finish_reason: 'stop', message: { content: '{"boundaries":[]}' } }],
+            usage: { total_tokens: 10 },
+          }),
+        }
+      },
+    })
+
+    assert.equal(requests.length, 1)
+    const [request] = requests
+    assert.equal(request.url, 'https://openrouter.ai/api/v1/chat/completions')
+    assert.equal(request.method, 'POST')
+    assert.deepEqual(request.headers, {
+      authorization: 'Bearer sk-or-synthetic',
+      'content-type': 'application/json',
+    })
+    assert.deepEqual(Object.keys(request.body).sort(), ['max_tokens', 'messages', 'model'])
+    assert.equal(request.body.model, expectedModel)
+    assert.equal(request.body.max_tokens, 4000)
+    assert.deepEqual(request.body.messages.map((message) => message.role), ['system', 'user'])
+    assert.ok(request.body.messages.every((message) => typeof message.content === 'string'))
+    assert.match(request.body.messages[1].content, /c0000000 2025-01-01 render the landing page/)
+    assert.deepEqual(result, { boundaries: [], usage: { total_tokens: 10 } })
+  })
+
+  test(`phase proposal windows retain the ${name} model and key`, async () => {
+    const dataset = { repository: { name: 'fixture' }, episodes: splitHistory(300) }
+    const requestOptions = []
+    const result = await proposePhaseBoundaries(dataset, {
+      ...options,
+      apiKey: 'sk-or-synthetic',
+      request: async (_dataset, _windowPlan, receivedOptions) => {
+        requestOptions.push(receivedOptions)
+        return { boundaries: [], usage: null }
+      },
+    })
+
+    assert.ok(result.windowCount > 1)
+    assert.equal(requestOptions.length, result.windowCount)
+    for (const received of requestOptions) {
+      assert.deepEqual(received, { model: expectedModel, apiKey: 'sk-or-synthetic' })
+    }
+    assert.deepEqual(result.failures, [])
+  })
+
+  test(`period labels preserve the ${name} epoch model in requests and candidate methods`, async () => {
+    const dataset = { repository: { name: 'fixture' }, episodes: splitHistory(80) }
+    const epochs = buildEpochs([], dataset.episodes, UNCAPPED)
+    const requests = []
+    const result = await labelPeriodLevels(dataset, [epochs], {
+      model: options.model ?? DEFAULT_MODEL,
+      apiKey: 'sk-or-synthetic',
+      request: (prompt, systemPrompt, receivedOptions) => requestLabel(prompt, systemPrompt, {
+        ...receivedOptions,
+        fetchImpl: async (url, request) => {
+          requests.push({ url, ...request, body: JSON.parse(request.body) })
+          return {
+            ok: true,
+            json: async () => ({
+              choices: [{
+                finish_reason: 'stop',
+                message: { content: '{"label":"Ranking","summary":"Ranking work","coherent":true,"confidence":0.8}' },
+              }],
+            }),
+          }
+        },
+      }),
+    })
+
+    assert.equal(requests.length, 1)
+    const [request] = requests
+    assert.equal(request.url, 'https://openrouter.ai/api/v1/chat/completions')
+    assert.equal(request.method, 'POST')
+    assert.deepEqual(request.headers, {
+      authorization: 'Bearer sk-or-synthetic',
+      'content-type': 'application/json',
+    })
+    assert.deepEqual(Object.keys(request.body).sort(), ['max_tokens', 'messages', 'model'])
+    assert.equal(request.body.model, expectedModel)
+    assert.equal(request.body.max_tokens, 1500)
+    assert.deepEqual(request.body.messages.map((message) => message.role), ['system', 'user'])
+    assert.ok(request.body.messages.every((message) => typeof message.content === 'string'))
+    assert.equal(result.method, `period-label:openrouter:${expectedModel}`)
+    assert.equal(result.levels[0][0].labelMethod, result.method)
+    assert.equal(result.levels[0][0].labelStatus, 'candidate')
+    assert.deepEqual(result.failures, [])
+  })
+}
 
 test('the proposal pass resolves cited commits and drops the ones it cannot', async () => {
   const episodes = splitHistory(300)

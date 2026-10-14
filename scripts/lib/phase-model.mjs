@@ -9,7 +9,9 @@
  * it.
  */
 
-export const DEFAULT_MODEL = 'x-ai/grok-4.6'
+import { DEFAULT_OPENROUTER_MODEL } from './model-defaults.mjs'
+
+export const DEFAULT_MODEL = DEFAULT_OPENROUTER_MODEL
 export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 export const API_KEY_ENV = 'OPENROUTER_API_KEY'
 
@@ -144,9 +146,9 @@ export async function requestWindow(dataset, windowPlan, { model = DEFAULT_MODEL
 }
 
 /**
- * Walk the windows one at a time. Concurrency is deliberately not offered: requests here
- * run 40-180 seconds each because the model reasons at length over a whole slice, and
- * issuing them in parallel produced no measured speedup.
+ * Walk the windows one at a time. Historical runs took 40-180 seconds per request,
+ * and issuing them in parallel produced no measured speedup. Those measurements do
+ * not establish latency for the current default model.
  */
 export async function proposePhaseBoundaries(
   dataset,

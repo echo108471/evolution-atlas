@@ -76,8 +76,8 @@ import { appendFileSync } from 'node:fs'
 export default class SyntheticProvider {
   constructor(options) {
     appendFileSync(process.env.ATLAS_TEST_PAID_LOG, JSON.stringify({ constructor: true, maxRetries: options.maxRetries }) + '\\n')
-    this.messages = { stream: () => ({ finalMessage: async () => {
-      appendFileSync(process.env.ATLAS_TEST_PAID_LOG, JSON.stringify({ request: true }) + '\\n')
+    this.messages = { stream: (request) => ({ finalMessage: async () => {
+      appendFileSync(process.env.ATLAS_TEST_PAID_LOG, JSON.stringify({ request: true, model: request.model, baseURL: options.baseURL ?? null }) + '\\n')
       if (process.env.ATLAS_TEST_PROVIDER_FAIL) throw Object.assign(new Error('Synthetic transient failure'), {status: 503})
       return { content: [{ type: 'text', text: '{"features":[]}' }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 } }
     } }) }
@@ -476,6 +476,33 @@ test('explicit interpret inference disables SDK retries and uses only the mock p
   assert.equal(f.events(f.paidLog).filter((event) => event.request).length, 1)
 })
 
+test('interpret CLI keeps credential detection, explicit providers and model overrides', (t) => {
+  const f = setup(t)
+  const cases = [
+    { env: { OPENROUTER_API_KEY: 'synthetic' }, args: [], model: 'openai/gpt-6-luna:batch', baseURL: 'https://openrouter.ai/api' },
+    { env: { OPENROUTER_API_KEY: 'synthetic', ANTHROPIC_API_KEY: 'synthetic' }, args: [], model: 'claude-opus-5', baseURL: null },
+    { env: { ANTHROPIC_API_KEY: 'synthetic' }, args: [], model: 'claude-opus-5', baseURL: null },
+    { env: { OPENROUTER_API_KEY: 'synthetic', ANTHROPIC_API_KEY: 'synthetic' }, args: ['--provider', 'openrouter'], model: 'openai/gpt-6-luna:batch', baseURL: 'https://openrouter.ai/api' },
+    { env: { OPENROUTER_API_KEY: 'synthetic' }, args: ['--model', 'synthetic/explicit:batch'], model: 'synthetic/explicit:batch', baseURL: 'https://openrouter.ai/api' },
+    { env: { OPENROUTER_API_KEY: 'synthetic' }, args: ['--provider', 'anthropic'], model: 'claude-opus-5', baseURL: null },
+  ]
+  for (const [index, entry] of cases.entries()) {
+    const result = f.invoke('interpret.mjs', ['--in', f.dataset, '--out', join(f.root, `interpret-${index}.json`), '--allow-paid', ...entry.args], entry.env)
+    assert.equal(result.status, 0, result.stderr)
+    assert.deepEqual(f.events(f.paidLog).at(-1), { request: true, model: entry.model, baseURL: entry.baseURL })
+  }
+})
+
+test('gallery records the shared OpenRouter default including the batch suffix', (t) => {
+  const f = setup(t)
+  const result = f.runGallery(['--interpret', '--allow-paid'], { OPENROUTER_API_KEY: 'synthetic' })
+  assert.equal(result.status, 0, result.stderr)
+  const manifest = JSON.parse(readFileSync(join(f.out, 'manifest.json'), 'utf8'))
+  assert.equal(manifest.subjects[0].interpretation.provider, 'openrouter')
+  assert.equal(manifest.subjects[0].interpretation.model, 'openai/gpt-6-luna:batch')
+  assert.equal(f.events(f.paidLog).at(-1).model, 'openai/gpt-6-luna:batch')
+})
+
 test('interpret chooses an immutable sibling output and preserves its source dataset', (t) => {
   const f = setup(t)
   const before = readFileSync(f.dataset)
@@ -518,19 +545,38 @@ test('epochs requires paid permission for either missing proposals or period nam
   }
 })
 
-test('epochs replays exact-head proposals without a key or model call and records source hash', (t) => {
+test('epochs CLI records its default or explicit model even when history is too short for a window', (t) => {
+  const f = setup(t)
+  for (const [index, model] of ['openai/gpt-6-luna:batch', 'synthetic/explicit:batch'].entries()) {
+    const output = join(f.root, `epochs-${index}.json`)
+    const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, '--allow-paid', '--no-labels', ...(index ? ['--model', model] : [])], { OPENROUTER_API_KEY: 'synthetic' })
+    assert.equal(result.status, 0, result.stderr)
+    const document = JSON.parse(readFileSync(output, 'utf8'))
+    assert.equal(document.model.model, model)
+    assert.equal(document.model.windowCount, 0)
+    assert.equal(document.method, `epoch-boundaries:openrouter:${model}`)
+  }
+  assert.equal(existsSync(f.paidLog), false)
+})
+
+test('epochs replay preserves the saved model and source hash despite current defaults or overrides', (t) => {
   const f = setup(t)
   const proposals = join(f.root, 'proposals.json')
   const bytes = Buffer.from(JSON.stringify({ repository: 'fixture', headSha: f.pin, model: 'synthetic-model', proposals: [] }))
   writeFileSync(proposals, bytes)
-  const output = join(f.root, 'epochs.json')
-  const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, '--proposals', proposals, '--no-labels'])
-  assert.equal(result.status, 0, result.stderr)
-  const document = JSON.parse(readFileSync(output, 'utf8'))
-  assert.equal(document.headSha, f.pin)
-  assert.equal(document.model.reusedSha256, createHash('sha256').update(bytes).digest('hex'))
-  assert.equal(document.labels, null)
+  for (const [index, args] of [[], ['--model', 'synthetic/other-model']].entries()) {
+    const output = join(f.root, `epochs-${index}.json`)
+    const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, '--proposals', proposals, '--no-labels', ...args])
+    assert.equal(result.status, 0, result.stderr)
+    const document = JSON.parse(readFileSync(output, 'utf8'))
+    assert.equal(document.headSha, f.pin)
+    assert.equal(document.model.model, 'synthetic-model')
+    assert.equal(document.method, 'epoch-boundaries:openrouter:synthetic-model')
+    assert.equal(document.model.reusedSha256, createHash('sha256').update(bytes).digest('hex'))
+    assert.equal(document.labels, null)
+  }
   assert.deepEqual(readFileSync(proposals), bytes)
+  assert.equal(existsSync(f.paidLog), false)
 })
 
 test('epochs refuses replay/output aliases and invalid numeric flags before any model request', (t) => {

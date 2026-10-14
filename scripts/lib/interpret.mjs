@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { buildStructuralEpisodes } from '../../src/structure.mjs'
+import { DEFAULT_OPENROUTER_MODEL } from './model-defaults.mjs'
 
 /**
  * OpenRouter serves the Anthropic Messages API, so the same client and request shape
@@ -17,9 +18,8 @@ export const PROVIDERS = {
   },
   openrouter: {
     label: 'OpenRouter',
-    // Pinned rather than a floating `~...-latest` alias: each candidate records the
-    // model that produced it, and that record has to stay true to be worth anything.
-    model: 'x-ai/grok-4.6',
+    // Candidates record the selected model ID, including its routing suffix.
+    model: DEFAULT_OPENROUTER_MODEL,
     baseURL: 'https://openrouter.ai/api',
     apiKeyEnv: 'OPENROUTER_API_KEY',
     requiresApiKey: true,
