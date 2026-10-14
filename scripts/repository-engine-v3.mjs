@@ -15,7 +15,7 @@ import { renderRepositoryMap } from './render-repository-map-v3.mjs'
 import { assertEvolutionAncestor, observeRevisionTransition, verifySourceReceiptsAtOriginalCommits } from './lib/repository-evolution.mjs'
 import { loadCommitReadingArtifactBytes, makeCommitReadingReceipt } from './lib/cached-commit-readings.mjs'
 import { loadPriorMapDirectory, priorMapPage, priorMapRecordFromBytes, projectBaselineOutput, readRegularArtifact, verifyPriorMapPage } from './lib/prior-map-catalog.mjs'
-import { reserveHostDispatch, bindHostDispatch, inspectHostAssignment, readHostStatus, recordHostTerminal, withHostEvidenceAccess, withHostAssignmentLock } from './lib/repository-host.mjs'
+import { reserveHostDispatch, bindHostDispatch, inspectHostAssignment, readHostStatus, recordHostTerminalByHandle, withHostEvidenceAccess, withHostAssignmentLock } from './lib/repository-host.mjs'
 
 const json = x => JSON.stringify(x, null, 2) + '\n'
 const hash = x => createHash('sha256').update(x).digest('hex')
@@ -491,7 +491,7 @@ export function engineBroker(directory, agent, action, args = []) {
   })
 }
 export function reserveEngineLaunch(directory, agent) {
-  const c = inspectEngine(directory); agentCheck(c, agent)
+  const c = load(directory); agentCheck(c, agent)
   return reserveHostDispatch(c.out, agent, () => {
     const fresh = inspectEngine(c.out), job = fresh.jobs.find(j => j.agent === agent)
     return { state: job.state, receiptCount: Object.keys(job.receiptPins).length, outputExists: existsSync(job.path), checkpointExists: existsSync(c.out + '/completed/' + agent + '.json') }
@@ -514,8 +514,7 @@ export function recordEngineLaunch(directory, agent, handle) {
 }
 export function recordEngineTerminal(directory, agent, handle, observation) {
   const c = load(directory); agentCheck(c, agent)
-  const host = inspectHostAssignment(c.out, agent)
-  return recordHostTerminal(c.out, agent, host.reservationId, handle, observation)
+  return recordHostTerminalByHandle(c.out, agent, handle, observation)
 }
 export function publishEngine(directory) {
   const c = inspectEngine(directory)
