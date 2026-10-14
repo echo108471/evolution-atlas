@@ -64,17 +64,16 @@ now defaults to `openai/gpt-6-luna:batch` for interpretation and epoch detection
 explicit OpenRouter `--model` overrides still apply. Anthropic retains
 `claude-opus-5`, and model selection never switches providers.
 
-The configured OpenRouter default currently cannot run: an operator's real
-Atlas-shaped Messages request on **2026-10-14** returned HTTP 404:
-`openai/gpt-6-luna:batch cannot be used with the chat/completions endpoint (adapter OpenAIBatchAdapter).`
-The operator-reported [model page](https://openrouter.ai/openai/gpt-6-luna:batch)
-requires Batch API submission, which Atlas does not implement. Both current
-synchronous transports are incompatible with that default. Atlas now rejects
-`:batch` model IDs before sending a synchronous request, replacing the known
-404 with an explanation; OpenRouter runs need an explicit synchronous override
-such as **`--model openai/gpt-6-luna`** until Batch API support exists. See
-[selection and request formats](EXPERIMENTS.md#model-defaults-and-request-formats)
-for credential precedence, transport details, and preserved experiment pins.
+OpenRouter `:batch` models use asynchronous Batch API submission and polling.
+This applies to the interpretation and epochs CLIs; gallery interpretation
+still requires an explicit live model such as `--model openai/gpt-6-luna`.
+Dependent stages run separately, so feature discovery must complete before
+lifecycle discovery and each stage can take the full 24-hour completion window.
+A sidecar next to the intended output preserves batch IDs, request fingerprints,
+and raw results for resume and offline replay. Non-batch model slugs retain
+their live request paths. See [selection and request formats](EXPERIMENTS.md#model-defaults-and-request-formats)
+for credential precedence and preserved experiment pins, and [batch operation](EXPERIMENTS.md#openrouter-batch-runs)
+for polling, resume, replay, and documented pricing.
 The historical measurements below remain measurements of their recorded
 models, not evaluations of the new default.
 

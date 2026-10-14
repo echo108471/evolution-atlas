@@ -93,9 +93,9 @@ node scripts/gallery.mjs --only zod --interpret --allow-paid \
   --provider openrouter --model openai/gpt-6-luna \
   --cache scratch/repositories/gallery --out scratch/gallery-interpreted-next
 node scripts/interpret.mjs --in scratch/atlas.json --allow-paid \
-  --provider openrouter --model openai/gpt-6-luna \
+  --provider openrouter \
   --out scratch/atlas.interpreted-next.json
-node scripts/epochs.mjs --in scratch/atlas.json --model openai/gpt-6-luna --allow-paid \
+node scripts/epochs.mjs --in scratch/atlas.json --allow-paid \
   --save-proposals scratch/proposals-next.json --out scratch/epochs-next.json
 ```
 
@@ -104,8 +104,9 @@ need the selected provider's credentials and may incur charges. `--reuse-feature
 retains input feature candidates but still requests lifecycle inference;
 `--no-labels` alone still requests period proposals. The free period path needs
 both saved `--proposals` and `--no-labels`.
-These examples explicitly select a synchronous OpenRouter slug because the
-configured batch default cannot use Atlas's current transports.
+The interpretation and epochs examples use the asynchronous OpenRouter batch
+default. Gallery's transport remains live-only, so its example must explicitly
+select a live model; gallery still rejects `:batch` slugs.
 
 ## Model defaults and request formats
 
@@ -126,7 +127,8 @@ choosing a model never silently switches providers. Anthropic SDK environment
 settings still apply where the client does not explicitly supply a value;
 the OpenRouter client supplies its own base URL and API key.
 
-The two OpenRouter paths use different request formats:
+The two OpenRouter paths use different request formats. For a model without
+the `:batch` suffix, their live transports remain unchanged:
 
 - Interpretation uses the Anthropic SDK to `POST
   https://openrouter.ai/api/v1/messages`. With the ordinary API-key setup, it
@@ -144,33 +146,12 @@ The two OpenRouter paths use different request formats:
   `messages` with system and user string content. They do not request
   streaming.
 
-The default is configured but cannot run through either synchronous transport.
-On **2026-10-14**, the operator made one real `POST
-https://openrouter.ai/api/v1/messages` request with Atlas's Anthropic Messages
-shape (`stream: true`, `system`, and a user text block with `cache_control`)
-and model `openai/gpt-6-luna:batch`. It returned **HTTP 404**:
-
-```json
-{"type":"error","error":{"type":"not_found_error","message":"openai/gpt-6-luna:batch cannot be used with the chat/completions endpoint (adapter OpenAIBatchAdapter).","error_type":"not_found"}}
-```
-
-The error names chat completions even though the observed request used the
-Messages endpoint. Per the operator-provided
-[model page](https://openrouter.ai/openai/gpt-6-luna:batch), the batch variant
-requires `POST /api/v1/batches`, with `endpoint` selecting the request skin
-(`/v1/chat/completions`, `/v1/responses`, or `/v1/messages`). Inner requests use
-model `openai/gpt-6-luna` and a `custom_id`; callers poll
-`GET /api/v1/batches/:id`, and results are retained for 30 days. Atlas has no
-Batch API submission, polling, or result retrieval implementation.
-
-Default OpenRouter model runs therefore remain blocked until Batch API support
-exists. Atlas now fails locally for any model ID ending in `:batch` before
-sending a synchronous request, with an error explaining the missing Batch API
-support and suggesting **`--model openai/gpt-6-luna`**. This guard replaces the
-known provider 404 with a clear pre-network failure; it does not make the batch
-default usable. Pass that explicit synchronous slug (or another supported
-synchronous model) as the workaround. The evidence above is the operator's
-reported live result; this change was validated offline without new API calls.
+In the interpretation and epochs CLIs, OpenRouter models ending in `:batch`
+use the Batch API described below. Gallery retains its live-only transport.
+Interpretation retains its Messages body shape without `stream` or the inner
+`model`; epoch requests retain their chat-completions body shape without the
+inner `model`. Parsed responses feed the same evidence validation as live
+responses.
 
 Candidate `method` values continue to record provider and model. Replaying
 epoch proposals retains the saved `model` and uses it in the document's
@@ -186,6 +167,119 @@ CLI passes its own selected model explicitly. Moving the historical
 experiment defaults onto the new shared constant would change saved request
 construction or replay fingerprints, so they remain separate. Existing
 saved runs and their pinned engine source are not rewritten.
+
+## OpenRouter batch runs
+
+`scripts/interpret.mjs` and `scripts/epochs.mjs` automatically route OpenRouter
+`:batch` models through `POST https://openrouter.ai/api/v1/batches`, with
+`Authorization: Bearer <OPENROUTER_API_KEY>`. The JSON body places `endpoint`,
+`model`, and `completion_window` before the `requests` array, as the API's
+streaming parser requires. Each request has a unique `custom_id`; its body
+inherits the batch-level model. The default sends the selected `--model` slug
+verbatim, including `:batch`. `--batch-model <slug>` changes only the
+batch-level API field, so an operator can adjust routing after a live check
+without changing inner bodies or candidate `method` conventions. Both the
+selected model and effective batch model are retained in the sidecar.
+
+Feature discovery uses `/v1/messages`, followed by a separate lifecycle batch
+whose prompt depends on the validated features. `--reuse-features` needs only
+the lifecycle stage. Epoch discovery groups all proposal windows into one
+`/v1/chat/completions` batch, validates proposals and builds the hierarchy,
+then batches period labels by hierarchy level. Parent label prompts wait for
+child labels. `--no-labels` skips these label stages.
+
+Submission returns `202` with status `validating`; it is not a completed
+inference result. Atlas polls `GET /api/v1/batches/:id` through `validating`,
+`in_progress`, `finalizing`, or `cancelling` until `completed`, `failed`,
+`expired`, or `cancelled`. Completed results are inline in the status response
+and are matched by `custom_id`, independent of their order. Batch-wide failure,
+expiry, cancellation, or timeout stops the run before a final output is written.
+Interpretation also stops on a per-request error. Epochs retains its existing
+failure accounting: a failed proposal window or an unnamed period is reported,
+and the run can publish a partial result. Failed batches and errored requests
+are never automatically resubmitted.
+
+Unlike live calls, a batch can take the full **24-hour completion window**.
+Dependent stages each have their own window, so a complete multi-stage run can
+take longer than 24 hours. These flags apply to both CLIs:
+
+| Flag | Behavior |
+| --- | --- |
+| `--batch-model <slug>` | Override the batch-level model; defaults to the selected model exactly as given. |
+| `--batch-poll-ms <n>` | Initial polling interval in milliseconds; default `30000`. The interval doubles to a cap of `300000`, or the initial interval if larger. |
+| `--batch-max-wait-ms <n>` | Maximum wait per stage in milliseconds; default `86400000` (24 hours). |
+| `--batch-replay <path>` | Read saved completed results from a sidecar without any network calls. |
+
+Before polling, Atlas saves each batch ID and request fingerprint in
+`<output>.batch-state.json`. Epochs requires `--out` for new batch work.
+The sidecar also pins the input dataset and inference options, and saves raw
+terminal responses before parsing them. Keep it beside the saved output in
+ignored `scratch/`; it can contain repository evidence and model content.
+
+After a timeout or interruption, **rerun the same command against the same
+input and output**. Atlas reuses completed stages and resumes polling the
+recorded batch ID, without submitting it again. The timeout error includes
+the batch ID, last status, and resume instructions. Poll interval and wait
+limit may change on resume; a mismatched input, inference option, or request
+fingerprint is refused. Epochs writes `--save-proposals` only after dependent
+label batches finish, so a label timeout leaves the original command resumable.
+Existing final outputs remain immutable; choose a new output for another
+experiment.
+
+Submission also reserves its stage in the sidecar before sending the POST.
+If submission is interrupted or its response is lost before the batch ID is
+saved, Atlas refuses to submit again automatically: the provider may already
+have accepted paid work. Preserve that state and inspect the OpenRouter
+workspace to reconcile the batch ID before continuing. Creating a new output
+to bypass this state can purchase the same work again.
+
+Once all required stages have completed, replay the raw results offline using
+the original input and inference options and a new output path:
+
+```sh
+node scripts/interpret.mjs --in scratch/atlas.json --provider openrouter \
+  --batch-replay scratch/atlas.interpreted-next.json.batch-state.json \
+  --out scratch/atlas.batch-replayed-next.json
+node scripts/epochs.mjs --in scratch/atlas.json \
+  --batch-replay scratch/epochs-next.json.batch-state.json \
+  --out scratch/epochs.batch-replayed-next.json
+```
+
+Replay requires neither credentials nor `--allow-paid`; missing saved stages
+fail locally. Preserve the sidecar for long-term replay. OpenRouter retains
+batch inputs and results for **30 days after creation**; a later fetch can
+return `410 Gone`. Local saved results remain usable after remote retention
+ends. This flow follows the operator-provided OpenRouter Batch API quickstart,
+saved locally at `scratch/openrouter-batch-quickstart.md`.
+
+OpenRouter documents batch requests as typically costing **50% of standard
+per-token pricing**. Non-token components are not uniformly discounted:
+web search uses standard rates and prompt-cache pricing varies. The
+[model page](https://openrouter.ai/openai/gpt-6-luna:batch) is the pricing
+source of truth. A completed batch's saved `usage.cost` is the OpenRouter
+charge. For BYOK it is only OpenRouter's fee, because the provider bills
+inference separately; `usage.cost_details.upstream_inference_cost` records the
+estimated provider inference cost. These are documented pricing rules, not a
+measured cost or live acceptance claim for Atlas's new batch path.
+
+For a small optional live smoke check, generate a fresh fictional two-commit
+dataset and cap both candidate counts. The first command is local; the second
+needs `OPENROUTER_API_KEY` and purchases inference:
+
+```sh
+node scripts/synthetic-fixtures.mjs generate --out scratch/luna-batch-smoke
+node scripts/interpret.mjs --in scratch/luna-batch-smoke/observed-atlas.json \
+  --provider openrouter --model openai/gpt-6-luna:batch --allow-paid \
+  --max-features 1 --max-lifecycle-episodes 1 \
+  --batch-poll-ms 30000 --batch-max-wait-ms 86400000 \
+  --out scratch/luna-batch-smoke/interpreted.json
+```
+
+The fixture directory must be new or empty. On timeout, rerun only the
+interpretation command to resume; do not regenerate the input or remove its
+sidecar. Small candidate limits keep the request narrow but are not a billing
+cap. Once the run succeeds, preserve its output and use a fresh output path
+for another run.
 
 ## Retry and output preservation
 
