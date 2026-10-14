@@ -183,7 +183,7 @@ neither key it selects Anthropic. It never changes provider to accommodate a
 model:
 
 ```bash
-node scripts/interpret.mjs --in scratch/atlas.json --provider openrouter --allow-paid    # needs OPENROUTER_API_KEY
+node scripts/interpret.mjs --in scratch/atlas.json --provider openrouter --model openai/gpt-6-luna --allow-paid # needs OPENROUTER_API_KEY
 node scripts/interpret.mjs --in scratch/atlas.json --provider anthropic --allow-paid     # needs ANTHROPIC_API_KEY, or `ant auth login`
 ```
 
@@ -199,8 +199,16 @@ The interpretation client uses the Anthropic SDK and sends Messages requests
 to `https://openrouter.ai/api/v1/messages` for OpenRouter. Epoch detection uses
 OpenAI-style chat completions instead; see [request details and experiment
 pins](docs/EXPERIMENTS.md#model-defaults-and-request-formats). The default change
-does not establish live availability or compatibility of the model on either
-route.
+leaves OpenRouter model runs blocked until Batch API support exists. An
+operator's real Messages request on **2026-10-14** returned HTTP 404:
+`openai/gpt-6-luna:batch cannot be used with the chat/completions endpoint (adapter OpenAIBatchAdapter).`
+The [batch model page](https://openrouter.ai/openai/gpt-6-luna:batch), as reported
+by the operator, requires the separate Batch API, which Atlas does not
+implement. Neither current synchronous transport supports this default.
+Atlas now rejects any model ID ending in `:batch` locally before sending a
+synchronous request, explaining that limitation instead of reaching the
+known 404. Pass **`--model openai/gpt-6-luna`** explicitly to select a
+synchronous slug, as in the OpenRouter example above.
 
 Each candidate records which provider and model produced it in its `method`
 field, so interpretations from different routes stay distinguishable.
@@ -223,13 +231,15 @@ history into periods during which the work was about roughly the same thing, so 
 analysis can proceed period by period rather than needing the whole corpus in one request:
 
 ```bash
-node scripts/epochs.mjs --in public/atlas.json --allow-paid --save-proposals scratch/proposals-next.json --out scratch/epochs-next.json
+node scripts/epochs.mjs --in public/atlas.json --model openai/gpt-6-luna --allow-paid --save-proposals scratch/proposals-next.json --out scratch/epochs-next.json
 ```
 
 Epoch detection is OpenRouter-only and needs `OPENROUTER_API_KEY` for model
 requests. It shares the `openai/gpt-6-luna:batch` default with interpretation;
 `--model <id>` selects the model for both proposals and period labels. The
 shared default lives in [model-defaults.mjs](scripts/lib/model-defaults.mjs).
+The example explicitly selects the synchronous slug because the configured
+batch default is blocked as described above.
 
 It runs two passes that never see each other: a model reads raw commit windows and marks
 where the work changed character, and two deterministic detectors measure where the

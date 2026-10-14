@@ -11,6 +11,7 @@
 import { createHash } from 'node:crypto'
 
 import { extractJson } from './phase-model.mjs'
+import { requireSynchronousModel } from './model-defaults.mjs'
 
 export const DEFAULT_MODEL = 'x-ai/grok-4.6'
 export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
@@ -224,6 +225,7 @@ export async function requestInductionPayload(
   readings,
   { model = DEFAULT_MODEL, apiKey, fetchImpl = fetch, timeoutMs = REQUEST_TIMEOUT_MS } = {},
 ) {
+  requireSynchronousModel(model)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let response

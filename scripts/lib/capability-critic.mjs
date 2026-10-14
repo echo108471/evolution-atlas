@@ -1,6 +1,7 @@
 /** Independently audit commits whose assignments varied against one fixed hierarchy. */
 
 import { extractJson } from './phase-model.mjs'
+import { requireSynchronousModel } from './model-defaults.mjs'
 import {
   API_KEY_ENV,
   DEFAULT_MODEL,
@@ -337,6 +338,7 @@ export async function requestCapabilityCriticPayload(
     showCandidateUnion = false,
   } = {},
 ) {
+  requireSynchronousModel(model)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let response

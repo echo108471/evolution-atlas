@@ -55,6 +55,8 @@ match the dataset's repository and full head SHA. Other paths require --allow-pa
 and ${API_KEY_ENV}; there are no automatic retries.
 New requests use --model or the default above; replay retains the saved proposal model.
 Requests use OpenRouter /api/v1/chat/completions; there is no model env override.
+Batch API submission is not implemented; :batch models fail before any request.
+Pass --model openai/gpt-6-luna to use a synchronous model.
 `
 }
 

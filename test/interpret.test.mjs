@@ -404,10 +404,10 @@ test('interpretAtlas can reuse validated features when calibrating lifecycle dis
 for (const { name, options, provider, model } of [
   { name: 'Anthropic default', options: {}, provider: 'anthropic', model: 'claude-opus-5' },
   {
-    name: 'OpenRouter default',
-    options: { provider: 'openrouter' },
+    name: 'OpenRouter synchronous workaround',
+    options: { provider: 'openrouter', model: 'openai/gpt-6-luna' },
     provider: 'openrouter',
-    model: 'openai/gpt-6-luna:batch',
+    model: 'openai/gpt-6-luna',
   },
   {
     name: 'OpenRouter model override',
@@ -521,6 +521,30 @@ test('extractJson recovers an object from fenced or prose-wrapped output', () =>
   })
   assert.throws(() => extractJson('no object here'), /no JSON object/)
 })
+
+for (const options of [{}, { model: 'synthetic/explicit:batch' }]) {
+  for (const reuseFeatures of [false, true]) {
+    test(`interpretAtlas rejects ${options.model ?? 'the batch default'} before ${reuseFeatures ? 'lifecycle' : 'feature'} dispatch`, async () => {
+      const dataset = observedDataset()
+      dataset.featureCandidates = validateFeatures(
+        [{ label: 'Ranking', rationale: '', confidence: 0.8, commitShas: ['aaaa1111'] }],
+        dataset,
+      ).featureCandidates
+      let calls = 0
+      const client = { messages: { stream: () => { calls += 1; throw new Error('Unexpected dispatch') } } }
+      await assert.rejects(
+        interpretAtlas(dataset, { client, provider: 'openrouter', reuseFeatures, ...options }),
+        (error) => {
+          assert.ok(error.message.includes(options.model ?? 'openai/gpt-6-luna:batch'))
+          assert.match(error.message, /Batch API submission is not implemented/)
+          assert.match(error.message, /--model openai\/gpt-6-luna/)
+          return true
+        },
+      )
+      assert.equal(calls, 0)
+    })
+  }
+}
 
 test('interpretationMethod distinguishes provider and model', () => {
   assert.equal(interpretationMethod('openrouter', 'anthropic/claude-opus-5'), 'llm-induction:openrouter:anthropic/claude-opus-5')

@@ -43,6 +43,8 @@ Providers:
 ${providers}
 
 Both providers use the Anthropic Messages API; OpenRouter uses /api/v1/messages.
+Batch API submission is not implemented; :batch models fail before any request.
+For OpenRouter, pass --model openai/gpt-6-luna to use a synchronous model.
 Without --provider, OpenRouter is selected only when OPENROUTER_API_KEY is set
 and ANTHROPIC_API_KEY is absent; otherwise Anthropic keeps its own default model.
 Neither this command nor epochs reads a model environment variable; use --model.

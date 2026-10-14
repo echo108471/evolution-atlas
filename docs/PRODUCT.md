@@ -62,7 +62,17 @@ Interpretation runs through Anthropic directly or through OpenRouter. The
 provider and model are recorded in each candidate's `method` field. OpenRouter
 now defaults to `openai/gpt-6-luna:batch` for interpretation and epoch detection;
 explicit OpenRouter `--model` overrides still apply. Anthropic retains
-`claude-opus-5`, and model selection never switches providers. See
+`claude-opus-5`, and model selection never switches providers.
+
+The configured OpenRouter default currently cannot run: an operator's real
+Atlas-shaped Messages request on **2026-10-14** returned HTTP 404:
+`openai/gpt-6-luna:batch cannot be used with the chat/completions endpoint (adapter OpenAIBatchAdapter).`
+The operator-reported [model page](https://openrouter.ai/openai/gpt-6-luna:batch)
+requires Batch API submission, which Atlas does not implement. Both current
+synchronous transports are incompatible with that default. Atlas now rejects
+`:batch` model IDs before sending a synchronous request, replacing the known
+404 with an explanation; OpenRouter runs need an explicit synchronous override
+such as **`--model openai/gpt-6-luna`** until Batch API support exists. See
 [selection and request formats](EXPERIMENTS.md#model-defaults-and-request-formats)
 for credential precedence, transport details, and preserved experiment pins.
 The historical measurements below remain measurements of their recorded

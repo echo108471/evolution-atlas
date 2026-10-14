@@ -12,6 +12,7 @@
  */
 
 import { OPENROUTER_ENDPOINT, extractJson } from './phase-model.mjs'
+import { requireSynchronousModel } from './model-defaults.mjs'
 
 const REQUEST_TIMEOUT_MS = 180000
 const MAX_SAMPLED_COMMITS = 60
@@ -113,6 +114,7 @@ Name the era these periods form.`
 }
 
 export async function requestLabel(prompt, systemPrompt, { model, apiKey, fetchImpl = fetch } = {}) {
+  requireSynchronousModel(model)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   let response
@@ -164,6 +166,8 @@ export async function labelPeriodLevels(
   levels,
   { model, apiKey, request = requestLabel, onProgress } = {},
 ) {
+  // Configuration errors must abort, not become recoverable per-period failures.
+  requireSynchronousModel(model)
   const method = `period-label:openrouter:${model}`
   const labeled = []
   const failures = []

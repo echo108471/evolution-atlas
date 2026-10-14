@@ -75,9 +75,17 @@ The default is `openai/gpt-6-luna:batch`, shared with OpenRouter interpretation
 through `scripts/lib/model-defaults.mjs`. `--model` overrides it for both
 proposal discovery and period labeling. This is an OpenRouter-only path;
 `OPENROUTER_API_KEY` supplies credentials, and there is no environment model
-override. The model ID is sent in an ordinary chat-completions request, not a
-separate Batch API job. See [request formats and preserved experiment
-pins](EXPERIMENTS.md#model-defaults-and-request-formats).
+override. This default cannot run through the current synchronous transports.
+An operator's Atlas-shaped Messages request on **2026-10-14** returned HTTP 404:
+`openai/gpt-6-luna:batch cannot be used with the chat/completions endpoint (adapter OpenAIBatchAdapter).`
+The operator-reported [model page](https://openrouter.ai/openai/gpt-6-luna:batch)
+requires Batch API submission, which Atlas does not implement. Atlas now
+rejects `:batch` model IDs before sending a synchronous request; without that
+guard, the default would encounter the provider's 404. Use
+`--model openai/gpt-6-luna` explicitly for synchronous proposals and labels.
+See [request formats and preserved experiment
+pins](EXPERIMENTS.md#model-defaults-and-request-formats) for the observed error
+and Batch API requirements.
 
 ### Focus signals — `scripts/lib/epochs.mjs`
 
@@ -293,14 +301,15 @@ manufacturing a story. The open question is whether feature discovery scoped to 
 ## Running it
 
 ```bash
-node scripts/epochs.mjs --in scratch/atlas.json --allow-paid \
+node scripts/epochs.mjs --in scratch/atlas.json --model openai/gpt-6-luna --allow-paid \
   --save-proposals scratch/proposals-next.json --out scratch/epochs-next.json
 ```
 
 Needs `--allow-paid` and `OPENROUTER_API_KEY`. Requests run one at a time, with
 one further request per period for naming. The historical runs took
-**40–180 seconds per window** for boundary detection; no latency or live
-compatibility result has been established here for the Luna batch default.
+**40–180 seconds per window** for boundary detection; those timings do not
+describe Luna. The example overrides the configured batch default, which
+cannot use the current synchronous transport.
 
 `--no-labels` skips naming entirely and needs no further requests. `--depth <n>` forces a
 hierarchy depth instead of deriving one, which is mostly useful for exercising the era

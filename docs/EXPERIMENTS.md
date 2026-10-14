@@ -90,10 +90,12 @@ gallery also needs `--interpret`; `--fetch` alone never opts into inference:
 
 ```sh
 node scripts/gallery.mjs --only zod --interpret --allow-paid \
+  --provider openrouter --model openai/gpt-6-luna \
   --cache scratch/repositories/gallery --out scratch/gallery-interpreted-next
 node scripts/interpret.mjs --in scratch/atlas.json --allow-paid \
+  --provider openrouter --model openai/gpt-6-luna \
   --out scratch/atlas.interpreted-next.json
-node scripts/epochs.mjs --in scratch/atlas.json --allow-paid \
+node scripts/epochs.mjs --in scratch/atlas.json --model openai/gpt-6-luna --allow-paid \
   --save-proposals scratch/proposals-next.json --out scratch/epochs-next.json
 ```
 
@@ -102,6 +104,8 @@ need the selected provider's credentials and may incur charges. `--reuse-feature
 retains input feature candidates but still requests lifecycle inference;
 `--no-labels` alone still requests period proposals. The free period path needs
 both saved `--proposals` and `--no-labels`.
+These examples explicitly select a synchronous OpenRouter slug because the
+configured batch default cannot use Atlas's current transports.
 
 ## Model defaults and request formats
 
@@ -140,9 +144,33 @@ The two OpenRouter paths use different request formats:
   `messages` with system and user string content. They do not request
   streaming.
 
-The `:batch` suffix is part of the model ID; these paths do not submit jobs to
-a separate Batch API. These details describe the local request construction,
-not verified live service support for that ID or transport.
+The default is configured but cannot run through either synchronous transport.
+On **2026-10-14**, the operator made one real `POST
+https://openrouter.ai/api/v1/messages` request with Atlas's Anthropic Messages
+shape (`stream: true`, `system`, and a user text block with `cache_control`)
+and model `openai/gpt-6-luna:batch`. It returned **HTTP 404**:
+
+```json
+{"type":"error","error":{"type":"not_found_error","message":"openai/gpt-6-luna:batch cannot be used with the chat/completions endpoint (adapter OpenAIBatchAdapter).","error_type":"not_found"}}
+```
+
+The error names chat completions even though the observed request used the
+Messages endpoint. Per the operator-provided
+[model page](https://openrouter.ai/openai/gpt-6-luna:batch), the batch variant
+requires `POST /api/v1/batches`, with `endpoint` selecting the request skin
+(`/v1/chat/completions`, `/v1/responses`, or `/v1/messages`). Inner requests use
+model `openai/gpt-6-luna` and a `custom_id`; callers poll
+`GET /api/v1/batches/:id`, and results are retained for 30 days. Atlas has no
+Batch API submission, polling, or result retrieval implementation.
+
+Default OpenRouter model runs therefore remain blocked until Batch API support
+exists. Atlas now fails locally for any model ID ending in `:batch` before
+sending a synchronous request, with an error explaining the missing Batch API
+support and suggesting **`--model openai/gpt-6-luna`**. This guard replaces the
+known provider 404 with a clear pre-network failure; it does not make the batch
+default usable. Pass that explicit synchronous slug (or another supported
+synchronous model) as the workaround. The evidence above is the operator's
+reported live result; this change was validated offline without new API calls.
 
 Candidate `method` values continue to record provider and model. Replaying
 epoch proposals retains the saved `model` and uses it in the document's

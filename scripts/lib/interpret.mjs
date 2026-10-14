@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto'
 import { buildStructuralEpisodes } from '../../src/structure.mjs'
-import { DEFAULT_OPENROUTER_MODEL } from './model-defaults.mjs'
+import { DEFAULT_OPENROUTER_MODEL, requireSynchronousModel } from './model-defaults.mjs'
 
 /**
  * OpenRouter serves the Anthropic Messages API, so the same client and request shape
- * work against either provider; only the base URL, credential, and model naming differ.
+ * work against either provider for synchronous models. Batch-only IDs need a separate
+ * Batch API submission path, which is not implemented.
  */
 export const PROVIDERS = {
   anthropic: {
@@ -610,6 +611,7 @@ export async function interpretAtlas(
     }
   }
 
+  requireSynchronousModel(model)
   const corpus = buildCorpus(dataset)
   let featureMessage = null
   let validated

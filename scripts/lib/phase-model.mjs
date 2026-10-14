@@ -9,7 +9,7 @@
  * it.
  */
 
-import { DEFAULT_OPENROUTER_MODEL } from './model-defaults.mjs'
+import { DEFAULT_OPENROUTER_MODEL, requireSynchronousModel } from './model-defaults.mjs'
 
 export const DEFAULT_MODEL = DEFAULT_OPENROUTER_MODEL
 export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
@@ -126,6 +126,7 @@ export function parseWindowResponse(payload) {
  * substitute a stub and exercise the surrounding logic without a key or a network call.
  */
 export async function requestWindow(dataset, windowPlan, { model = DEFAULT_MODEL, apiKey, fetchImpl = fetch } = {}) {
+  requireSynchronousModel(model)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   let response
@@ -154,6 +155,8 @@ export async function proposePhaseBoundaries(
   dataset,
   { model = DEFAULT_MODEL, apiKey, window, stride, request = requestWindow, onProgress } = {},
 ) {
+  // Configuration errors must abort, not become recoverable per-window failures.
+  requireSynchronousModel(model)
   const windows = planWindows(dataset.episodes, { window, stride })
   const shaIndex = new Map()
   dataset.episodes.forEach((episode, index) => {
