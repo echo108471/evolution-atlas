@@ -103,6 +103,64 @@ retains input feature candidates but still requests lifecycle inference;
 `--no-labels` alone still requests period proposals. The free period path needs
 both saved `--proposals` and `--no-labels`.
 
+## Model defaults and request formats
+
+The shared [OpenRouter default](../scripts/lib/model-defaults.mjs) is
+`openai/gpt-6-luna:batch`. It is used by interpretation (including gallery
+interpretation) and epoch proposal discovery. The epochs CLI also passes the
+selected model to period labeling.
+
+| Caller | Provider selection | Model selection |
+| --- | --- | --- |
+| `scripts/interpret.mjs`, gallery interpretation | Explicit `--provider`; otherwise OpenRouter only when `OPENROUTER_API_KEY` is set without `ANTHROPIC_API_KEY`, Anthropic otherwise | OpenRouter: explicit `--model`, then shared default. Anthropic: existing `claude-opus-5` default; `--model` remains rejected |
+| `scripts/epochs.mjs` | OpenRouter only, with `OPENROUTER_API_KEY` | Explicit `--model`, then shared default, for both new proposals and labels |
+
+There is no model-selection environment override in these CLIs. Their API-key
+environment variables and Anthropic SDK credential resolution are unchanged.
+Anthropic cannot serve the OpenAI model, so its default stays `claude-opus-5`;
+choosing a model never silently switches providers. Anthropic SDK environment
+settings still apply where the client does not explicitly supply a value;
+the OpenRouter client supplies its own base URL and API key.
+
+The two OpenRouter paths use different request formats:
+
+- Interpretation uses the Anthropic SDK to `POST
+  https://openrouter.ai/api/v1/messages`. With the ordinary API-key setup, it
+  sends `x-api-key: <OPENROUTER_API_KEY>`, `anthropic-version: 2023-06-01`, and
+  `content-type: application/json`, plus SDK headers. The JSON body contains
+  `model`, `max_tokens: 32000`, `system`, and a `messages` array with user text
+  content blocks, including an ephemeral `cache_control` marker on the corpus.
+  The SDK adds `stream: true`. `output_config` is added only for Claude model
+  IDs, so it is absent for the Luna default. The lifecycle pass uses the same
+  envelope with the feature candidates included in its prompt.
+- Epoch proposals and period labels `POST` to
+  `https://openrouter.ai/api/v1/chat/completions` with `authorization: Bearer
+  <OPENROUTER_API_KEY>` and `content-type: application/json`. Their JSON body
+  contains `model`, `max_tokens` (4000 for proposals, 1500 for labels), and
+  `messages` with system and user string content. They do not request
+  streaming.
+
+The `:batch` suffix is part of the model ID; these paths do not submit jobs to
+a separate Batch API. These details describe the local request construction,
+not verified live service support for that ID or transport.
+
+Candidate `method` values continue to record provider and model. Replaying
+epoch proposals retains the saved `model` and uses it in the document's
+`method`; adding new labels records the selected label model separately.
+`--proposals ... --no-labels` therefore retains proposal provenance even after
+the default changes.
+
+Independent historical experiment pins in `capability-induction.mjs`,
+`capability-consolidate.mjs`, `capability-naming.mjs`, and `commit-analysis.mjs`
+remain unchanged, as do their experiment consumers. In particular, direct
+library use of period labeling requires a caller-supplied model; the epochs
+CLI passes its own selected model explicitly. Moving the historical
+experiment defaults onto the new shared constant would change saved request
+construction or replay fingerprints, so they remain separate. Existing
+saved runs and their pinned engine source are not rewritten.
+
+## Retry and output preservation
+
 SDK retries are disabled. Gallery defaults to one attempt; `--retries N`
 explicitly permits additional attempts and can repeat a completed first pass.
 Preserve earlier responses and assess failures before opting into another

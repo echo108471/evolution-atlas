@@ -59,7 +59,14 @@ meaningful headroom and is a cheaper first move than chunking.
 ## Provider
 
 Interpretation runs through Anthropic directly or through OpenRouter. The
-provider and model are recorded in each candidate's `method` field.
+provider and model are recorded in each candidate's `method` field. OpenRouter
+now defaults to `openai/gpt-6-luna:batch` for interpretation and epoch detection;
+explicit OpenRouter `--model` overrides still apply. Anthropic retains
+`claude-opus-5`, and model selection never switches providers. See
+[selection and request formats](EXPERIMENTS.md#model-defaults-and-request-formats)
+for credential precedence, transport details, and preserved experiment pins.
+The historical measurements below remain measurements of their recorded
+models, not evaluations of the new default.
 
 Gallery generation should pin one provider and model across the whole batch
 and record it in the manifest. Candidates produced by different models are

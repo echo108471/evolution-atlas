@@ -176,14 +176,31 @@ method, confidence, and supporting commits. A feature can therefore show a
 sequence such as introduced → expanded → hardened instead of receiving one
 permanent stage.
 
-Requests can go to Anthropic directly or through OpenRouter, which serves the
-same Messages API — only the base URL, credential, and model naming differ. The
-provider is auto-detected from whichever key is set, or named explicitly:
+Interpretation can use Anthropic directly or OpenRouter. An explicit
+`--provider` wins; otherwise Atlas selects OpenRouter only when
+`OPENROUTER_API_KEY` is set and `ANTHROPIC_API_KEY` is not. With both keys or
+neither key it selects Anthropic. It never changes provider to accommodate a
+model:
 
 ```bash
 node scripts/interpret.mjs --in scratch/atlas.json --provider openrouter --allow-paid    # needs OPENROUTER_API_KEY
 node scripts/interpret.mjs --in scratch/atlas.json --provider anthropic --allow-paid     # needs ANTHROPIC_API_KEY, or `ant auth login`
 ```
+
+OpenRouter defaults to `openai/gpt-6-luna:batch`; `--model <id>` overrides that
+default. Anthropic retains `claude-opus-5` because it cannot serve an OpenAI
+model, and its existing restriction on `--model` remains: model overrides are
+accepted only for the OpenRouter gateway. These CLIs have no model-selection
+environment variable; the API-key variables above affect credentials and
+provider detection, not the model. Gallery interpretation uses the same
+selection rules.
+
+The interpretation client uses the Anthropic SDK and sends Messages requests
+to `https://openrouter.ai/api/v1/messages` for OpenRouter. Epoch detection uses
+OpenAI-style chat completions instead; see [request details and experiment
+pins](docs/EXPERIMENTS.md#model-defaults-and-request-formats). The default change
+does not establish live availability or compatibility of the model on either
+route.
 
 Each candidate records which provider and model produced it in its `method`
 field, so interpretations from different routes stay distinguishable.
@@ -209,6 +226,11 @@ analysis can proceed period by period rather than needing the whole corpus in on
 node scripts/epochs.mjs --in public/atlas.json --allow-paid --save-proposals scratch/proposals-next.json --out scratch/epochs-next.json
 ```
 
+Epoch detection is OpenRouter-only and needs `OPENROUTER_API_KEY` for model
+requests. It shares the `openai/gpt-6-luna:batch` default with interpretation;
+`--model <id>` selects the model for both proposals and period labels. The
+shared default lives in [model-defaults.mjs](scripts/lib/model-defaults.mjs).
+
 It runs two passes that never see each other: a model reads raw commit windows and marks
 where the work changed character, and two deterministic detectors measure where the
 distribution of touched paths and of commit-subject vocabulary shifts. Because the two
@@ -228,6 +250,10 @@ full head revision. New period and proposal files are created exclusively:
 ```bash
 node scripts/epochs.mjs --in public/atlas.json --proposals scratch/saved-proposals.json --no-labels --out scratch/epochs-replayed-next.json
 ```
+
+Replay keeps the saved proposal model in its provenance and `method`, even
+when the current default differs. Historical research scripts keep their
+independent model pins so saved requests and replay fingerprints stay stable.
 
 The legacy viewer picks up a separately prepared `public/epochs.json` and adds a
 Periods tab; the new scratch output is not automatically served. Like
