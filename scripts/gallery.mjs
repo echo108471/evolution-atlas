@@ -15,6 +15,7 @@ import {
   resolveProvider,
 } from './lib/interpret.mjs'
 import { isPaymentError, withRetry } from './lib/retry.mjs'
+import { requireSynchronousModel } from './lib/model-defaults.mjs'
 import { requireNewOutput, requirePaidPermission, requirePinnedCommit, requireSeparateOutput } from './lib/experiment-permissions.mjs'
 
 const DEFAULT_CATALOG = 'gallery/catalog.json'
@@ -59,6 +60,8 @@ Options:
 A whole gallery should be interpreted by one provider and model. Candidates
 produced by different models are not comparable across subjects, so the
 manifest records which route produced each dataset.
+Gallery interpretation uses live requests; :batch models fail before acquisition
+or interpretation. Pass --model openai/gpt-6-luna, or use interpret for batch runs.
 `
 }
 
@@ -417,6 +420,7 @@ function preflight(subjects, options) {
     provider = options.provider ?? detectProvider()
     resolved = resolveProvider(provider, options.model)
     client = createClient(Anthropic, provider, process.env, { maxRetries: 0 })
+    requireSynchronousModel(resolved.model)
   }
   return { reused, provider, resolved, client, previousManifest }
 }

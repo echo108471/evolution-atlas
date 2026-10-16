@@ -59,7 +59,23 @@ meaningful headroom and is a cheaper first move than chunking.
 ## Provider
 
 Interpretation runs through Anthropic directly or through OpenRouter. The
-provider and model are recorded in each candidate's `method` field.
+provider and model are recorded in each candidate's `method` field. OpenRouter
+now defaults to `openai/gpt-6-luna:batch` for interpretation and epoch detection;
+explicit OpenRouter `--model` overrides still apply. Anthropic retains
+`claude-opus-5`, and model selection never switches providers.
+
+OpenRouter `:batch` models use asynchronous Batch API submission and polling.
+This applies to the interpretation and epochs CLIs; gallery interpretation
+still requires an explicit live model such as `--model openai/gpt-6-luna`.
+Dependent stages run separately, so feature discovery must complete before
+lifecycle discovery and each stage can take the full 24-hour completion window.
+A sidecar next to the intended output preserves batch IDs, request fingerprints,
+and raw results for resume and offline replay. Non-batch model slugs retain
+their live request paths. See [selection and request formats](EXPERIMENTS.md#model-defaults-and-request-formats)
+for credential precedence and preserved experiment pins, and [batch operation](EXPERIMENTS.md#openrouter-batch-runs)
+for polling, resume, replay, and documented pricing.
+The historical measurements below remain measurements of their recorded
+models, not evaluations of the new default.
 
 Gallery generation should pin one provider and model across the whole batch
 and record it in the manifest. Candidates produced by different models are

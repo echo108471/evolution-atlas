@@ -176,14 +176,52 @@ method, confidence, and supporting commits. A feature can therefore show a
 sequence such as introduced → expanded → hardened instead of receiving one
 permanent stage.
 
-Requests can go to Anthropic directly or through OpenRouter, which serves the
-same Messages API — only the base URL, credential, and model naming differ. The
-provider is auto-detected from whichever key is set, or named explicitly:
+Interpretation can use Anthropic directly or OpenRouter. An explicit
+`--provider` wins; otherwise Atlas selects OpenRouter only when
+`OPENROUTER_API_KEY` is set and `ANTHROPIC_API_KEY` is not. With both keys or
+neither key it selects Anthropic. It never changes provider to accommodate a
+model:
 
 ```bash
-node scripts/interpret.mjs --in scratch/atlas.json --provider openrouter --allow-paid    # needs OPENROUTER_API_KEY
+node scripts/interpret.mjs --in scratch/atlas.json --provider openrouter --allow-paid # needs OPENROUTER_API_KEY
 node scripts/interpret.mjs --in scratch/atlas.json --provider anthropic --allow-paid     # needs ANTHROPIC_API_KEY, or `ant auth login`
 ```
+
+OpenRouter defaults to `openai/gpt-6-luna:batch`; `--model <id>` overrides that
+default. Anthropic retains `claude-opus-5` because it cannot serve an OpenAI
+model, and its existing restriction on `--model` remains: model overrides are
+accepted only for the OpenRouter gateway. These CLIs have no model-selection
+environment variable; the API-key variables above affect credentials and
+provider detection, not the model. Gallery interpretation uses the same
+selection rules but its transport remains live-only; pass
+`--model openai/gpt-6-luna` explicitly with gallery's `--interpret`.
+
+In `interpret` and `epochs`, OpenRouter models ending in `:batch` use the Batch
+API automatically.
+Interpretation submits feature discovery with the `/v1/messages` shape,
+then submits lifecycle discovery after validating the feature results.
+Epoch detection uses `/v1/chat/completions`, grouping proposal windows into
+one batch and period labels into one batch per hierarchy level. Other model
+slugs retain the existing live request paths; for example,
+`--model openai/gpt-6-luna` selects live OpenRouter requests.
+
+Batch results arrive asynchronously, potentially taking the full **24-hour
+window per dependent stage**. Both CLIs accept `--batch-poll-ms` (initial
+interval, default `30000`) and `--batch-max-wait-ms` (per-stage wait, default
+`86400000`); polling backs off. Each run saves batch IDs, request fingerprints,
+and raw results in `<output>.batch-state.json`. After a timeout or interruption,
+rerun the same command with the same input and output to resume without a second
+submission. Wait flags may change; changed inputs or inference options are
+rejected. Keep the sidecar with the output. `--batch-replay <sidecar> --out
+<new-path>` replays saved completed results offline without credentials or
+`--allow-paid`, using the original input and inference options.
+
+The batch-level model defaults to the selected slug as given, including
+`:batch`; `--batch-model <slug>` overrides only that API field, and inner
+request bodies omit `model`. OpenRouter documents typical batch pricing at
+50% of standard per-token rates; non-token discounts vary and the model page
+is authoritative. See [batch operation, cost, and replay details](docs/EXPERIMENTS.md#openrouter-batch-runs)
+before a paid run.
 
 Each candidate records which provider and model produced it in its `method`
 field, so interpretations from different routes stay distinguishable.
@@ -209,6 +247,12 @@ analysis can proceed period by period rather than needing the whole corpus in on
 node scripts/epochs.mjs --in public/atlas.json --allow-paid --save-proposals scratch/proposals-next.json --out scratch/epochs-next.json
 ```
 
+Epoch detection is OpenRouter-only and needs `OPENROUTER_API_KEY` for model
+requests. It shares the `openai/gpt-6-luna:batch` default with interpretation;
+`--model <id>` selects the model for both proposals and period labels. The
+shared default lives in [model-defaults.mjs](scripts/lib/model-defaults.mjs).
+New batch work requires `--out` so its resume state has a stable location.
+
 It runs two passes that never see each other: a model reads raw commit windows and marks
 where the work changed character, and two deterministic detectors measure where the
 distribution of touched paths and of commit-subject vocabulary shifts. Because the two
@@ -228,6 +272,10 @@ full head revision. New period and proposal files are created exclusively:
 ```bash
 node scripts/epochs.mjs --in public/atlas.json --proposals scratch/saved-proposals.json --no-labels --out scratch/epochs-replayed-next.json
 ```
+
+Replay keeps the saved proposal model in its provenance and `method`, even
+when the current default differs. Historical research scripts keep their
+independent model pins so saved requests and replay fingerprints stay stable.
 
 The legacy viewer picks up a separately prepared `public/epochs.json` and adds a
 Periods tab; the new scratch output is not automatically served. Like

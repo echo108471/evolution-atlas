@@ -20,6 +20,7 @@
  */
 
 import { extractJson } from './phase-model.mjs'
+import { requireSynchronousModel } from './model-defaults.mjs'
 
 export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 export const API_KEY_ENV = 'OPENROUTER_API_KEY'
@@ -239,6 +240,7 @@ export function parseCommitResponse(payload, { tier }) {
  * to answer, and the ones most worth reading - were the only ones permanently dropped.
  */
 export async function requestReading(body, { apiKey, tier, fetchImpl = fetch, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
+  requireSynchronousModel(body.model)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let response

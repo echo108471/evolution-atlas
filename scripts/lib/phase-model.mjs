@@ -9,7 +9,10 @@
  * it.
  */
 
-export const DEFAULT_MODEL = 'x-ai/grok-4.6'
+import { DEFAULT_OPENROUTER_MODEL, requireSynchronousModel } from './model-defaults.mjs'
+import { batchResultBody } from './openrouter-batch.mjs'
+
+export const DEFAULT_MODEL = DEFAULT_OPENROUTER_MODEL
 export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
 export const API_KEY_ENV = 'OPENROUTER_API_KEY'
 
@@ -124,6 +127,7 @@ export function parseWindowResponse(payload) {
  * substitute a stub and exercise the surrounding logic without a key or a network call.
  */
 export async function requestWindow(dataset, windowPlan, { model = DEFAULT_MODEL, apiKey, fetchImpl = fetch } = {}) {
+  requireSynchronousModel(model)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   let response
@@ -144,15 +148,29 @@ export async function requestWindow(dataset, windowPlan, { model = DEFAULT_MODEL
 }
 
 /**
- * Walk the windows one at a time. Concurrency is deliberately not offered: requests here
- * run 40-180 seconds each because the model reasons at length over a whole slice, and
- * issuing them in parallel produced no measured speedup.
+ * Walk the windows one at a time. Historical runs took 40-180 seconds per request,
+ * and issuing them in parallel produced no measured speedup. Those measurements do
+ * not establish latency for the current default model.
  */
 export async function proposePhaseBoundaries(
   dataset,
-  { model = DEFAULT_MODEL, apiKey, window, stride, request = requestWindow, onProgress } = {},
+  { model = DEFAULT_MODEL, apiKey, window, stride, request = requestWindow, batchRunner, onProgress } = {},
 ) {
+  // Configuration errors must abort, not become recoverable per-window failures.
+  if (!batchRunner) requireSynchronousModel(model)
   const windows = planWindows(dataset.episodes, { window, stride })
+  // All windows are independent. Await the complete batch before per-window error
+  // recovery so failed batches and timeouts cannot masquerade as partial success.
+  const batchResults = batchRunner && windows.length > 0
+    ? await batchRunner({
+      stage: 'proposals',
+      endpoint: '/v1/chat/completions',
+      requests: windows.map((windowPlan) => ({
+        custom_id: `window-${windowPlan.start}`,
+        body: buildWindowRequest(dataset, windowPlan, model),
+      })),
+    })
+    : null
   const shaIndex = new Map()
   dataset.episodes.forEach((episode, index) => {
     shaIndex.set(episode.shortSha, index)
@@ -167,7 +185,9 @@ export async function proposePhaseBoundaries(
   for (const [order, windowPlan] of windows.entries()) {
     const startedAt = Date.now()
     try {
-      const result = await request(dataset, windowPlan, { model, apiKey })
+      const result = batchResults
+        ? parseWindowResponse(batchResultBody(batchResults.get(`window-${windowPlan.start}`)))
+        : await request(dataset, windowPlan, { model, apiKey })
       for (const boundary of result.boundaries) {
         const index = shaIndex.get(String(boundary.shortSha ?? '').trim())
         if (index === undefined) {

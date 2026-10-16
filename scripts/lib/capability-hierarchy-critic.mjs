@@ -1,6 +1,7 @@
 /** Propose evidence-backed changes to a provisional capability hierarchy without applying them. */
 
 import { extractJson } from './phase-model.mjs'
+import { requireSynchronousModel } from './model-defaults.mjs'
 import {
   API_KEY_ENV,
   DEFAULT_MODEL,
@@ -307,6 +308,7 @@ export async function requestHierarchyCriticRequestPayload(
   request,
   { apiKey, fetchImpl = fetch, timeoutMs = REQUEST_TIMEOUT_MS } = {},
 ) {
+  requireSynchronousModel(request.model)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let response

@@ -30,6 +30,8 @@ test('offline subprocess rejects external HTTP, fetch and socket calls but permi
     const denied = /Offline validation forbids external network access/;
     assert.throws(() => http.get('https://example.test/'), denied);
     assert.throws(() => fetch('https://example.test/'), denied);
+    assert.throws(() => fetch('https://openrouter.ai/api/v1/batches', { method: 'POST', body: '{}' }), denied);
+    assert.throws(() => fetch('https://openrouter.ai/api/v1/batches/batch_synthetic'), denied);
     assert.throws(() => net.connect({ host: 'example.test', port: 443 }), denied);
     const server = http.createServer((req, res) => res.end('synthetic'));
     server.listen(0, '127.0.0.1', async () => {

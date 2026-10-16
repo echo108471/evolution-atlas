@@ -9,9 +9,11 @@ import {
   detectProvider,
   interpretAtlas,
   mergeInterpretation,
+  resolveProvider,
   validateSemanticEpisodes,
 } from './lib/interpret.mjs'
 import { requireNewOutput, requirePaidPermission, requireSeparateOutput } from './lib/experiment-permissions.mjs'
+import { createBatchRunner, isBatchModel } from './lib/openrouter-batch.mjs'
 
 function usage() {
   const providers = Object.entries(PROVIDERS)
@@ -30,6 +32,11 @@ Options:
                         local revalidation uses <input-stem>.revalidated.json)
   --provider <name>     Where to send the request (default: auto-detected from env)
   --model <id>          Override the provider's default model (gateways only)
+  --batch-model <id>    Batch-level model (default: selected model, including :batch)
+  --batch-poll-ms <n>   Initial poll interval in milliseconds (default: 30000)
+  --batch-max-wait-ms <n>
+                        Maximum wait per batch in milliseconds (default: 86400000)
+  --batch-replay <path> Replay a completed batch sidecar without network or --allow-paid
   --max-features <n>    Cap on proposed features (default: 40)
   --max-lifecycle-episodes <n>
                         Cap on proposed lifecycle episodes (default: 160)
@@ -42,7 +49,16 @@ Options:
 Providers:
 ${providers}
 
-OpenRouter serves the Anthropic Messages API, so both paths send an identical request.
+Both providers use the Anthropic Messages API; OpenRouter uses /api/v1/messages.
+OpenRouter :batch models submit separate feature and dependent lifecycle batches.
+Results may arrive within the 24-hour batch window. Polling backs off to 5 minutes.
+Batch IDs are saved in <output>.batch-state.json before polling; completed raw
+results are retained there for replay. Rerun the same command to resume.
+Changed inputs refuse to reuse a saved batch.
+For immediate calls, pass --model openai/gpt-6-luna to use a synchronous model.
+Without --provider, OpenRouter is selected only when OPENROUTER_API_KEY is set
+and ANTHROPIC_API_KEY is absent; otherwise Anthropic keeps its own default model.
+Neither this command nor epochs reads a model environment variable; use --model.
 Anthropic also accepts an 'ant auth login' profile instead of an API key.
 `
 }
@@ -53,6 +69,10 @@ function parseArguments(argv) {
     outputPath: null,
     provider: null,
     model: null,
+    batchModel: null,
+    batchPollMs: undefined,
+    batchMaxWaitMs: undefined,
+    batchReplay: null,
     maxFeatures: 40,
     maxLifecycleEpisodes: 160,
     reuseFeatures: false,
@@ -85,6 +105,10 @@ function parseArguments(argv) {
       argument === '--out' ||
       argument === '--provider' ||
       argument === '--model' ||
+      argument === '--batch-model' ||
+      argument === '--batch-poll-ms' ||
+      argument === '--batch-max-wait-ms' ||
+      argument === '--batch-replay' ||
       argument === '--max-features' ||
       argument === '--max-lifecycle-episodes'
     ) {
@@ -93,7 +117,15 @@ function parseArguments(argv) {
       if (argument === '--in') options.inputPath = value
       else if (argument === '--out') options.outputPath = value
       else if (argument === '--model') options.model = value
-      else if (argument === '--provider') {
+      else if (argument === '--batch-model') options.batchModel = value
+      else if (argument === '--batch-replay') options.batchReplay = value
+      else if (argument === '--batch-poll-ms' || argument === '--batch-max-wait-ms') {
+        const parsed = Number(value)
+        if (!Number.isSafeInteger(parsed) || parsed < 1) {
+          throw new Error(`${argument} requires a positive integer`)
+        }
+        options[argument === '--batch-poll-ms' ? 'batchPollMs' : 'batchMaxWaitMs'] = parsed
+      } else if (argument === '--provider') {
         if (!PROVIDERS[value]) {
           throw new Error(
             `Unknown provider "${value}". Expected one of: ${Object.keys(PROVIDERS).join(', ')}`,
@@ -131,7 +163,10 @@ try {
   if (options.revalidate && options.reuseFeatures) {
     throw new Error('--revalidate and --reuse-features are mutually exclusive')
   }
-  if (!options.revalidate) requirePaidPermission(options.allowPaid, 'Interpretation')
+  if (options.revalidate && options.batchReplay) {
+    throw new Error('--revalidate and --batch-replay are mutually exclusive')
+  }
+  if (!options.revalidate && !options.batchReplay) requirePaidPermission(options.allowPaid, 'Interpretation')
 
   const inputPath = resolve(options.inputPath)
   const input = parse(inputPath)
@@ -182,15 +217,40 @@ try {
     }
     tokenUsage = null
   } else {
-    const provider = options.provider ?? detectProvider()
+    const provider = options.provider ?? (options.batchReplay ? 'openrouter' : detectProvider())
+    const { model } = resolveProvider(provider, options.model)
+    const batch = isBatchModel(model)
+    if (!batch && (options.batchModel || options.batchReplay || options.batchPollMs || options.batchMaxWaitMs)) {
+      throw new Error('Batch options require an OpenRouter model ending in :batch')
+    }
+    const onProgress = (message) => process.stderr.write(`${message}\n`)
+    const statePath = resolve(options.batchReplay ?? `${outputPath}.batch-state.json`)
+    if (batch) requireSeparateOutput(statePath, [inputPath, outputPath])
+    const batchRunner = batch ? createBatchRunner({
+      statePath,
+      input: {
+        kind: 'interpret', dataset,
+        maxFeatures: options.maxFeatures,
+        maxLifecycleEpisodes: options.maxLifecycleEpisodes,
+        reuseFeatures: options.reuseFeatures,
+      },
+      model,
+      batchModel: options.batchModel ?? undefined,
+      apiKey: process.env.OPENROUTER_API_KEY,
+      pollIntervalMs: options.batchPollMs,
+      maxWaitMs: options.batchMaxWaitMs,
+      replayOnly: Boolean(options.batchReplay),
+      onProgress,
+    }) : undefined
     const result = await interpretAtlas(dataset, {
-      client: createClient(Anthropic, provider, process.env, { maxRetries: 0 }),
+      client: batch ? undefined : createClient(Anthropic, provider, process.env, { maxRetries: 0 }),
+      batchRunner,
       provider,
       model: options.model,
       maxFeatures: options.maxFeatures,
       maxLifecycleEpisodes: options.maxLifecycleEpisodes,
       reuseFeatures: options.reuseFeatures,
-      onProgress: (message) => process.stderr.write(`${message}\n`),
+      onProgress,
     })
     interpreted = result.dataset
     validated = result.validated

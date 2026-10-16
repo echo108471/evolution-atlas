@@ -16,6 +16,7 @@ import {
 } from './lib/epochs.mjs'
 import { API_KEY_ENV, DEFAULT_MODEL, proposePhaseBoundaries } from './lib/phase-model.mjs'
 import { labelPeriodLevels } from './lib/period-labels.mjs'
+import { createBatchRunner, isBatchModel } from './lib/openrouter-batch.mjs'
 import { createHash } from 'node:crypto'
 import { requireNewOutput, requirePaidPermission, requirePinnedCommit, requireSeparateOutput } from './lib/experiment-permissions.mjs'
 
@@ -34,6 +35,10 @@ Options:
   --in <path>            Observed dataset to read (default: public/atlas.json)
   --out <path>           New file for the epoch document (default: stdout)
   --model <id>           OpenRouter model (default: ${DEFAULT_MODEL})
+  --batch-model <id>     Override the batch-level model (default: --model unchanged)
+  --batch-poll-ms <n>    Initial polling interval, with backoff (default: 30000)
+  --batch-max-wait-ms <n> Maximum wait per batch (default: 86400000, 24 hours)
+  --batch-replay <path>  Replay completed raw batches from a saved sidecar, offline
   --window <n>           Commits per request window (default: 200)
   --stride <n>           Commits between window starts (default: 100)
   --peaks <n>            Focus peaks to retain per detector (default: 14)
@@ -50,10 +55,16 @@ analyze whole is left unsegmented; one whose period summaries fit a single reque
 gets epochs; only a history with too many periods to describe together gets eras
 above them. Depth is capped at 3 because each level of summarizing is lossy.
 
-The free replay path is --proposals <path> --no-labels. Saved proposals must
-match the dataset's repository and full head SHA. Other paths require --allow-paid
-and ${API_KEY_ENV}; there are no automatic retries.
-Expect roughly 40-180 seconds per window: the model reasons at length over each slice.
+Free replay uses --proposals <path> --no-labels or --batch-replay <path>.
+Saved proposals must match the dataset's repository and full head SHA. New model
+requests require --allow-paid and ${API_KEY_ENV}; failed requests are not automatically resubmitted.
+New requests use --model or the default above; replay retains the saved proposal model.
+Models ending in :batch use OpenRouter batches with /v1/chat/completions bodies.
+Batch runs require --out and save <out>.batch-state.json before polling. Rerun the same
+command after a timeout to resume; changed inputs are refused. Results may take up to
+24 hours per stage. Keep the sidecar to replay without a key or --allow-paid using
+--batch-replay <path> with the original inputs and a new --out (or stdout).
+Other model slugs use /api/v1/chat/completions synchronously; there is no model env override.
 `
 }
 
@@ -62,6 +73,10 @@ function parseArguments(argv) {
     inputPath: 'public/atlas.json',
     outputPath: null,
     model: DEFAULT_MODEL,
+    batchModel: undefined,
+    batchPollMs: undefined,
+    batchMaxWaitMs: undefined,
+    batchReplayPath: null,
     window: 200,
     stride: 100,
     peaks: 14,
@@ -79,6 +94,7 @@ function parseArguments(argv) {
     '--out': 'outputPath',
     '--proposals': 'proposalsPath',
     '--save-proposals': 'saveProposalsPath',
+    '--batch-replay': 'batchReplayPath',
   }
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -98,8 +114,14 @@ function parseArguments(argv) {
     }
     const value = argv[++index]
     if (!value) throw new Error(`${argument} requires a value`)
-    if (argument === '--model') {
-      options.model = value
+    if (argument === '--model' || argument === '--batch-model') {
+      options[argument === '--model' ? 'model' : 'batchModel'] = value
+      continue
+    }
+    if (argument === '--batch-poll-ms' || argument === '--batch-max-wait-ms') {
+      const parsed = Number(value)
+      if (!Number.isSafeInteger(parsed) || parsed <= 0) throw new Error(`${argument} requires a positive integer`)
+      options[argument === '--batch-poll-ms' ? 'batchPollMs' : 'batchMaxWaitMs'] = parsed
       continue
     }
     if (numeric.has(argument)) {
@@ -151,15 +173,26 @@ try {
     process.exit(0)
   }
 
-  if (!options.proposalsPath || options.labels) {
+  const requestsNeeded = !options.proposalsPath || options.labels
+  if (!isBatchModel(options.model) && (options.batchReplayPath || options.batchModel || options.batchPollMs || options.batchMaxWaitMs)) {
+    throw new Error('Batch options require an OpenRouter model ending in :batch')
+  }
+  if (requestsNeeded && !options.batchReplayPath) {
     requirePaidPermission(options.allowPaid, 'Epoch proposal discovery or period naming')
     if (!process.env[API_KEY_ENV]) throw new Error(`${API_KEY_ENV} is not set`)
+  }
+  if (requestsNeeded && isBatchModel(options.model) && !options.batchReplayPath && !options.outputPath) {
+    throw new Error('Batch requests require --out so their batch IDs and raw results can be saved for resume')
   }
   if (options.proposalsPath && options.saveProposalsPath) {
     throw new Error('--proposals and --save-proposals are mutually exclusive; saved input is reused unchanged')
   }
-  requireSeparateOutput(options.outputPath, [options.inputPath, options.proposalsPath, options.saveProposalsPath])
-  requireSeparateOutput(options.saveProposalsPath, [options.inputPath, options.proposalsPath])
+  const batchStatePath = requestsNeeded && isBatchModel(options.model)
+    ? resolve(options.batchReplayPath ?? `${resolve(options.outputPath)}.batch-state.json`)
+    : null
+  requireSeparateOutput(options.outputPath, [options.inputPath, options.proposalsPath, options.saveProposalsPath, batchStatePath])
+  requireSeparateOutput(options.saveProposalsPath, [options.inputPath, options.proposalsPath, batchStatePath])
+  if (!options.batchReplayPath) requireSeparateOutput(batchStatePath, [options.inputPath, options.proposalsPath, options.saveProposalsPath])
   requireNewOutput(options.outputPath)
   requireNewOutput(options.saveProposalsPath)
 
@@ -168,10 +201,14 @@ try {
 
   let proposals
   let modelReport = null
+  let savedProposals = null
+  let batchRunner
+  let proposalsToSave = null
 
   if (options.proposalsPath) {
     const raw = readFileSync(resolve(options.proposalsPath))
     const saved = JSON.parse(raw.toString('utf8'))
+    savedProposals = saved
     requirePinnedCommit(dataset.repository.headSha, 'Dataset head')
     requirePinnedCommit(saved.headSha, 'Saved proposals head')
     if (saved.repository !== dataset.repository.name) {
@@ -198,15 +235,32 @@ try {
       reusedSha256: createHash('sha256').update(raw).digest('hex'),
     }
     process.stderr.write(`Reusing ${proposals.length} proposals from ${options.proposalsPath}\n`)
-  } else {
+  }
+
+  if (batchStatePath) {
+    batchRunner = createBatchRunner({
+      statePath: batchStatePath,
+      input: { kind: 'epochs', dataset, window: options.window, stride: options.stride, peaks: options.peaks, depth: options.depth, labels: options.labels, savedProposals },
+      model: options.model,
+      batchModel: options.batchModel,
+      apiKey: process.env[API_KEY_ENV],
+      pollIntervalMs: options.batchPollMs,
+      maxWaitMs: options.batchMaxWaitMs,
+      replayOnly: Boolean(options.batchReplayPath),
+      onProgress: (message) => process.stderr.write(`  ${message}\n`),
+    })
+  }
+
+  if (!options.proposalsPath) {
     const apiKey = process.env[API_KEY_ENV]
-    if (!apiKey) throw new Error(`${API_KEY_ENV} is not set`)
+    if (!apiKey && !options.batchReplayPath) throw new Error(`${API_KEY_ENV} is not set`)
     process.stderr.write(`Reading ${dataset.episodes.length} commits with ${options.model}\n`)
     const result = await proposePhaseBoundaries(dataset, {
       model: options.model,
       apiKey,
       window: options.window,
       stride: options.stride,
+      batchRunner,
       onProgress: (event) =>
         process.stderr.write(
           event.error
@@ -227,14 +281,7 @@ try {
       process.stderr.write(`Dropped ${result.unresolved.length} citation(s) naming a commit not in the dataset\n`)
     }
     if (options.saveProposalsPath) {
-      const savePath = resolve(options.saveProposalsPath)
-      mkdirSync(dirname(savePath), { recursive: true })
-      writeFileSync(
-        savePath,
-        `${JSON.stringify({ repository: dataset.repository.name, headSha: dataset.repository.headSha, model: options.model, window: options.window, stride: options.stride, proposals }, null, 2)}\n`,
-        { encoding: 'utf8', flag: 'wx' },
-      )
-      process.stderr.write(`Wrote raw proposals to ${savePath}\n`)
+      proposalsToSave = { repository: dataset.repository.name, headSha: dataset.repository.headSha, model: options.model, window: options.window, stride: options.stride, proposals }
     }
   }
 
@@ -257,12 +304,13 @@ try {
 
   if (options.labels) {
     const apiKey = process.env[API_KEY_ENV]
-    if (!apiKey) throw new Error(`${API_KEY_ENV} is not set (pass --no-labels to skip naming)`)
+    if (!apiKey && !options.batchReplayPath) throw new Error(`${API_KEY_ENV} is not set (pass --no-labels to skip naming)`)
     const total = levels.reduce((sum, periods) => sum + periods.length, 0)
     process.stderr.write(`Naming ${total} period(s) across ${levels.length} level(s)\n`)
     const result = await labelPeriodLevels(dataset, levels, {
       model: options.model,
       apiKey,
+      batchRunner,
       onProgress: ({ level, period, error }) =>
         process.stderr.write(
           error
@@ -289,6 +337,14 @@ try {
   }
 
   const serialized = `${JSON.stringify(document, null, options.pretty ? 2 : 0)}\n`
+  // No auxiliary output is published until every dependent batch has completed;
+  // a naming timeout must leave the original command resumable.
+  if (proposalsToSave) {
+    const savePath = resolve(options.saveProposalsPath)
+    mkdirSync(dirname(savePath), { recursive: true })
+    writeFileSync(savePath, `${JSON.stringify(proposalsToSave, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' })
+    process.stderr.write(`Wrote raw proposals to ${savePath}\n`)
+  }
   if (options.outputPath) {
     const outputPath = resolve(options.outputPath)
     mkdirSync(dirname(outputPath), { recursive: true })

@@ -401,47 +401,68 @@ test('interpretAtlas can reuse validated features when calibrating lifecycle dis
   assert.equal(result.dataset.featureCandidates[0].id, dataset.featureCandidates[0].id)
 })
 
-test('interpretAtlas records which provider and model produced the candidates', async () => {
-  const seen = {}
-  let call = 0
-  const client = {
-    messages: {
-      stream: (request) => {
-        seen.model = request.model
-        return {
-          finalMessage: async () => ({
-            stop_reason: 'end_turn',
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  call++ === 0
-                    ? {
-                        features: [
-                          {
-                            label: 'Ranking',
-                            rationale: '',
-                            confidence: 0.6,
-                            commitShas: ['aaaa1111'],
-                          },
-                        ],
-                      }
-                    : { semanticEpisodes: [] },
-                ),
-              },
-            ],
-            usage: {},
-          }),
-        }
+for (const { name, options, provider, model } of [
+  { name: 'Anthropic default', options: {}, provider: 'anthropic', model: 'claude-opus-5' },
+  {
+    name: 'OpenRouter synchronous workaround',
+    options: { provider: 'openrouter', model: 'openai/gpt-6-luna' },
+    provider: 'openrouter',
+    model: 'openai/gpt-6-luna',
+  },
+  {
+    name: 'OpenRouter model override',
+    options: { provider: 'openrouter', model: '~deepseek/deepseek-v4-flash-latest' },
+    provider: 'openrouter',
+    model: '~deepseek/deepseek-v4-flash-latest',
+  },
+]) {
+  test(`interpretAtlas records ${name} in feature and lifecycle candidates`, async () => {
+    const observed = observedDataset()
+    const proposedFeature = { label: 'Ranking', rationale: '', confidence: 0.6, commitShas: ['aaaa1111'] }
+    const featureId = validateFeatures([proposedFeature], observed).featureCandidates[0].id
+    const responses = [
+      { features: [proposedFeature] },
+      {
+        semanticEpisodes: [{
+          featureId,
+          label: 'Add ranking coverage',
+          rationale: 'Tests exercise the existing ranking path.',
+          confidence: 0.85,
+          lifecycleStage: 'hardened',
+          commitShas: ['bbbb2222'],
+        }],
       },
-    },
-  }
+    ]
+    const requests = []
+    const client = {
+      messages: {
+        stream: (request) => {
+          const response = responses[requests.length]
+          requests.push(request)
+          return {
+            finalMessage: async () => ({
+              stop_reason: 'end_turn',
+              content: [{ type: 'text', text: JSON.stringify(response) }],
+              usage: {},
+            }),
+          }
+        },
+      },
+    }
 
-  const { dataset } = await interpretAtlas(observedDataset(), { client, provider: 'openrouter' })
+    const { dataset } = await interpretAtlas(observed, { client, ...options })
 
-  assert.equal(seen.model, 'x-ai/grok-4.6')
-  assert.equal(dataset.featureCandidates[0].method, 'llm-induction:openrouter:x-ai/grok-4.6')
-})
+    assert.equal(requests.length, 2)
+    assert.ok(requests.every((request) => request.model === model))
+    for (const request of requests) {
+      if (provider === 'anthropic') assert.equal(request.output_config.format.type, 'json_schema')
+      else assert.equal('output_config' in request, false)
+    }
+    const method = `llm-induction:${provider}:${model}`
+    assert.equal(dataset.featureCandidates[0].method, method)
+    assert.equal(dataset.semanticEpisodes[0].method, method)
+  })
+}
 
 test('resolveProvider rejects an unknown provider name', () => {
   assert.equal(resolveProvider('openrouter').baseURL, 'https://openrouter.ai/api')
@@ -451,6 +472,8 @@ test('resolveProvider rejects an unknown provider name', () => {
 test('detectProvider prefers OpenRouter only when it is the sole credential', () => {
   assert.equal(detectProvider({ OPENROUTER_API_KEY: 'x' }), 'openrouter')
   assert.equal(detectProvider({ ANTHROPIC_API_KEY: 'x', OPENROUTER_API_KEY: 'y' }), 'anthropic')
+  assert.equal(detectProvider({ ANTHROPIC_API_KEY: 'x' }), 'anthropic')
+  assert.equal(detectProvider({ ANTHROPIC_API_KEY: '', OPENROUTER_API_KEY: 'y' }), 'openrouter')
   assert.equal(detectProvider({}), 'anthropic')
 })
 
@@ -462,7 +485,8 @@ test('createClient points the SDK at the provider base URL and refuses a missing
     }
   }
 
-  createClient(FakeAnthropic, 'openrouter', { OPENROUTER_API_KEY: 'sk-or-test' })
+  const env = { OPENROUTER_API_KEY: 'sk-or-test', ANTHROPIC_API_KEY: 'sk-ant-test' }
+  createClient(FakeAnthropic, 'openrouter', env)
   assert.deepEqual(constructed[0], {
     baseURL: PROVIDERS.openrouter.baseURL,
     apiKey: 'sk-or-test',
@@ -473,8 +497,18 @@ test('createClient points the SDK at the provider base URL and refuses a missing
   createClient(FakeAnthropic, 'anthropic', {})
   assert.deepEqual(constructed[1], {})
 
+  createClient(FakeAnthropic, 'anthropic', env)
+  assert.deepEqual(constructed[2], { apiKey: 'sk-ant-test' })
+
+  createClient(FakeAnthropic, 'anthropic', { OPENROUTER_API_KEY: 'sk-or-test' })
+  assert.deepEqual(constructed[3], {}, 'an explicit Anthropic provider never uses the OpenRouter key')
+
   assert.throws(
     () => createClient(FakeAnthropic, 'openrouter', {}),
+    /OPENROUTER_API_KEY/,
+  )
+  assert.throws(
+    () => createClient(FakeAnthropic, 'openrouter', { ANTHROPIC_API_KEY: 'sk-ant-test' }),
     /OPENROUTER_API_KEY/,
   )
 })
@@ -486,6 +520,14 @@ test('extractJson recovers an object from fenced or prose-wrapped output', () =>
     features: [],
   })
   assert.throws(() => extractJson('no object here'), /no JSON object/)
+})
+
+test('interpretAtlas requires persistent batch transport for the OpenRouter default', async () => {
+  const client = { messages: { stream: () => { throw new Error('Unexpected synchronous dispatch') } } }
+  await assert.rejects(
+    interpretAtlas(observedDataset(), { client, provider: 'openrouter' }),
+    /requires a persistent OpenRouter batchRunner/,
+  )
 })
 
 test('interpretationMethod distinguishes provider and model', () => {
@@ -513,8 +555,12 @@ test('resolveProvider accepts a model override only for gateway providers', () =
     resolveProvider('openrouter', '~deepseek/deepseek-v4-flash-latest').model,
     '~deepseek/deepseek-v4-flash-latest',
   )
-  assert.equal(resolveProvider('openrouter').model, 'x-ai/grok-4.6')
+  assert.equal(resolveProvider('openrouter').model, 'openai/gpt-6-luna:batch')
+  assert.equal(resolveProvider('anthropic').model, 'claude-opus-5')
+  assert.equal(resolveProvider().name, 'anthropic')
+  assert.equal(resolveProvider().model, 'claude-opus-5')
   assert.throws(() => resolveProvider('anthropic', 'some/other-model'), /only meaningful/)
+  assert.throws(() => resolveProvider('anthropic', 'openai/gpt-6-luna:batch'), /only meaningful/)
 })
 
 test('supportsOutputConfig gates Anthropic-only request fields', () => {
@@ -523,6 +569,7 @@ test('supportsOutputConfig gates Anthropic-only request fields', () => {
   assert.equal(supportsOutputConfig('~deepseek/deepseek-v4-flash-latest'), false)
   assert.equal(supportsOutputConfig('x-ai/grok-4.6'), false)
   assert.equal(supportsOutputConfig('openai/gpt-5.2'), false)
+  assert.equal(supportsOutputConfig('openai/gpt-6-luna:batch'), false)
 })
 
 test('interpretAtlas omits output_config for a non-Anthropic model', async () => {

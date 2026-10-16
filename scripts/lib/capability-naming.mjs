@@ -12,6 +12,7 @@
  */
 
 import { extractJson } from './phase-model.mjs'
+import { requireSynchronousModel } from './model-defaults.mjs'
 
 export const DEFAULT_MODEL = 'z-ai/glm-5.3-flash'
 export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
@@ -111,6 +112,7 @@ export function parseNaming(payload) {
 }
 
 export async function requestNaming(evidence, { model = DEFAULT_MODEL, apiKey, fetchImpl = fetch, show = [] } = {}) {
+  requireSynchronousModel(model)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   let response
@@ -145,6 +147,8 @@ export async function requestNaming(evidence, { model = DEFAULT_MODEL, apiKey, f
  * reward whichever arm split more.
  */
 export async function evaluateArm(capabilities, { model, apiKey, concurrency = 10, request = requestNaming, mapper, show = [] }) {
+  // An unsupported transport is a configuration failure, not an unnamed group.
+  requireSynchronousModel(model)
   const groups = capabilities.filter((capability) => capability.commitCount > 1)
   const results = await mapper(groups, concurrency, async (capability) => {
     try {

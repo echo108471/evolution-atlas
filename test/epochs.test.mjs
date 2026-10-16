@@ -12,13 +12,15 @@ import {
   levelName,
   planHierarchy,
 } from '../scripts/lib/epochs.mjs'
-import { labelPeriodLevels, sampleCommits } from '../scripts/lib/period-labels.mjs'
+import { labelPeriodLevels, requestLabel, sampleCommits } from '../scripts/lib/period-labels.mjs'
 import {
+  DEFAULT_MODEL,
   extractJson,
   parseWindowResponse,
   planWindows,
   proposePhaseBoundaries,
   renderWindow,
+  requestWindow,
 } from '../scripts/lib/phase-model.mjs'
 
 function episode(index, { prefix = 'frontend', subject = `work on ${prefix}` } = {}) {
@@ -246,11 +248,146 @@ test('a truncated window fails loudly instead of yielding partial boundaries', (
   )
 })
 
+for (const { name, options, expectedModel } of [
+  { name: 'synchronous', options: { model: 'openai/gpt-6-luna' }, expectedModel: 'openai/gpt-6-luna' },
+  { name: 'explicit override', options: { model: 'x-ai/grok-4.6' }, expectedModel: 'x-ai/grok-4.6' },
+]) {
+  test(`phase requests send the ${name} model with OpenRouter chat completions`, async () => {
+    const dataset = { repository: { name: 'fixture' }, episodes: splitHistory(80) }
+    const [windowPlan] = planWindows(dataset.episodes)
+    const requests = []
+    const result = await requestWindow(dataset, windowPlan, {
+      ...options,
+      apiKey: 'sk-or-synthetic',
+      fetchImpl: async (url, request) => {
+        requests.push({ url, ...request, body: JSON.parse(request.body) })
+        return {
+          ok: true,
+          json: async () => ({
+            choices: [{ finish_reason: 'stop', message: { content: '{"boundaries":[]}' } }],
+            usage: { total_tokens: 10 },
+          }),
+        }
+      },
+    })
+
+    assert.equal(requests.length, 1)
+    const [request] = requests
+    assert.equal(request.url, 'https://openrouter.ai/api/v1/chat/completions')
+    assert.equal(request.method, 'POST')
+    assert.deepEqual(request.headers, {
+      authorization: 'Bearer sk-or-synthetic',
+      'content-type': 'application/json',
+    })
+    assert.deepEqual(Object.keys(request.body).sort(), ['max_tokens', 'messages', 'model'])
+    assert.equal(request.body.model, expectedModel)
+    assert.equal(request.body.max_tokens, 4000)
+    assert.deepEqual(request.body.messages.map((message) => message.role), ['system', 'user'])
+    assert.ok(request.body.messages.every((message) => typeof message.content === 'string'))
+    assert.match(request.body.messages[1].content, /c0000000 2025-01-01 render the landing page/)
+    assert.deepEqual(result, { boundaries: [], usage: { total_tokens: 10 } })
+  })
+
+  test(`phase proposal windows retain the ${name} model and key`, async () => {
+    const dataset = { repository: { name: 'fixture' }, episodes: splitHistory(300) }
+    const requestOptions = []
+    const result = await proposePhaseBoundaries(dataset, {
+      ...options,
+      apiKey: 'sk-or-synthetic',
+      request: async (_dataset, _windowPlan, receivedOptions) => {
+        requestOptions.push(receivedOptions)
+        return { boundaries: [], usage: null }
+      },
+    })
+
+    assert.ok(result.windowCount > 1)
+    assert.equal(requestOptions.length, result.windowCount)
+    for (const received of requestOptions) {
+      assert.deepEqual(received, { model: expectedModel, apiKey: 'sk-or-synthetic' })
+    }
+    assert.deepEqual(result.failures, [])
+  })
+
+  test(`period labels preserve the ${name} epoch model in requests and candidate methods`, async () => {
+    const dataset = { repository: { name: 'fixture' }, episodes: splitHistory(80) }
+    const epochs = buildEpochs([], dataset.episodes, UNCAPPED)
+    const requests = []
+    const result = await labelPeriodLevels(dataset, [epochs], {
+      model: options.model ?? DEFAULT_MODEL,
+      apiKey: 'sk-or-synthetic',
+      request: (prompt, systemPrompt, receivedOptions) => requestLabel(prompt, systemPrompt, {
+        ...receivedOptions,
+        fetchImpl: async (url, request) => {
+          requests.push({ url, ...request, body: JSON.parse(request.body) })
+          return {
+            ok: true,
+            json: async () => ({
+              choices: [{
+                finish_reason: 'stop',
+                message: { content: '{"label":"Ranking","summary":"Ranking work","coherent":true,"confidence":0.8}' },
+              }],
+            }),
+          }
+        },
+      }),
+    })
+
+    assert.equal(requests.length, 1)
+    const [request] = requests
+    assert.equal(request.url, 'https://openrouter.ai/api/v1/chat/completions')
+    assert.equal(request.method, 'POST')
+    assert.deepEqual(request.headers, {
+      authorization: 'Bearer sk-or-synthetic',
+      'content-type': 'application/json',
+    })
+    assert.deepEqual(Object.keys(request.body).sort(), ['max_tokens', 'messages', 'model'])
+    assert.equal(request.body.model, expectedModel)
+    assert.equal(request.body.max_tokens, 1500)
+    assert.deepEqual(request.body.messages.map((message) => message.role), ['system', 'user'])
+    assert.ok(request.body.messages.every((message) => typeof message.content === 'string'))
+    assert.equal(result.method, `period-label:openrouter:${expectedModel}`)
+    assert.equal(result.levels[0][0].labelMethod, result.method)
+    assert.equal(result.levels[0][0].labelStatus, 'candidate')
+    assert.deepEqual(result.failures, [])
+  })
+}
+
+test('epochs keeps the configured batch default', () => {
+  assert.equal(DEFAULT_MODEL, 'openai/gpt-6-luna:batch')
+})
+
+for (const options of [{}, { model: 'synthetic/explicit:batch' }]) {
+  test(`direct synchronous epoch requests reject ${options.model ?? 'the batch default'} without a batch runner`, async () => {
+    const dataset = { repository: { name: 'fixture' }, episodes: splitHistory(300) }
+    const [windowPlan] = planWindows(dataset.episodes)
+    const epochs = buildEpochs([], dataset.episodes, UNCAPPED)
+    const model = options.model ?? DEFAULT_MODEL
+    let calls = 0
+    const dispatch = async () => { calls += 1; throw new Error('Unexpected dispatch') }
+    const requests = [
+      () => requestWindow(dataset, windowPlan, { ...options, fetchImpl: dispatch }),
+      () => proposePhaseBoundaries(dataset, { ...options, request: dispatch }),
+      () => requestLabel('prompt', 'system', { model, fetchImpl: dispatch }),
+      () => labelPeriodLevels(dataset, [epochs], { model, request: dispatch }),
+    ]
+    for (const request of requests) {
+      await assert.rejects(request, (error) => {
+        assert.ok(error.message.includes(model))
+        assert.match(error.message, /synchronous/i)
+        assert.match(error.message, /Batch API/)
+        return true
+      })
+    }
+    assert.equal(calls, 0)
+  })
+}
+
 test('the proposal pass resolves cited commits and drops the ones it cannot', async () => {
   const episodes = splitHistory(300)
   const dataset = { repository: { name: 'fixture' }, episodes }
 
   const result = await proposePhaseBoundaries(dataset, {
+    model: 'openai/gpt-6-luna',
     window: 200,
     stride: 100,
     request: async (_dataset, windowPlan) => ({
@@ -278,6 +415,7 @@ test('one failing window does not abandon the rest of the history', async () => 
   const dataset = { repository: { name: 'fixture' }, episodes }
 
   const result = await proposePhaseBoundaries(dataset, {
+    model: 'openai/gpt-6-luna',
     window: 200,
     stride: 100,
     request: async (_dataset, windowPlan) => {

@@ -66,10 +66,22 @@ and a confidence. Every cited SHA is resolved against the observed dataset;
 unresolvable citations are dropped rather than trusted, as in the interpretation
 stage.
 
-Requests go to OpenRouter's own `/v1/chat/completions` endpoint. This differs
-from `scripts/lib/interpret.mjs`, which still routes through the Anthropic SDK
-pointed at an OpenRouter base URL; new model-facing code in this project should
-use the native endpoint.
+Requests use the `/v1/chat/completions` shape. Models ending in `:batch` send
+that shape through OpenRouter's Batch API; other slugs send live requests to
+`https://openrouter.ai/api/v1/chat/completions`. Interpretation uses the
+Anthropic Messages shape instead.
+
+The default is `openai/gpt-6-luna:batch`, shared with OpenRouter interpretation
+through `scripts/lib/model-defaults.mjs`. `--model` overrides it for both
+proposal discovery and period labeling. This is an OpenRouter-only path;
+`OPENROUTER_API_KEY` supplies credentials, and there is no environment model
+override. Batch proposal windows share one submission. After proposals are
+validated and the hierarchy is built, all period labels at a given hierarchy
+level share a batch; parent labels wait for their child results. This preserves
+the existing candidate validation and `method` recording. Use
+`--model openai/gpt-6-luna` for live proposals and labels. See
+[request formats and preserved experiment pins](EXPERIMENTS.md#model-defaults-and-request-formats)
+and [batch operation](EXPERIMENTS.md#openrouter-batch-runs).
 
 ### Focus signals — `scripts/lib/epochs.mjs`
 
@@ -285,12 +297,25 @@ manufacturing a story. The open question is whether feature discovery scoped to 
 ## Running it
 
 ```bash
-npm run epochs -- --in public/atlas.json --out public/epochs.json
+node scripts/epochs.mjs --in scratch/atlas.json --allow-paid \
+  --save-proposals scratch/proposals-next.json --out scratch/epochs-next.json
 ```
 
-Needs `OPENROUTER_API_KEY`. Expect **40–180 seconds per window** for boundary detection
-and a further request per period for naming; the model reasons at length over each slice.
-Requests run one at a time.
+Needs `--allow-paid` and `OPENROUTER_API_KEY`. The default uses asynchronous
+batches, each with a completion window of up to **24 hours**. New batch work
+requires `--out`; its `<output>.batch-state.json` sidecar records batch IDs
+before polling and retains the completed raw results. Rerun the original
+command after a timeout or interruption to resume the recorded batches without
+submitting them again. Keep the input and inference options unchanged; the
+polling flags may change. Existing output files are never replaced.
+
+`--batch-poll-ms` sets the initial polling interval (default `30000`), which
+backs off; `--batch-max-wait-ms` sets the maximum wait per stage (default
+`86400000`). `--batch-model` overrides the batch-level API model; the default
+sends the selected slug verbatim, and inner request bodies omit `model`.
+For a synchronous `--model`, requests still run one at a time, with one further
+request per named period. The historical live runs took **40–180 seconds per
+window** for boundary detection; those timings do not describe Luna.
 
 `--no-labels` skips naming entirely and needs no further requests. `--depth <n>` forces a
 hierarchy depth instead of deriving one, which is mostly useful for exercising the era
@@ -299,13 +324,31 @@ path on a repository that does not need it.
 Iterate on the deterministic half without paying again:
 
 ```bash
-npm run epochs -- --save-proposals proposals.json --out epochs.json
-npm run epochs -- --proposals proposals.json --out epochs.json
+node scripts/epochs.mjs --in scratch/atlas.json \
+  --proposals scratch/proposals-next.json --no-labels \
+  --out scratch/epochs-replayed-next.json
 ```
 
-The second form runs no model request at all, mirroring
+This replay runs no model request at all, mirroring
 `npm run interpret -- --revalidate`. Saved proposals record the repository they
-came from and are refused against a different one.
+came from and are refused against a different repository or full head SHA.
+The saved proposal model remains in the replay document's provenance and
+`method`, even if the default or `--model` differs. With labeling enabled,
+`--allow-paid` and credentials are required; newly requested labels record
+their selected model separately. Output files must be new paths.
+
+To replay both proposals and labels from saved completed batch results, use
+the original input and inference options with `--batch-replay` and a new output:
+
+```bash
+node scripts/epochs.mjs --in scratch/atlas.json \
+  --batch-replay scratch/epochs-next.json.batch-state.json \
+  --out scratch/epochs-batch-replayed-next.json
+```
+
+This replay needs neither an API key nor `--allow-paid`. See
+[batch resume and replay](EXPERIMENTS.md#openrouter-batch-runs) for failure
+handling, the 30-day remote retention window, and pricing.
 
 Other options: `--model`, `--window`, `--stride`, `--peaks`, `--compact`.
 

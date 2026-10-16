@@ -14,6 +14,7 @@
  */
 
 import { extractJson } from './phase-model.mjs'
+import { requireSynchronousModel } from './model-defaults.mjs'
 import { withRetry } from './retry.mjs'
 
 export const DEFAULT_MODEL = 'x-ai/grok-4.6'
@@ -118,6 +119,7 @@ export function parseConsolidation(payload, names) {
 }
 
 export async function requestConsolidation(names, { model = DEFAULT_MODEL, apiKey, system, fetchImpl = fetch } = {}) {
+  requireSynchronousModel(model)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   let response
@@ -161,6 +163,7 @@ export async function consolidateCapabilities(
   names,
   { model = DEFAULT_MODEL, apiKey, chunkSize = DEFAULT_CHUNK, request = requestConsolidation, onProgress } = {},
 ) {
+  requireSynchronousModel(model)
   const batches = chunk(names.map((name, index) => ({ name, index })), chunkSize)
   const usage = { promptTokens: 0, completionTokens: 0, cost: 0 }
   const addUsage = (value) => {
