@@ -150,20 +150,38 @@ test('existing evidence resumes only after terminal observation and only with th
 })
 
 test('live and dead lock collisions are bounded and never auto-delete the lock', t => {
+  const previousWait = process.env.ATLAS_HOST_LOCK_WAIT_MS
+  process.env.ATLAS_HOST_LOCK_WAIT_MS = '100'
+  t.after(() => {
+    if (previousWait === undefined) delete process.env.ATLAS_HOST_LOCK_WAIT_MS
+    else process.env.ATLAS_HOST_LOCK_WAIT_MS = previousWait
+  })
   const directory = fixture(t)
   mkdirSync(resolve(directory, 'locks'))
   const stalePath = resolve(directory, 'locks', 'assignment-A.lock')
   const deadPid = process.pid + 10_000_000
   writeFileSync(stalePath, json({ pid: deadPid, ancient: true }))
   const staleBytes = readFileSync(stalePath)
-  assert.throws(() => withHostAssignmentLock(directory, 'A', () => 'unused'), /manual recovery/)
+  assert.throws(() => withHostAssignmentLock(directory, 'A', () => 'unused'), error => {
+    assert.equal(error.code, 'EEXIST')
+    assert.ok(error.message.includes(stalePath))
+    assert.ok(error.message.includes(String(deadPid)))
+    assert.match(error.message, /manual recovery/)
+    return true
+  })
   assert.deepEqual(readFileSync(stalePath), staleBytes)
 
   rmSync(stalePath)
   const livePath = resolve(directory, 'locks', 'assignment-B.lock')
   writeFileSync(livePath, json({ pid: process.pid, owner: 'test-live-process' }))
   const liveBytes = readFileSync(livePath), started = Date.now()
-  assert.throws(() => withHostAssignmentLock(directory, 'B', () => 'unused'), /held by live pid/)
+  assert.throws(() => withHostAssignmentLock(directory, 'B', () => 'unused'), error => {
+    assert.equal(error.code, 'ETIMEDOUT')
+    assert.ok(error.message.includes(livePath))
+    assert.ok(error.message.includes(String(process.pid)))
+    assert.match(error.message, /Timed out after 100 ms/)
+    return true
+  })
   assert.ok(Date.now() - started >= 80, 'live lock collision should retry a bounded number of times')
   assert.deepEqual(readFileSync(livePath), liveBytes)
 })

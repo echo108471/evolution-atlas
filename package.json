@@ -31,7 +31,7 @@
     "verify:ui": "node scripts/control-atlas.mjs verify --all",
     "verify:ready": "node scripts/control-atlas.mjs doctor",
     "test": "GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 node scripts/test.mjs",
-    "test:engine": "npm test -- test/experiment-status.test.mjs test/repository-engine.test.mjs test/repository-runtime.test.mjs test/repository-host.test.mjs test/repository-evolution.test.mjs test/repository-engine-contract.test.mjs test/repository-review-history.test.mjs test/repositoryMap.test.ts",
+    "test:engine": "npm test -- test/experiment-status.test.mjs test/repository-engine.test.mjs test/repository-runtime.test.mjs test/repository-host.test.mjs test/repository-engine-locks.test.mjs test/repository-engine-status.test.mjs test/repository-evolution.test.mjs test/repository-engine-contract.test.mjs test/repository-review-history.test.mjs test/repositoryMap.test.ts",
     "experiment:status": "node scripts/experiment-status.mjs",
     "typecheck": "tsc -b",
     "build": "tsc -b && vite build",

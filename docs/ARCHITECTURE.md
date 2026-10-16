@@ -282,8 +282,32 @@ preparation may reconstruct missing deterministic setup files but rejects confli
 Writes are create-only, not crash-atomic; abandoned locks require a real process check.
 Version 3 reserves dispatch before spawning and gates evidence until the host binds the
 actual handle. Worker status is assignment-scoped and contains no other responses or labels.
-A bounded wait handles the spawn/bind race. Live lock contention retries briefly; dead or
-unreadable locks remain for explicit recovery. A recorded handle still does not prove liveness.
+
+A bounded wait handles the spawn/bind race. Host operations, including launch and terminal
+recording, share assignment locks with evidence access. When a lock's recorded PID is alive,
+the operation waits for release up to 5,000 ms by default. Set `ATLAS_HOST_LOCK_WAIT_MS` to a
+nonnegative safe integer to change that limit; zero permits only immediate acquisition.
+Timeouts fail with `ETIMEDOUT` and name the lock path and holder PID. A dead holder or
+unreadable lock fails closed with `EEXIST`; the lock remains for explicit recovery. Locks are never
+expired or removed because of their age. Checking a lock holder's PID does not establish
+whether a recorded worker handle is live.
+
+Run-wide `statusEngine` and `node scripts/repository-engine.mjs status RUN` return only
+allowlisted run and job state metadata. They omit `jobs[].value`, proposal/result bodies,
+receipt bodies and raw validation messages, exposing validation issue counts instead.
+`status RUN AGENT` remains assignment-scoped. The run-summary command
+`npm run experiment:status -- RUN` also reports validation counts without raw messages.
+Privileged `inspectEngine` retains full output access for checkpoint, integration,
+publication and artifact-integrity checks; it is not the API for worker status or list views.
+This projection is also applied by the stable entry point to archived runtimes without
+changing their source. Focused synthetic [host tests](../test/repository-host.test.mjs),
+[engine lock tests](../test/repository-engine-locks.test.mjs) and
+[status tests](../test/repository-engine-status.test.mjs) provide regressions for live-lock release, dead-holder
+preservation, timeout diagnostics and status isolation with multiple workers while
+preserving privileged inspection. The full local gate passes: `npm test` (650/650),
+`npm run build`, `git diff --check`, and `node scripts/check-offline.mjs` (exit 0).
+These checks establish synthetic mechanics and local validation; real-revision run
+acceptance of these changes has not been performed.
 
 Run plans pin the workflow's source-file bytes as well as their inputs. The stable entry point
 selects the runtime from an existing run's declared version and exact pins; new directories use

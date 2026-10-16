@@ -72,8 +72,8 @@ export function summarizeExperiment(directory) {
     commitSha: run.plan.commitSha,
     status: run.status,
     eligibleFiles: run.inventory.eligibleFiles,
-    jobs: run.jobs.map(({ agent, state, handle, validation }) => ({ agent, state, handle: handle ?? null, validation })),
-    validationIssues: run.validationIssues,
+    jobs: run.jobs.map(({ agent, state, handle, validation }) => ({ agent, state, handle: handle ?? null, validationIssueCount: validation.length })),
+    validationIssueCount: run.validationIssues.length,
     artifacts,
     candidateMap,
   }

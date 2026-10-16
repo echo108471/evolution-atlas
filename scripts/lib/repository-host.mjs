@@ -20,6 +20,8 @@ const DISPATCHABLE = new Set([
   'retry-needs-explicit-dispatch',
 ])
 const LOCK_DELAYS_MS = [8, 16, 32, 48]
+const DEFAULT_LOCK_WAIT_MS = 5000
+const LOCK_POLL_MS = 25
 const json = value => JSON.stringify(value, null, 2) + '\n'
 const assignmentName = value => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(value)
 
@@ -53,20 +55,27 @@ function readLock(path) {
     if (!stat.isFile() || stat.isSymbolicLink()) return { malformed: true }
     const value = JSON.parse(readFileSync(path, 'utf8'))
     return value && Number.isSafeInteger(value.pid) ? { value } : { malformed: true }
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { missing: true }
     return { malformed: true }
   }
 }
 
 function acquireLock(directory, scope) {
+  const configuredWait = process.env.ATLAS_HOST_LOCK_WAIT_MS
+  const waitMs = configuredWait === undefined ? DEFAULT_LOCK_WAIT_MS : Number(configuredWait)
+  if ((configuredWait !== undefined && !configuredWait.trim()) || !Number.isSafeInteger(waitMs) || waitMs < 0) {
+    throw new Error('ATLAS_HOST_LOCK_WAIT_MS must be a nonnegative safe integer in milliseconds')
+  }
   const lockDirectory = resolve(directory, 'locks')
   assertDirectory(lockDirectory, 'host lock')
   mkdirSync(lockDirectory, { recursive: true })
   const path = resolve(lockDirectory, scope + '.lock')
   const nonce = randomUUID()
   const bytes = Buffer.from(json({ pid: process.pid, nonce, note: 'Explicit stale-lock recovery only; locks never expire by age.' }))
+  const deadline = performance.now() + waitMs
 
-  for (let attempt = 0; ; attempt++) {
+  for (let malformedReads = 0; ; ) {
     let descriptor
     try {
       descriptor = openSync(path, 'wx', 0o600)
@@ -81,18 +90,26 @@ function acquireLock(directory, scope) {
       if (error?.code !== 'EEXIST') throw error
 
       const lock = readLock(path)
-      if (attempt < LOCK_DELAYS_MS.length) {
-        // The owner may still be writing its freshly created lock file. Retry a
-        // fixed number of times; this is not an age based expiry policy.
-        if (lock.malformed || pidIsLive(lock.value.pid)) {
-          sleepSync(LOCK_DELAYS_MS[attempt])
-          continue
-        }
+      // The owner can release between the exclusive open and this read. Try
+      // acquiring again; only the successful owner may remove its lock.
+      if (lock.missing && performance.now() < deadline) continue
+      const remaining = deadline - performance.now()
+      if (lock.malformed && malformedReads < LOCK_DELAYS_MS.length && remaining > 0) {
+        // Allow a freshly created lock's PID to be written, but fail closed if
+        // it stays unreadable. This grace period never deletes or expires it.
+        sleepSync(Math.min(LOCK_DELAYS_MS[malformedReads++], remaining))
+        continue
       }
-      if (lock.malformed || !pidIsLive(lock.value.pid)) {
-        throw new Error(`Stale or unreadable host lock requires manual recovery: ${path}. Confirm the recorded process is gone, then remove the lock explicitly.`)
+      if (!lock.missing && (lock.malformed || !pidIsLive(lock.value.pid))) {
+        error.message = `Stale or unreadable host lock requires manual recovery: ${path} (holder pid ${lock.value?.pid ?? 'unknown'}). Confirm the recorded process is gone, then remove the lock explicitly.`
+        throw error
       }
-      throw new Error(`Host lock is held by live pid ${lock.value.pid}: ${path}`)
+      if (remaining <= 0) {
+        const pid = lock.value?.pid ?? null
+        const holder = pid === null ? 'holder pid unavailable after release' : `held by live pid ${pid}`
+        throw Object.assign(new Error(`Timed out after ${waitMs} ms waiting for host lock ${holder}: ${path}`), { code: 'ETIMEDOUT', path, pid })
+      }
+      sleepSync(Math.min(LOCK_POLL_MS, remaining))
     }
   }
 
@@ -326,14 +343,24 @@ export function bindHostDispatch(directory, assignment, reservationId, handle) {
 
 /** Record an explicit host terminal observation for the current reservation or legacy launch. */
 export function recordHostTerminal(directory, assignment, reservationId, handle, observation) {
-  assertAssignment(assignment)
   if (typeof reservationId !== 'string' || !reservationId.trim()) throw new Error('Dispatch identity required')
+  return recordTerminal(directory, assignment, handle, observation, reservationId)
+}
+
+/** Resolve the current dispatch identity under its lock for the engine's handle-based CLI. */
+export function recordHostTerminalByHandle(directory, assignment, handle, observation) {
+  return recordTerminal(directory, assignment, handle, observation)
+}
+
+function recordTerminal(directory, assignment, handle, observation, expectedReservationId) {
+  assertAssignment(assignment)
   if (!validHandle(handle)) throw new Error('Valid host handle required')
   if (!TERMINAL.has(observation)) throw new Error('Explicit terminal host observation required')
   return withLocks(directory, ['host-identities', assignmentScope(assignment)], () => {
     const history = listAssignmentHistory(directory, assignment), latest = history.at(-1)
-    if (!latest || latest.reservationId !== reservationId || latest.handle !== handle
+    if (!latest || (expectedReservationId !== undefined && latest.reservationId !== expectedReservationId) || latest.handle !== handle
       || !['bound', 'legacy', 'terminal'].includes(latest.kind)) throw new Error('Latest bound host identity must match')
+    const reservationId = latest.reservationId
     const terminalPath = hostPaths(directory, assignment, latest.sequence).terminal
     const record = latest.source === 'legacy'
       ? { handle, observation }
