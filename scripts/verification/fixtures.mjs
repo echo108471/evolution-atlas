@@ -243,22 +243,39 @@ export function syntheticGallery(dataset = syntheticAtlas()) {
 }
 
 
-/** A fictional descendant comparison, including a cached interpretation that is not Git proof. */
+/** A fictional version 3 descendant comparison, including cached interpretations that are not Git proof. */
 export function syntheticHistoryCandidateMap() {
   const artifact = syntheticCandidateMap()
-  return { ...artifact, displayName: 'Synthetic History Map', mode: 'expansion', history: {
-    transition: { fromCommitSha: 'b'.repeat(40), toCommitSha: artifact.commitSha, relation: 'descendant',
-      added: [], changed: [{ path: 'src/catalog.ts', fromBlobSha: 'd'.repeat(40), toBlobSha: 'e'.repeat(40) }], unchanged: [], deleted: [],
-      omissions: ['Only the fictional catalog path was compared.'] },
-    receipts: [
-      { id: 'Q1', kind: 'search', query: 'catalog', hits: [{ path: 'src/catalog.ts', line: 3 }] },
-      { id: 'H1', kind: 'diff', path: 'src/catalog.ts', commitSha: artifact.commitSha, text: '+ return catalog.get(key)' },
-      { id: 'R1', kind: 'commit-reading', commitSha: artifact.commitSha, interpretationStatus: 'candidate', directSourceProof: false,
-        readings: [{ summary: 'A fictional cached reading of catalog lookup.' }] },
-    ],
-    lineage: [{ id: 'history:catalog', from: { commitSha: 'b'.repeat(40), nodeId: 'old:cap:catalog' },
-      to: [{ commitSha: artifact.commitSha, nodeId: 'cap:catalog' }], decision: 'revise', assessment: 'partial',
-      claim: 'Catalog lookup changed in the compared revision.', reason: 'A synthetic diff illustrates the receipt route.', evidenceIds: ['H1'] }],
-    edgeLineage: [], omissions: ['Synthetic history does not establish real semantic behavior.'],
-  } }
+  const baselineNode = { ...artifact.graph.nodes[0], id: 'old:cap:catalog', name: 'Baseline catalog lookup', evidenceIds: ['old:S1'], claims: [] }
+  const historyReceipts = [
+    { id: 'Q1', kind: 'search', query: 'catalog', hits: [{ path: 'src/catalog.ts', line: 3 }] },
+    { id: 'H1', kind: 'diff', path: 'src/catalog.ts', commitSha: artifact.commitSha, text: '+ return catalog.get(key)' },
+    { id: 'R1', kind: 'commit-reading', commitSha: artifact.commitSha, interpretationStatus: 'candidate', directSourceProof: false,
+      readings: [{ summary: 'A fictional cached reading of catalog lookup.' }] },
+  ]
+  return { ...artifact, version: 'repository-engine/3', displayName: 'Synthetic History Map', mode: 'expansion',
+    receipts: [...artifact.receipts, { ...artifact.receipts[0], id: 'old:S1', commitSha: 'b'.repeat(40) }, ...historyReceipts],
+    graph: { ...artifact.graph,
+      comparisons: [{ newNodeId: 'Acatalog', existingNodeIds: ['old:cap:catalog'], relation: 'same', reason: 'Synthetic proposal matches the baseline lookup.',
+        disposition: 'revised into cap:catalog', evidenceIds: ['S1'], uncertainty: [] }],
+      decisions: [{ question: 'Keep a single lookup capability?', decision: 'Yes, one candidate capability.', reason: 'Synthetic proposals overlap.', evidenceIds: ['S1'], uncertainty: [] }],
+      lineage: [{ originalId: 'old:cap:catalog', decision: 'revise', successorIds: ['cap:catalog'], reason: 'Synthetic definition change.' }],
+      edgeLineage: [] },
+    baselineGraph: { nodes: [baselineNode], edges: [] },
+    provenance: { runPlanSha256: '1'.repeat(64), integrationPacketSha256: '2'.repeat(64), outputFingerprints: { A: '3'.repeat(64), R: '4'.repeat(64) } },
+    history: {
+      version: 'repository-history/1',
+      transition: { fromCommitSha: 'b'.repeat(40), toCommitSha: artifact.commitSha, relation: 'descendant',
+        added: [], changed: [{ path: 'src/catalog.ts', fromBlobSha: 'd'.repeat(40), toBlobSha: 'e'.repeat(40) }], unchanged: [], deleted: [],
+        omissions: ['Only the fictional catalog path was compared.'] },
+      receiptIds: historyReceipts.map(receipt => receipt.id),
+      priorMaps: [{ id: 'M1', displayName: 'Synthetic earlier map', commitSha: 'c'.repeat(40), version: 'repository-engine/3', artifactSha256: 'f'.repeat(64),
+        nodeCount: 4, edgeCount: 2, accessedNodeCount: 1, unaccessedNodeCount: 3, interpretationStatus: 'candidate' }],
+      commitReadings: [{ artifactId: 'C1', commitSha: artifact.commitSha, subject: 'Synthetic lookup change', readings: [{ tier: 1, summary: 'Synthetic tier-one reading used during integration.' }],
+        interpretationStatus: 'candidate', directSourceProof: false }],
+      lineage: [{ id: 'history:catalog', from: { commitSha: 'b'.repeat(40), nodeId: 'old:cap:catalog' },
+        to: [{ commitSha: artifact.commitSha, nodeId: 'cap:catalog' }], decision: 'revise', assessment: 'partial',
+        claim: 'Catalog lookup changed in the compared revision.', reason: 'A synthetic diff illustrates the receipt route.', evidenceIds: ['H1'] }],
+      edgeLineage: [], omissions: ['Synthetic history does not establish real semantic behavior.'],
+    } }
 }

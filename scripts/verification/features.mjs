@@ -91,6 +91,7 @@ export const FEATURE_REGISTRY = Object.freeze([
       'A cited source receipt opens in the evidence inspector with its source text.',
       'History, evidence catalog, repeated import, invalid replacement and dismissal retain explicit evidence boundaries.',
       'Synthetic descendant lineage opens its observed diff; cached readings retain candidate provenance and structured content.',
+      'A version 3 descendant lists prior maps and cached readings consulted, shows comparisons and decisions, switches to its baseline graph and back, and shows provenance pins.',
       'Candidate map fits a 390px viewport without horizontal overflow.',
       'At 1440 × 1000, receipt S1 and its citation labels are visible and unobscured without overlap after opening and scrolling.',
     ],

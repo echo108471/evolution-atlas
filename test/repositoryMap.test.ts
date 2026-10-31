@@ -2,7 +2,15 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import test from 'node:test'
 
-import { parseCandidateMapArtifact, parseCandidateMapText, resolveLocalMapUrl, receiptProvenance } from '../src/repositoryMap'
+import {
+  historyConsultations,
+  integrationAccounting,
+  parseCandidateMapArtifact,
+  parseCandidateMapText,
+  receiptGitLocation,
+  receiptProvenance,
+  resolveLocalMapUrl,
+} from '../src/repositoryMap'
 
 function fixture() {
   const graph = {
@@ -191,4 +199,96 @@ test('receipt provenance never upgrades cached interpretations or unknown kinds 
   assert.equal(receiptProvenance('commit-reading').label, 'Cached candidate reading')
   assert.equal(receiptProvenance('search').label, 'Observed source search (navigation only)')
   assert.equal(receiptProvenance('prior-map').label, 'Earlier candidate map')
+})
+
+function v3Expansion() {
+  const output = fixture()
+  const diff = { id: 'R-001', kind: 'diff', pinnedCommitSha: 'a'.repeat(40), commitSha: 'd'.repeat(40), path: 'src/catalog.ts', text: '+ return records.get(key)' }
+  const reading = { id: 'R-002', kind: 'commit-reading', artifactId: 'C1', commitSha: 'd'.repeat(40), subject: 'Add lookup', readings: [{ tier: 1, summary: 'Adds keyed lookup.' }] }
+  const baselineSource = { id: 'old:A-001', kind: 'source', path: 'src/catalog.ts', commitSha: 'b'.repeat(40), startLine: 1, endLine: 4, text: 'export const records = new Map()' }
+  return {
+    ...output,
+    version: 'repository-engine/3',
+    mode: 'expansion',
+    status: 'candidate-map-produced',
+    interpretationStatus: 'candidate',
+    receipts: [...output.receipts, diff, reading, baselineSource],
+    graph: {
+      ...output.graph,
+      comparisons: [{ newNodeId: 'Acatalog', existingNodeIds: ['old:Acatalog'], relation: 'same', reason: 'Same lookup.', disposition: 'retained as cap:catalog', evidenceIds: ['S1'], uncertainty: [] }],
+      decisions: [{ question: 'Merge lookup proposals?', decision: 'Keep one capability.', reason: 'Same behavior.', evidenceIds: ['S1'], uncertainty: [] }],
+      lineage: [{ originalId: 'old:Acatalog', decision: 'revise', successorIds: ['cap:catalog'], reason: 'Definition widened.' }],
+      edgeLineage: [],
+    },
+    baselineGraph: {
+      nodes: [{ ...output.graph.nodes[0], id: 'old:Acatalog', evidenceIds: ['old:A-001'], claims: [] }],
+      edges: [],
+    },
+    history: {
+      version: 'repository-history/1',
+      transition: { fromCommitSha: 'b'.repeat(40), toCommitSha: 'a'.repeat(40), relation: 'descendant', added: [], changed: [{ path: 'src/catalog.ts' }], unchanged: [], deleted: [] },
+      lineage: [], edgeLineage: [],
+      priorMaps: [{ id: 'M1', displayName: 'Earlier map', commitSha: 'e'.repeat(40), version: 'repository-engine/3', artifactSha256: 'f'.repeat(64), nodeCount: 9, edgeCount: 4, accessedNodeCount: 3, unaccessedNodeCount: 6 }],
+      commitReadings: [{ artifactId: 'C1', commitSha: 'd'.repeat(40), subject: 'Add lookup', readings: [{ tier: 1, summary: 'Adds keyed lookup.' }] }],
+      receiptIds: ['R-001', 'R-002'],
+      omissions: [],
+    },
+    provenance: { runPlanSha256: '1'.repeat(64), integrationPacketSha256: '2'.repeat(64), outputFingerprints: { A: '3'.repeat(64), R: '4'.repeat(64) } },
+  }
+}
+
+test('version 3 history receipts resolve by history.receiptIds against top-level receipt bodies', async () => {
+  const parsed = await parseCandidateMapArtifact(v3Expansion())
+  assert.deepEqual(parsed.historyReceipts.map((receipt) => receipt.id), ['R-001', 'R-002'])
+  assert.equal(parsed.historyReceipts[0], parsed.receipts.find((receipt) => receipt.id === 'R-001'))
+  assert.deepEqual(parsed.warnings, [])
+
+  const missing = v3Expansion()
+  missing.history.receiptIds = ['R-001', 'R-404']
+  const withMissing = await parseCandidateMapArtifact(missing)
+  assert.deepEqual(withMissing.historyReceipts.map((receipt) => receipt.id), ['R-001'])
+  assert.match(withMissing.warnings.join(' '), /1 history receipt ID have no receipt body/)
+
+  const malformed = v3Expansion() as unknown as { history: { receiptIds: unknown } }
+  malformed.history.receiptIds = [7]
+  await assert.rejects(parseCandidateMapArtifact(malformed), /history.receiptIds must be a list of text values/)
+})
+
+test('older artifacts that embed history.receipts still expose them', async () => {
+  const legacy = { ...fixture(), history: { receipts: [{ id: 'H1', kind: 'commit-meta', commitSha: 'c'.repeat(40) }] } }
+  const parsed = await parseCandidateMapArtifact(legacy)
+  assert.deepEqual(parsed.historyReceipts.map((receipt) => receipt.id), ['H1'])
+})
+
+test('baseline graph is exposed for the baseline-vs-current view and tolerates malformed input', async () => {
+  const parsed = await parseCandidateMapArtifact(v3Expansion())
+  assert.equal(parsed.baselineGraph?.nodes[0].id, 'old:Acatalog')
+  assert.deepEqual(parsed.baselineGraph?.nodes[0].evidenceIds, ['old:A-001'])
+  assert.equal((await parseCandidateMapArtifact(fixture())).baselineGraph, null)
+
+  const broken = v3Expansion() as unknown as { baselineGraph: { nodes: unknown[] } }
+  broken.baselineGraph.nodes = [{ id: 'old:x' }]
+  const tolerated = await parseCandidateMapArtifact(broken)
+  assert.equal(tolerated.baselineGraph, null)
+  assert.match(tolerated.warnings.join(' '), /Baseline graph was not shown/)
+})
+
+test('history consultations and integration accounting summarize candidate context without promoting it', async () => {
+  const parsed = await parseCandidateMapArtifact(v3Expansion())
+  const consulted = historyConsultations(parsed.history as Record<string, unknown>)
+  assert.equal(consulted.priorMaps[0].accessedNodeCount, 3)
+  assert.equal(consulted.priorMaps[0].unaccessedNodeCount, 6)
+  assert.equal(consulted.commitReadings[0].readings[0].summary, 'Adds keyed lookup.')
+  assert.deepEqual(historyConsultations(null), { priorMaps: [], commitReadings: [] })
+
+  const accounting = integrationAccounting(parsed.graph)
+  assert.equal(accounting.comparisons[0].relation, 'same')
+  assert.equal(accounting.decisions[0].decision, 'Keep one capability.')
+  assert.equal(accounting.lineage[0].originalId, 'old:Acatalog')
+  assert.deepEqual(integrationAccounting(null).comparisons, [])
+})
+
+test('receipt Git location names the commit, path and saved lines', () => {
+  assert.deepEqual(receiptGitLocation({ kind: 'source', path: 'src/a.ts', commitSha: 'a'.repeat(40), startLine: 3, endLine: 8 }), { commitSha: 'a'.repeat(40), path: 'src/a.ts', lines: '3–8' })
+  assert.deepEqual(receiptGitLocation({ kind: 'path-history', path: 'src/a.ts', pinnedCommitSha: 'b'.repeat(40) }), { commitSha: 'b'.repeat(40), path: 'src/a.ts', lines: '' })
 })

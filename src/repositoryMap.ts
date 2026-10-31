@@ -38,6 +38,8 @@ export interface CandidateMapArtifact extends JsonRecord {
   graph: JsonRecord & { nodes: CandidateNode[]; edges: CandidateEdge[] }
   receipts: JsonRecord[]
   historyReceipts: JsonRecord[]
+  /** Earlier-revision candidate graph an expansion compared against (v3 `baselineGraph`). */
+  baselineGraph: { nodes: CandidateNode[]; edges: CandidateEdge[] } | null
   warnings: string[]
 }
 
@@ -295,12 +297,26 @@ export async function parseCandidateMapArtifact(value: unknown): Promise<Candida
     receiptIds.add(id)
   })
   const history = record(value.history) ? value.history : null
-  const historyReceipts = history ? recordList(history.receipts, 'history.receipts') : []
+  // Version 3 keeps receipt bodies once, in top-level `receipts`, and lists the history-plane
+  // subset by ID in `history.receiptIds`. Older artifacts embedded bodies in `history.receipts`.
+  const historyReceipts: JsonRecord[] = []
+  const receiptById = new Map(value.receipts.map((receipt) => [String(receipt.id), receipt]))
+  if (history && Object.hasOwn(history, 'receiptIds')) {
+    const historyIds = textList(history.receiptIds, 'history.receiptIds')
+    const missing = historyIds.filter((id) => !receiptById.has(id))
+    if (missing.length) warnings.push(`${missing.length} history receipt ID${missing.length === 1 ? '' : 's'} have no receipt body in this artifact.`)
+    new Set(historyIds).forEach((id) => {
+      const receipt = receiptById.get(id)
+      if (receipt) historyReceipts.push(receipt)
+    })
+  }
   const allReceiptIds = new Set(receiptIds)
-  historyReceipts.forEach((receipt, index) => {
+  const embeddedHistory = history ? recordList(history.receipts, 'history.receipts') : []
+  embeddedHistory.forEach((receipt, index) => {
     const id = requiredText(receipt.id, `history.receipts[${index}].id`)
     if (allReceiptIds.has(id)) warnings.push(`Receipt ID “${id}” appears in more than one evidence plane.`)
     allReceiptIds.add(id)
+    historyReceipts.push(receipt)
   })
   const citedIds = new Set<string>()
   for (const node of nodes) {
@@ -310,6 +326,19 @@ export async function parseCandidateMapArtifact(value: unknown): Promise<Candida
   for (const edge of edges) edge.evidenceIds.forEach((id) => citedIds.add(id))
   const unknownCitations = [...citedIds].filter((id) => !allReceiptIds.has(id))
   if (unknownCitations.length) warnings.push(`${unknownCitations.length} cited evidence ID${unknownCitations.length === 1 ? '' : 's'} have no receipt in this artifact.`)
+
+  let baselineGraph: CandidateMapArtifact['baselineGraph'] = null
+  if (record(value.baselineGraph) && Array.isArray(value.baselineGraph.nodes) && Array.isArray(value.baselineGraph.edges)) {
+    try {
+      const baselineNodes = value.baselineGraph.nodes.map(normalizeNode)
+      const baselineIds = new Set(baselineNodes.map((node) => node.id))
+      const baselineEdges = value.baselineGraph.edges.map(normalizeEdge)
+        .filter((edge) => baselineIds.has(edge.from) && baselineIds.has(edge.to))
+      baselineGraph = { nodes: baselineNodes, edges: baselineEdges }
+    } catch (cause) {
+      warnings.push(`Baseline graph was not shown: ${cause instanceof Error ? cause.message : 'it is malformed.'}`)
+    }
+  }
 
   if (Object.hasOwn(value, 'independentVerification') && value.independentVerification !== 'not-performed') {
     throw new Error('Artifact has an unsupported independent verification status.')
@@ -334,6 +363,7 @@ export async function parseCandidateMapArtifact(value: unknown): Promise<Candida
     graph: { ...value.graph, nodes, edges },
     receipts: value.receipts,
     historyReceipts,
+    baselineGraph,
     warnings,
   }
 }
@@ -397,5 +427,75 @@ export function receiptProvenance(kind: unknown): { label: string; observed: boo
     case 'commit-reading': return { label: 'Cached candidate reading', observed: false }
     case 'prior-map': return { label: 'Earlier candidate map', observed: false }
     default: return { label: 'Unclassified receipt', observed: false }
+  }
+}
+
+/** Where a receipt points in Git: the commit it was read at, its path, and saved lines. */
+export function receiptGitLocation(receipt: JsonRecord): { commitSha: string; path: string; lines: string } {
+  const commitSha = safeText(receipt.commitSha, safeText(receipt.pinnedCommitSha))
+  const path = safeText(receipt.path)
+  const start = receipt.startLine
+  const end = receipt.endLine
+  const lines = typeof start === 'number' ? `${start}${typeof end === 'number' && end !== start ? `–${end}` : ''}` : ''
+  return { commitSha, path, lines }
+}
+
+export interface PriorMapUse {
+  id: string
+  displayName: string
+  commitSha: string
+  version: string
+  artifactSha256: string
+  nodeCount: number | null
+  edgeCount: number | null
+  accessedNodeCount: number | null
+  unaccessedNodeCount: number | null
+}
+
+export interface CachedReadingUse {
+  artifactId: string
+  commitSha: string
+  subject: string
+  repositoryName: string
+  artifactSha256: string
+  readings: JsonRecord[]
+}
+
+const count = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : null
+const records = (value: unknown): JsonRecord[] => Array.isArray(value) ? value.filter(record) : []
+
+/** v3 `history.priorMaps` and `history.commitReadings`: what earlier interpretations integration consulted. */
+export function historyConsultations(history: JsonRecord | null): { priorMaps: PriorMapUse[]; commitReadings: CachedReadingUse[] } {
+  if (!history) return { priorMaps: [], commitReadings: [] }
+  return {
+    priorMaps: records(history.priorMaps).map((map) => ({
+      id: safeText(map.id, 'prior map'),
+      displayName: safeText(map.displayName),
+      commitSha: safeText(map.commitSha),
+      version: safeText(map.version),
+      artifactSha256: safeText(map.artifactSha256),
+      nodeCount: count(map.nodeCount),
+      edgeCount: count(map.edgeCount),
+      accessedNodeCount: count(map.accessedNodeCount),
+      unaccessedNodeCount: count(map.unaccessedNodeCount),
+    })),
+    commitReadings: records(history.commitReadings).map((reading) => ({
+      artifactId: safeText(reading.artifactId, 'cached readings'),
+      commitSha: safeText(reading.commitSha),
+      subject: safeText(reading.subject),
+      repositoryName: safeText(reading.repositoryName),
+      artifactSha256: safeText(reading.artifactSha256),
+      readings: records(reading.readings),
+    })),
+  }
+}
+
+/** Integration accounting the v3 integrator writes beside the graph. All of it is candidate interpretation. */
+export function integrationAccounting(graph: JsonRecord | null) {
+  return {
+    comparisons: records(graph?.comparisons),
+    decisions: records(graph?.decisions),
+    lineage: records(graph?.lineage),
+    edgeLineage: records(graph?.edgeLineage),
   }
 }

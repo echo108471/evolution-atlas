@@ -210,7 +210,8 @@ The publication manifest format is exactly
 `sha256`, `mediaType`, and `approval`; hashes must be lowercase 64-digit hex,
 and approval must reference the owner's actual decision on those bytes.
 The build permits safe regular non-symlink files under `publication/assets/`
-and emits only under `gallery/` or `approved-snapshots/`, with matching
+and emits only under `gallery/`, `approved-snapshots/`, or `maps/` (owner-approved
+candidate capability maps), with matching
 extensions and no duplicate/conflicting destinations. JSON parsing is checked;
 the build does not validate the Atlas semantics, sanitize content, authenticate
 the approval reference, or approve publication.

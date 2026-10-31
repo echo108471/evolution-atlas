@@ -4,7 +4,8 @@ import { dirname, extname, join, resolve } from 'node:path'
 
 const MANIFEST_PATH = 'publication/manifest.json'
 const SOURCE_PREFIX = 'publication/assets/'
-const OUTPUT_PREFIXES = ['gallery/', 'approved-snapshots/']
+// maps/ holds owner-approved candidate capability maps (engine output.json / reviewed-output.json).
+const OUTPUT_PREFIXES = ['gallery/', 'approved-snapshots/', 'maps/']
 const MEDIA_EXTENSIONS = new Map([
   ['application/json', ['.json']],
   ['text/html', ['.html']],
@@ -138,7 +139,7 @@ export function loadPublicationAssets(repositoryRoot) {
     const source = safeRelativePath(asset.source, `asset ${index} source`)
     const path = safeRelativePath(asset.path, `asset ${index} output`)
     if (!source.startsWith(SOURCE_PREFIX)) fail(`asset ${index} source must be under ${SOURCE_PREFIX}`)
-    if (!OUTPUT_PREFIXES.some(prefix => path.startsWith(prefix))) fail(`asset ${index} output must be under gallery/ or approved-snapshots/`)
+    if (!OUTPUT_PREFIXES.some(prefix => path.startsWith(prefix))) fail(`asset ${index} output must be under gallery/, approved-snapshots/ or maps/`)
     const normalizedPath = path.toLowerCase()
     if ([...outputPaths].some(existing => existing === normalizedPath
       || existing.startsWith(`${normalizedPath}/`) || normalizedPath.startsWith(`${existing}/`))) {

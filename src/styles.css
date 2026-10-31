@@ -5314,7 +5314,7 @@ p {
 
 .map-summary-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   margin-bottom: 22px;
   border-top: 1px solid var(--line-strong);
   border-bottom: 1px solid var(--line-strong);
@@ -6271,6 +6271,27 @@ p {
 .map-receipt-catalog button { width: 100%; height: 100%; padding: 12px; display: grid; gap: 6px; text-align: left; border: 1px solid var(--line); background: transparent; color: var(--ink); }
 .map-receipt-catalog span, .map-receipt-catalog code { color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
 .map-receipt-catalog button:hover, .map-receipt-catalog button:focus-visible { border-color: var(--teal); }
+.map-receipt-catalog .map-git-location { display: flex; flex-wrap: wrap; gap: 6px; }
+/* v3 history: baseline toggle, consulted interpretations, integration record, provenance. */
+.map-graph-toggle { margin: 0 0 18px; display: grid; gap: 8px; }
+.map-graph-toggle [role="group"] { display: flex; flex-wrap: wrap; gap: 8px; }
+.map-graph-toggle button { display: grid; gap: 3px; padding: 10px 14px; text-align: left; border: 1px solid var(--line); background: transparent; color: var(--ink); font-size: .82rem; cursor: pointer; }
+.map-graph-toggle button small { color: var(--muted); font-size: .7rem; }
+.map-graph-toggle button.is-selected { border-color: var(--teal); box-shadow: inset 3px 0 0 var(--teal); }
+.map-graph-toggle p { margin: 0; color: var(--muted); font-size: .72rem; max-width: 90ch; }
+.map-node-ref { font: inherit; font-family: var(--mono, ui-monospace, monospace); font-size: .7rem; padding: 0 4px; border: 1px solid var(--line); background: transparent; color: var(--teal); overflow-wrap: anywhere; }
+button.map-node-ref { cursor: pointer; }
+code.map-node-ref { color: var(--muted); }
+.map-consulted-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.map-consulted-grid h3 { display: flex; justify-content: space-between; gap: 8px; font-size: .8rem; margin: 0 0 8px; }
+.map-consulted-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.map-consulted-list li { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); font-size: .74rem; overflow-wrap: anywhere; }
+.map-consulted-list span, .map-consulted-list small, .map-consulted-list p { color: var(--muted); margin: 0; }
+.map-provenance-facts dd code { overflow-wrap: anywhere; font-size: .68rem; }
+@media (max-width: 760px) {
+  .map-consulted-grid { grid-template-columns: 1fr; }
+  .map-graph-toggle button { flex: 1 1 100%; }
+}
 .load-card .engine-entry { max-width: 900px; }
 @media (max-width: 760px) {
   .engine-entry-heading { align-items: stretch; flex-direction: column; }
