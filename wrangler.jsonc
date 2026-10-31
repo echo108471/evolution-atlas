@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "evolution-atlas",
+  "compatibility_date": "2026-10-30",
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "atlas.eacholabs.com", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "./dist"
+  }
+}
