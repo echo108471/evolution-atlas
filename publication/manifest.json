@@ -11,9 +11,9 @@
     {
       "source": "publication/assets/zod/manifest.json",
       "path": "gallery/manifest.json",
-      "sha256": "fa1b896ae27f080dbca85e0fc25f773f88f4b9e9fac0f3166b6872e65ca8ffe8",
+      "sha256": "485903f8ca4c0f6365e9f3ed4ee1f738a51ed0e1934eba8d736ef311f4eceae3",
       "mediaType": "application/json",
-      "approval": "docs/RELEASE-APPROVAL.md#owner-approval-2026-10-30"
+      "approval": "docs/RELEASE-APPROVAL.md#owner-approval-2026-10-31"
     },
     {
       "source": "publication/assets/zod/zod-LICENSE.txt",
@@ -28,6 +28,13 @@
       "sha256": "163282962a3bf5717970fc12744c27c5ce39e7579fd0ed15e6d5744bd67ea579",
       "mediaType": "application/json",
       "approval": "docs/RELEASE-APPROVAL.md#owner-approval-2026-10-30"
+    },
+    {
+      "source": "publication/assets/zod/maps/zod-reviewed-output.json",
+      "path": "maps/zod/reviewed-output.json",
+      "sha256": "53be27b3049fa74862497fd324149e010efa5558c809a724bb0bda3b9f6d6c31",
+      "mediaType": "application/json",
+      "approval": "docs/RELEASE-APPROVAL.md#owner-approval-2026-10-31"
     }
   ]
 }

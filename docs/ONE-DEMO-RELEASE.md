@@ -7,6 +7,15 @@ repository. The current proposal is the
 [four-file Zod inventory](ZOD-DEMO-RELEASE-INVENTORY.md). The remainder below
 records the earlier clean-export assessment; it is not the current release plan.
 
+**Later additions:** the [October 30 decision](RELEASE-APPROVAL.md#owner-approval-2026-10-30)
+replaced the observed-only dataset with an interpreted one, and the
+[October 31 decision](RELEASE-APPROVAL.md#owner-approval-2026-10-31) added an
+owner-approved version 3 candidate capability map served at
+`maps/zod/reviewed-output.json`. That map includes 62 original commit subject
+lines, which this proposal's privacy default would have omitted; the owner
+accepted that disclosure explicitly. The current
+[inventory](ZOD-DEMO-RELEASE-INVENTORY.md) lists all five emitted assets.
+
 Prepare a separate reviewed public repository with a clean initial history and
 one observed-only Zod demo. Keep the existing repository, its history, saved
 outputs, and recovery copies private. This document is a private proposal: it
