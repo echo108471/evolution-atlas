@@ -209,10 +209,10 @@ test('a partial diff is announced as partial', () => {
   assert.match(whole, /complete, 12 changed lines/)
 })
 
-test('tier 1 asks for the lowest reasoning effort the endpoint allows', () => {
-  // Reasoning is billed and budgeted as output. Left at its default the volume model
-  // spent 866 of a 900-token budget thinking and was cut off mid-JSON on 17 of 19
-  // commits; the endpoint rejects disabling it outright.
+test('tier 1 asks for low reasoning effort', () => {
+  // Reasoning is billed and budgeted as output. Left at its default an earlier volume
+  // model spent 866 of a 900-token budget thinking and was cut off mid-JSON on 17 of 19
+  // commits.
   const body = buildTier1Request({
     repositoryName: 'fixture',
     contextText: 'context',
@@ -220,7 +220,9 @@ test('tier 1 asks for the lowest reasoning effort the endpoint allows', () => {
     diff: { totalLines: 5, truncated: false, text: 'patch', files: [{}], included: ['a'] },
     model: 'test-model',
   })
-  assert.deepEqual(body.reasoning, { effort: 'low' })
+  assert.equal(body.reasoning_effort, 'low')
+  assert.equal('reasoning' in body, false)
+  assert.equal(body.max_completion_tokens, 2000)
 })
 
 test('a response is coerced rather than trusted', () => {

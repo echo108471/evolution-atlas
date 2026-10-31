@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 
 import { extractJson } from './phase-model.mjs'
 import { fingerprintInductionRequest } from './capability-induction.mjs'
+import { providerMethod } from './openai-provider.mjs'
 import {
   DEFAULT_MODEL,
   HIERARCHY_CRITIC_SYSTEM_PROMPT,
@@ -176,8 +177,7 @@ export function buildHierarchyRetrievalPlanRequest(
   if (!systemPrompt) throw new Error(`unknown planner protocol: ${plannerProtocol}`)
   return {
     model: plannerModel,
-    max_tokens: planMaxTokens,
-    usage: { include: true },
+    max_completion_tokens: planMaxTokens,
     messages: [
       { role: 'system', content: systemPrompt },
       {
@@ -363,8 +363,7 @@ export function buildStagedHierarchyDecisionRequest(
   ].join('\n')).join('\n\n')
   const request = {
     model,
-    max_tokens: decisionMaxTokens,
-    usage: { include: true },
+    max_completion_tokens: decisionMaxTokens,
     messages: [
       { role: 'system', content: STAGED_DECISION_SYSTEM_PROMPT },
       {
@@ -394,7 +393,7 @@ Review all ${retrieved.shape?.hierarchyNodes ?? 0} current nodes and account for
       },
     ],
   }
-  if (reasoningEffort) request.reasoning = { effort: reasoningEffort }
+  if (reasoningEffort) request.reasoning_effort = reasoningEffort
   return request
 }
 
@@ -458,7 +457,7 @@ export function stagedHierarchyCriticDocument(
   const decisionCharacters = requestPromptCharacters(decisionRequest)
   return {
     schemaVersion: '0.1.0',
-    method: `capability-hierarchy-staged-critic:openrouter:${model}`,
+    method: providerMethod('capability-hierarchy-staged-critic', model),
     repository: dataset.repository,
     headSha: dataset.headSha,
     source: { hierarchyReviewContentSha256: dataset.protocol?.contentSha256 ?? null },

@@ -58,21 +58,21 @@ meaningful headroom and is a cheaper first move than chunking.
 
 ## Provider
 
-Interpretation runs through Anthropic directly or through OpenRouter. The
-provider and model are recorded in each candidate's `method` field. OpenRouter
-now defaults to `openai/gpt-6-luna:batch` for interpretation and epoch detection;
-explicit OpenRouter `--model` overrides still apply. Anthropic retains
-`claude-opus-5`, and model selection never switches providers.
+Interpretation runs through Anthropic or OpenAI. The provider and model are
+recorded in each candidate's `method` field. OpenAI defaults to
+`gpt-6-luna:batch` for interpretation and epoch detection; explicit `--model`
+overrides still apply. Anthropic retains `claude-opus-5`, and model selection
+never switches providers.
 
-OpenRouter `:batch` models use asynchronous Batch API submission and polling.
+`:batch` models use asynchronous OpenAI Batch API submission and polling.
 This applies to the interpretation and epochs CLIs; gallery interpretation
-still requires an explicit live model such as `--model openai/gpt-6-luna`.
+still requires an explicit live model such as `--model gpt-6-luna`.
 Dependent stages run separately, so feature discovery must complete before
 lifecycle discovery and each stage can take the full 24-hour completion window.
 A sidecar next to the intended output preserves batch IDs, request fingerprints,
-and raw results for resume and offline replay. Non-batch model slugs retain
-their live request paths. See [selection and request formats](EXPERIMENTS.md#model-defaults-and-request-formats)
-for credential precedence and preserved experiment pins, and [batch operation](EXPERIMENTS.md#openrouter-batch-runs)
+and raw results for resume and offline replay. Non-batch model IDs send live
+Chat Completions requests. See [selection and request formats](EXPERIMENTS.md#model-defaults-and-request-formats)
+for credential precedence and default models, and [batch operation](EXPERIMENTS.md#openai-batch-runs)
 for polling, resume, replay, and documented pricing.
 The historical measurements below remain measurements of their recorded
 models, not evaluations of the new default.

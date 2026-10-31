@@ -57,8 +57,9 @@ read.
 there is nothing to tune a mixture against, so a hand-tuned one would only be fitted to
 whichever arm looked better afterwards.
 
-The fourth arm, `model`, hands the capability names to `x-ai/grok-4.6` and asks it to
-group them. It sees names alone — never paths, dates, authors, or another arm's clusters.
+The fourth arm, `model`, hands the capability names to the configured analysis model
+(default `gpt-6-luna` through OpenAI; runs recorded here used `x-ai/grok-4.6`) and asks
+it to group them. It sees names alone — never paths, dates, authors, or another arm's clusters.
 
 `message` is the commit subject plus its body, with merge provenance removed. `Merge pull
 request #431 from AggieWorks/prefetch-api` contributes `prefetch-api` and not

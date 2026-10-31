@@ -62,7 +62,7 @@ test('explicit registry installation restores routing and CA trust while preserv
   }
   const credentials = {
     ANTHROPIC_API_KEY: 'synthetic-provider-key', OPENAI_API_KEY: 'synthetic-provider-key',
-    OPENROUTER_API_KEY: 'synthetic-provider-key', GITHUB_TOKEN: 'synthetic-github-key',
+    GITHUB_TOKEN: 'synthetic-github-key',
     GH_TOKEN: 'synthetic-github-key', NPM_TOKEN: 'synthetic-npm-key', NODE_AUTH_TOKEN: 'synthetic-npm-key',
     NPM_CONFIG__AUTH: 'synthetic-npm-key', npm_config__auth: 'synthetic-npm-key',
     NPM_CONFIG_USERCONFIG: '/synthetic/caller/auth-npmrc', NODE_OPTIONS: '--require=/synthetic/caller/preload.cjs',

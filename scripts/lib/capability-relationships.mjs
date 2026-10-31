@@ -40,8 +40,7 @@ Return JSON only:
 Return JSON only:
 {"nodeDecisions":[{"id":"P1","decision":"include|defer|reject","closestExistingId":"N0","relationship":"duplicate|narrower|broader|different|uncertain","reason":"scope comparison","evidenceIds":["S..."]}],"edgeDecisions":[{"id":"L1","decision":"include|defer|reject","reason":"claim-specific assessment","evidenceIds":["S..."]}],"conflicts":[{"edgeIds":["L1","L2"],"reason":"actual incompatibility, not overlap","evidenceIds":["S..."]}],"unresolved":["remaining evidence or relationship questions"]}
 Empty citations are permitted only for deferred/rejected items with insufficient evidence. This is a same-model review, not independent semantic validation.`
-  return { model, temperature: 0, max_tokens: 7500, response_format: { type: 'json_object' },
-    ...(model.startsWith('x-ai/') ? { reasoning: { effort: 'low' } } : {}),
+  return { model, max_completion_tokens: 7500, response_format: { type: 'json_object' },
     messages: [{ role: 'system', content: `${common}\n${phase === 'propose' ? propose : review}` }, { role: 'user', content: JSON.stringify(context) }] }
 }
 function citations(ids, evidence, required = true, source = false) {

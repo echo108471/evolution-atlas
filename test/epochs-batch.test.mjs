@@ -6,11 +6,12 @@ import { join, resolve } from 'node:path'
 import test from 'node:test'
 
 import { buildEpochs, groupPeriods } from '../scripts/lib/epochs.mjs'
-import { createBatchRunner } from '../scripts/lib/openrouter-batch.mjs'
+import { createBatchRunner } from '../scripts/lib/openai-batch.mjs'
 import { proposePhaseBoundaries } from '../scripts/lib/phase-model.mjs'
 import { labelPeriodLevels } from '../scripts/lib/period-labels.mjs'
+import { createOpenAIBatchMock } from './helpers/openai-batch-mock.mjs'
 
-const MODEL = 'openai/gpt-6-luna:batch'
+const MODEL = 'gpt-6-luna:batch'
 const UNCAPPED = { maxCommits: Infinity, maxDays: Infinity }
 
 function dataset(count = 240) {
@@ -37,30 +38,19 @@ function completion(value) {
 }
 
 function mockedApi(resultFor) {
-  const batches = new Map()
-  const submitted = []
-  const fetched = []
+  let count = 0
+  const mock = createOpenAIBatchMock({
+    batchId: () => `batch_${++count}`,
+    poll: (_submission, polls) => (polls === 1 ? 'in_progress' : 'completed'),
+    item: (line, submission) => ({
+      id: `${submission.id}_${line.custom_id}`, custom_id: line.custom_id,
+      ...resultFor(line, submission, submission.lines.indexOf(line)),
+    }),
+  })
   return {
-    submitted, fetched,
-    fetchImpl: async (url, options = {}) => {
-      if (options.method === 'POST') {
-        const body = JSON.parse(options.body)
-        submitted.push(body)
-        const id = `batch_${submitted.length}`
-        batches.set(id, { body, polls: 0 })
-        return { ok: true, status: 202, json: async () => ({ id, status: 'validating' }) }
-      }
-      fetched.push(url)
-      const id = url.split('/').at(-1)
-      const stored = batches.get(id)
-      assert.ok(stored, `unexpected mocked batch ${id}`)
-      stored.polls += 1
-      return { ok: true, status: 200, json: async () => stored.polls === 1
-        ? { id, status: 'in_progress' }
-        : { id, status: 'completed', results: stored.body.requests.map((request, index) => ({
-          id: `${id}_${index}`, custom_id: request.custom_id, ...resultFor(request, stored.body, index),
-        })) } }
-    },
+    submitted: mock.submissions,
+    get fetched() { return mock.requests.filter((request) => request.method === 'GET') },
+    fetchImpl: mock.fetchImpl,
   }
 }
 
@@ -82,13 +72,13 @@ test('epoch proposals batch all windows, parse citations and replay saved raw re
   const options = { model: MODEL, window: 120, stride: 60, batchRunner: createBatchRunner(config) }
   const result = await proposePhaseBoundaries(data, options)
   assert.equal(api.submitted.length, 1)
-  assert.equal(api.fetched.length, 2)
+  assert.equal(api.fetched.length, 3, 'two polls and one output download')
   const [body] = api.submitted
   assert.equal(body.endpoint, '/v1/chat/completions')
-  assert.equal(body.model, MODEL)
-  assert.equal(body.requests.length, 3)
-  assert.equal(new Set(body.requests.map((request) => request.custom_id)).size, 3)
-  assert.ok(body.requests.every((request) => !('model' in request.body) && !('stream' in request.body)))
+  assert.equal(body.model, 'gpt-6-luna')
+  assert.equal(body.lines.length, 3)
+  assert.equal(new Set(body.lines.map((request) => request.custom_id)).size, 3)
+  assert.ok(body.lines.every((request) => request.body.model === 'gpt-6-luna' && !('stream' in request.body)))
   assert.equal(result.proposals.length, 3)
   assert.ok(result.proposals.every((proposal) => proposal.index === 120))
   assert.equal(result.unresolved.length, 3)
@@ -105,8 +95,8 @@ test('labels batch each dependency level and preserve candidate methods and per-
   const epochs = buildEpochs([{ id: 'boundary', startIndex: 120, endIndex: 120 }], data.episodes, UNCAPPED)
   const eras = groupPeriods(epochs, new Map(), { maxPerGroup: 30, level: 1 })
   const api = mockedApi((request, body, index) => {
-    if (body.requests.length === 2 && index === 1) return { response: null, error: { message: 'Synthetic request failure' } }
-    return successful(completion({ label: body.requests.length === 2 ? 'Interface work' : 'Product era', summary: 'Candidate summary', coherent: true, confidence: 1.5 }))
+    if (body.lines.length === 2 && index === 1) return { response: null, error: { message: 'Synthetic request failure' } }
+    return successful(completion({ label: body.lines.length === 2 ? 'Interface work' : 'Product era', summary: 'Candidate summary', coherent: true, confidence: 1.5 }))
   })
   const result = await labelPeriodLevels(data, [epochs, eras], {
     model: MODEL,
@@ -114,11 +104,11 @@ test('labels batch each dependency level and preserve candidate methods and per-
       apiKey: 'synthetic', fetchImpl: api.fetchImpl, pollIntervalMs: 1, maxWaitMs: 100 }),
   })
   assert.equal(api.submitted.length, 2)
-  assert.deepEqual(api.submitted.map((body) => body.requests.length), [2, 1])
-  assert.match(api.submitted[1].requests[0].body.messages[1].content, /Interface work/)
-  assert.match(api.submitted[1].requests[0].body.messages[1].content, /\(unnamed\)/)
-  assert.doesNotMatch(api.submitted[1].requests[0].body.messages[1].content, /ui\/main\.ts/)
-  assert.equal(result.method, `period-label:openrouter:${MODEL}`)
+  assert.deepEqual(api.submitted.map((body) => body.lines.length), [2, 1])
+  assert.match(api.submitted[1].lines[0].body.messages[1].content, /Interface work/)
+  assert.match(api.submitted[1].lines[0].body.messages[1].content, /\(unnamed\)/)
+  assert.doesNotMatch(api.submitted[1].lines[0].body.messages[1].content, /ui\/main\.ts/)
+  assert.equal(result.method, `period-label:openai:${MODEL}`)
   assert.equal(result.levels[0][0].labelMethod, result.method)
   assert.equal(result.levels[0][0].labelStatus, 'candidate')
   assert.equal(result.levels[0][0].labelConfidence, 1)
@@ -177,12 +167,12 @@ globalThis.fetch = async () => {
   ].entries()) {
     const output = join(root, `epochs-${index}.json`)
     const result = spawnSync(process.execPath, ['--import', preload, resolve('scripts/epochs.mjs'),
-      '--in', input, '--out', output, '--model', 'openai/gpt-6-luna', '--allow-paid', ...option], {
+      '--in', input, '--out', output, '--model', 'gpt-6-luna', '--allow-paid', ...option], {
       encoding: 'utf8', timeout: 10_000,
-      env: { ...process.env, OPENROUTER_API_KEY: 'synthetic', ATLAS_MOCK_CALLS: calls },
+      env: { ...process.env, OPENAI_API_KEY: 'synthetic', ATLAS_MOCK_CALLS: calls },
     })
     assert.equal(result.status, 1, result.stderr)
-    assert.match(result.stderr, /Batch options require an OpenRouter model ending in :batch/)
+    assert.match(result.stderr, /Batch options require a model ending in :batch/)
     assert.equal(existsSync(calls), false)
     assert.equal(existsSync(output), false)
     assert.equal(existsSync(`${output}.batch-state.json`), false)
@@ -202,40 +192,53 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 let mockedNow = Date.now()
 Date.now = () => mockedNow
 const file = process.env.ATLAS_MOCK_CALLS
-const state = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { batches: [], calls: [] }
+const state = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { files: [], batches: [], calls: [] }
 globalThis.fetch = async (url, options = {}) => {
-  state.calls.push({ url, method: options.method ?? 'GET' })
+  const method = options.method ?? 'GET'
+  state.calls.push({ url, method })
   let payload
-  if (options.method === 'POST') {
+  if (method === 'POST' && url.endsWith('/files')) {
+    const lines = (await options.body.get('file').text()).trim().split('\\n').map((line) => JSON.parse(line))
+    const id = 'file_' + (state.files.length + 1)
+    state.files.push({ id, lines })
+    payload = { id }
+  } else if (method === 'POST' && url.endsWith('/batches')) {
     const body = JSON.parse(options.body)
     const id = 'batch_' + (state.batches.length + 1)
-    state.batches.push({ id, body })
+    state.batches.push({ id, lines: state.files.find((entry) => entry.id === body.input_file_id).lines })
     payload = { id, status: 'validating' }
+  } else if (url.endsWith('/content')) {
+    const batch = state.batches.find((entry) => url.endsWith('/out_' + entry.id + '/content'))
+    if (!batch) throw new Error('Unexpected mock download')
+    const label = batch.lines[0].body.max_completion_tokens === 1500
+    const text = batch.lines.map((request) => JSON.stringify({
+      custom_id: request.custom_id, id: batch.id + '_' + request.custom_id, error: null,
+      response: { status_code: 200, request_id: 'synthetic', body: {
+        choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(label
+          ? { label: 'Synthetic period', summary: 'Candidate', coherent: true, confidence: 0.8 }
+          : { boundaries: [] }) } }], usage: { total_tokens: 1 },
+      } },
+    })).join('\\n')
+    writeFileSync(file, JSON.stringify(state))
+    return { ok: true, status: 200, text: async () => text }
   } else {
-    const batch = state.batches.find((batch) => url.endsWith('/' + batch.id))
+    const batch = state.batches.find((entry) => url.endsWith('/' + entry.id))
     if (!batch) throw new Error('Unexpected mock fetch')
     const sidecar = readFileSync(process.env.ATLAS_MOCK_SIDECAR, 'utf8')
     if (!sidecar.includes(batch.id)) throw new Error('Polled before batch ID was persisted')
-    const label = batch.body.requests[0].body.max_tokens === 1500
+    const label = batch.lines[0].body.max_completion_tokens === 1500
     payload = label && process.env.ATLAS_MOCK_TIMEOUT === '1'
       ? { id: batch.id, status: 'in_progress' }
-      : { id: batch.id, status: 'completed', results: batch.body.requests.map((request) => ({
-        custom_id: request.custom_id, id: batch.id + '_' + request.custom_id, error: null,
-        response: { status_code: 200, request_id: 'synthetic', body: {
-          choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(label
-            ? { label: 'Synthetic period', summary: 'Candidate', coherent: true, confidence: 0.8 }
-            : { boundaries: [] }) } }], usage: { total_tokens: 1 },
-        } },
-      })) }
+      : { id: batch.id, status: 'completed', output_file_id: 'out_' + batch.id }
   }
   if (payload.status === 'in_progress') mockedNow += 1001
   writeFileSync(file, JSON.stringify(state))
-  return { ok: true, status: options.method === 'POST' ? 202 : 200, json: async () => payload }
+  return { ok: true, status: 200, json: async () => payload }
 }
 `)
   const sidecar = `${output}.batch-state.json`
   const base = ['--in', input, '--out', output, '--save-proposals', savedProposals]
-  const env = { ...process.env, OPENROUTER_API_KEY: 'synthetic', ATLAS_MOCK_CALLS: callsFile, ATLAS_MOCK_SIDECAR: sidecar }
+  const env = { ...process.env, OPENAI_API_KEY: 'synthetic', ATLAS_MOCK_CALLS: callsFile, ATLAS_MOCK_SIDECAR: sidecar }
   const invoke = (args, childEnv = env) => spawnSync(process.execPath, ['--import', mockFile, resolve('scripts/epochs.mjs'), ...args], {
     encoding: 'utf8', env: childEnv, timeout: 10_000,
   })
@@ -252,11 +255,11 @@ globalThis.fetch = async (url, options = {}) => {
   const calls = JSON.parse(readFileSync(callsFile, 'utf8'))
   assert.equal(calls.batches.length, 2, 'both completed proposals and pending labels are reused')
   const document = JSON.parse(readFileSync(output, 'utf8'))
-  assert.ok(document.method.endsWith(`:openrouter:${MODEL}`))
-  assert.equal(document.levels[0][0].labelMethod, `period-label:openrouter:${MODEL}`)
+  assert.ok(document.method.endsWith(`:openai:${MODEL}`))
+  assert.equal(document.levels[0][0].labelMethod, `period-label:openai:${MODEL}`)
   assert.equal(existsSync(savedProposals), true)
   const replayOutput = join(root, 'replayed.json')
-  const { OPENROUTER_API_KEY: _unused, ...replayEnv } = env
+  const { OPENAI_API_KEY: _unused, ...replayEnv } = env
   const replayed = invoke(['--in', input, '--out', replayOutput, '--batch-replay', sidecar], replayEnv)
   assert.equal(replayed.status, 0, replayed.stderr)
   assert.deepEqual(JSON.parse(readFileSync(replayOutput, 'utf8')), document)

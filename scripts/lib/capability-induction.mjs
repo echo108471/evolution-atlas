@@ -11,11 +11,10 @@
 import { createHash } from 'node:crypto'
 
 import { extractJson } from './phase-model.mjs'
-import { requireSynchronousModel } from './model-defaults.mjs'
+import { API_KEY_ENV, DEFAULT_ANALYSIS_MODEL, requestChatCompletion } from './openai-provider.mjs'
 
-export const DEFAULT_MODEL = 'x-ai/grok-4.6'
-export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
-export const API_KEY_ENV = 'OPENROUTER_API_KEY'
+export const DEFAULT_MODEL = DEFAULT_ANALYSIS_MODEL
+export { API_KEY_ENV }
 
 const REQUEST_TIMEOUT_MS = 600000
 const MAX_NAME = 120
@@ -94,8 +93,7 @@ export function renderReadings(readings) {
 export function buildInductionRequest(readings, { model = DEFAULT_MODEL } = {}) {
   return {
     model,
-    max_tokens: 30000,
-    usage: { include: true },
+    max_completion_tokens: 30000,
     messages: [
       { role: 'system', content: INDUCTION_SYSTEM_PROMPT },
       {
@@ -225,31 +223,5 @@ export async function requestInductionPayload(
   readings,
   { model = DEFAULT_MODEL, apiKey, fetchImpl = fetch, timeoutMs = REQUEST_TIMEOUT_MS } = {},
 ) {
-  requireSynchronousModel(model)
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  let response
-  try {
-    response = await fetchImpl(OPENROUTER_ENDPOINT, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(buildInductionRequest(readings, { model })),
-      signal: controller.signal,
-    })
-  } catch (error) {
-    if (error?.name === 'AbortError' || controller.signal.aborted) {
-      const timeout = new Error(`capability induction exceeded ${Math.round(timeoutMs / 1000)}s`)
-      timeout.status = 408
-      throw timeout
-    }
-    throw error
-  } finally {
-    clearTimeout(timer)
-  }
-  if (!response.ok) {
-    const error = new Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 180)}`)
-    error.status = response.status
-    throw error
-  }
-  return response.json()
+  return requestChatCompletion(buildInductionRequest(readings, { model }), { apiKey, fetchImpl, timeoutMs, timeoutMessage: 'capability induction' })
 }

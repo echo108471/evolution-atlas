@@ -8,7 +8,7 @@ function document(overrides: Partial<PeriodDocument> = {}): PeriodDocument {
     schemaVersion: '0.3.0',
     repository: 'course-recommender',
     headSha: 'ba900d8f',
-    method: 'epoch-boundaries:openrouter:x-ai/grok-4.6',
+    method: 'epoch-boundaries:openai:gpt-6-luna',
     commitCount: 2693,
     hierarchy: { depth: 1, levelNames: ['epoch'], rationale: 'because' },
     boundaries: [],

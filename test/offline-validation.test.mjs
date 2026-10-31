@@ -8,11 +8,11 @@ import { createOfflineEnvironment, OFFLINE_PRELOAD } from '../scripts/verificati
 
 test('offline environment removes credentials, inherited preload hooks, and remote Git protocols', () => {
   const env = createOfflineEnvironment({ home: '/tmp/synthetic-home', environment: {
-    PATH: '/synthetic/bin', OPENROUTER_API_KEY: 'synthetic', GH_TOKEN: 'synthetic',
+    PATH: '/synthetic/bin', OPENAI_API_KEY: 'synthetic', GH_TOKEN: 'synthetic',
     HTTPS_PROXY: 'https://example.test', GIT_DIR: '/unexpected', NODE_OPTIONS: '--require=unexpected',
   } })
   assert.equal(env.PATH, '/synthetic/bin')
-  for (const key of ['OPENROUTER_API_KEY', 'GH_TOKEN', 'HTTPS_PROXY', 'GIT_DIR']) assert.equal(env[key], undefined)
+  for (const key of ['OPENAI_API_KEY', 'GH_TOKEN', 'HTTPS_PROXY', 'GIT_DIR']) assert.equal(env[key], undefined)
   assert.equal(env.HOME, '/tmp/synthetic-home')
   assert.equal(env.GIT_ALLOW_PROTOCOL, 'file')
   assert.equal(env.NPM_CONFIG_USERCONFIG, '/tmp/synthetic-home/.npmrc')
@@ -30,8 +30,8 @@ test('offline subprocess rejects external HTTP, fetch and socket calls but permi
     const denied = /Offline validation forbids external network access/;
     assert.throws(() => http.get('https://example.test/'), denied);
     assert.throws(() => fetch('https://example.test/'), denied);
-    assert.throws(() => fetch('https://openrouter.ai/api/v1/batches', { method: 'POST', body: '{}' }), denied);
-    assert.throws(() => fetch('https://openrouter.ai/api/v1/batches/batch_synthetic'), denied);
+    assert.throws(() => fetch('https://api.openai.com/v1/batches', { method: 'POST', body: '{}' }), denied);
+    assert.throws(() => fetch('https://api.openai.com/v1/files', { method: 'POST', body: '{}' }), denied);
     assert.throws(() => net.connect({ host: 'example.test', port: 443 }), denied);
     const server = http.createServer((req, res) => res.end('synthetic'));
     server.listen(0, '127.0.0.1', async () => {

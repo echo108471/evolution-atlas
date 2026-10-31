@@ -14,7 +14,7 @@ test('visible packets are identical across conditions and contain no oracle, fam
   const visible = JSON.parse(a.messages[1].content).cases
   assert.deepEqual(visible, JSON.parse(reverse.messages[1].content).cases.reverse())
   for (const x of visible) assert.deepEqual(Object.keys(x).sort(), ['domain','id','sources'])
-  assert.equal(a.model, b.model); assert.equal(a.max_tokens, b.max_tokens)
+  assert.equal(a.model, b.model); assert.equal(a.max_completion_tokens, b.max_completion_tokens)
 })
 const valid = () => ({ decisions: [{ id:'C1', summaryA:'A', summaryB:'B', behaviorDelta:'unchanged', capabilityRelation:'same', reason:'Evidence', revisionTrigger:'New output evidence', sourceRefs:['C1:A','C1:B'] }], coverageLimits:['Synthetic only'] })
 test('diagnostics locate all missing or invalid output fields without mutating', () => {

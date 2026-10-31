@@ -176,52 +176,51 @@ method, confidence, and supporting commits. A feature can therefore show a
 sequence such as introduced → expanded → hardened instead of receiving one
 permanent stage.
 
-Interpretation can use Anthropic directly or OpenRouter. An explicit
-`--provider` wins; otherwise Atlas selects OpenRouter only when
-`OPENROUTER_API_KEY` is set and `ANTHROPIC_API_KEY` is not. With both keys or
-neither key it selects Anthropic. It never changes provider to accommodate a
-model:
+Interpretation can use Anthropic or OpenAI. An explicit `--provider` wins;
+otherwise Atlas selects OpenAI only when `OPENAI_API_KEY` is set and
+`ANTHROPIC_API_KEY` is not. With both keys or neither key it selects Anthropic.
+It never changes provider to accommodate a model:
 
 ```bash
-node scripts/interpret.mjs --in scratch/atlas.json --provider openrouter --allow-paid # needs OPENROUTER_API_KEY
-node scripts/interpret.mjs --in scratch/atlas.json --provider anthropic --allow-paid     # needs ANTHROPIC_API_KEY, or `ant auth login`
+node scripts/interpret.mjs --in scratch/atlas.json --provider openai --allow-paid    # needs OPENAI_API_KEY
+node scripts/interpret.mjs --in scratch/atlas.json --provider anthropic --allow-paid # needs ANTHROPIC_API_KEY, or `ant auth login`
 ```
 
-OpenRouter defaults to `openai/gpt-6-luna:batch`; `--model <id>` overrides that
-default. Anthropic retains `claude-opus-5` because it cannot serve an OpenAI
-model, and its existing restriction on `--model` remains: model overrides are
-accepted only for the OpenRouter gateway. These CLIs have no model-selection
-environment variable; the API-key variables above affect credentials and
-provider detection, not the model. Gallery interpretation uses the same
-selection rules but its transport remains live-only; pass
-`--model openai/gpt-6-luna` explicitly with gallery's `--interpret`.
+OpenAI defaults to `gpt-6-luna:batch`; `--model <id>` overrides that default.
+Anthropic retains `claude-opus-5`, and model overrides are accepted only for
+OpenAI. These CLIs have no model-selection environment variable; the API-key
+variables above affect credentials and provider detection, not the model.
+Gallery interpretation uses the same selection rules but its transport remains
+live-only; pass `--model gpt-6-luna` explicitly with gallery's `--interpret`.
+All OpenAI endpoint, credential, and default-model settings live in
+[openai-provider.mjs](scripts/lib/openai-provider.mjs).
 
-In `interpret` and `epochs`, OpenRouter models ending in `:batch` use the Batch
-API automatically.
-Interpretation submits feature discovery with the `/v1/messages` shape,
-then submits lifecycle discovery after validating the feature results.
-Epoch detection uses `/v1/chat/completions`, grouping proposal windows into
-one batch and period labels into one batch per hierarchy level. Other model
-slugs retain the existing live request paths; for example,
-`--model openai/gpt-6-luna` selects live OpenRouter requests.
+In `interpret` and `epochs`, models ending in `:batch` use the OpenAI Batch API
+automatically. `:batch` is a local routing marker: it is kept in provenance and
+stripped from the model ID sent to OpenAI. Every request uses the
+`/v1/chat/completions` shape. Interpretation submits feature discovery, then
+submits lifecycle discovery after validating the feature results. Epoch
+detection groups proposal windows into one batch and period labels into one
+batch per hierarchy level. Other model IDs send live requests; for example,
+`--model gpt-6-luna` selects synchronous Chat Completions requests.
 
 Batch results arrive asynchronously, potentially taking the full **24-hour
 window per dependent stage**. Both CLIs accept `--batch-poll-ms` (initial
 interval, default `30000`) and `--batch-max-wait-ms` (per-stage wait, default
-`86400000`); polling backs off. Each run saves batch IDs, request fingerprints,
-and raw results in `<output>.batch-state.json`. After a timeout or interruption,
-rerun the same command with the same input and output to resume without a second
-submission. Wait flags may change; changed inputs or inference options are
-rejected. Keep the sidecar with the output. `--batch-replay <sidecar> --out
-<new-path>` replays saved completed results offline without credentials or
-`--allow-paid`, using the original input and inference options.
+`86400000`); polling backs off. Each run saves the uploaded input file ID, batch
+IDs, request fingerprints, and downloaded raw results in
+`<output>.batch-state.json`. After a timeout or interruption, rerun the same
+command with the same input and output to resume without a second submission.
+Wait flags may change; changed inputs or inference options are rejected. Keep
+the sidecar with the output. `--batch-replay <sidecar> --out <new-path>`
+replays saved completed results offline without credentials or `--allow-paid`,
+using the original input and inference options.
 
-The batch-level model defaults to the selected slug as given, including
-`:batch`; `--batch-model <slug>` overrides only that API field, and inner
-request bodies omit `model`. OpenRouter documents typical batch pricing at
-50% of standard per-token rates; non-token discounts vary and the model page
-is authoritative. See [batch operation, cost, and replay details](docs/EXPERIMENTS.md#openrouter-batch-runs)
-before a paid run.
+The batch model defaults to the selected ID; `--batch-model <id>` overrides it,
+and each JSONL request line carries that model without the `:batch` marker.
+OpenAI documents Batch API pricing at a discount to synchronous requests; check
+the current pricing page before a paid run. See
+[batch operation, cost, and replay details](docs/EXPERIMENTS.md#openai-batch-runs).
 
 Each candidate records which provider and model produced it in its `method`
 field, so interpretations from different routes stay distinguishable.
@@ -247,10 +246,10 @@ analysis can proceed period by period rather than needing the whole corpus in on
 node scripts/epochs.mjs --in public/atlas.json --allow-paid --save-proposals scratch/proposals-next.json --out scratch/epochs-next.json
 ```
 
-Epoch detection is OpenRouter-only and needs `OPENROUTER_API_KEY` for model
-requests. It shares the `openai/gpt-6-luna:batch` default with interpretation;
-`--model <id>` selects the model for both proposals and period labels. The
-shared default lives in [model-defaults.mjs](scripts/lib/model-defaults.mjs).
+Epoch detection uses OpenAI and needs `OPENAI_API_KEY` for model requests. It
+shares the `gpt-6-luna:batch` default with interpretation; `--model <id>` selects
+the model for both proposals and period labels. The shared default lives in
+[openai-provider.mjs](scripts/lib/openai-provider.mjs).
 New batch work requires `--out` so its resume state has a stable location.
 
 It runs two passes that never see each other: a model reads raw commit windows and marks

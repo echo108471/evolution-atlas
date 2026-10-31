@@ -13,15 +13,18 @@ import { mergeInterpretation, validateFeatures, validateSemanticEpisodes } from 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const REAL_GIT = execFileSync('which', ['git'], { encoding: 'utf8' }).trim()
 const SOURCE = 'https://example.test/synthetic/fixture.git'
-const SYNC_MODEL = 'openai/gpt-6-luna'
-const BATCH_MODEL = 'openai/gpt-6-luna:batch'
+const SYNC_MODEL = 'gpt-6-luna'
+const BATCH_MODEL = 'gpt-6-luna:batch'
 
 function assertBatchModelRejected(result, model = BATCH_MODEL) {
   assert.equal(result.status, 1, result.stderr)
-  assert.ok(result.stderr.includes(`Model "${model}" requires the OpenRouter Batch API`), result.stderr)
+  assert.ok(result.stderr.includes(`Model "${model}" requires the OpenAI Batch API`), result.stderr)
   assert.match(result.stderr, /this synchronous transport cannot submit batches/)
-  assert.match(result.stderr, /pass --model openai\/gpt-6-luna to use a synchronous model/)
+  assert.match(result.stderr, /pass --model gpt-6-luna to use a synchronous model/)
 }
+
+/** The model ID sent to OpenAI: the local :batch routing marker removed. */
+const wire = (model) => model.replace(/:batch$/, '')
 
 function assertNoModelRequests(f) {
   assert.equal(f.events(f.paidLog).filter((event) => event.request || event.forbiddenFetch).length, 0)
@@ -102,23 +105,28 @@ export default class SyntheticProvider {
     if (specifier === '@anthropic-ai/sdk') return { url: new URL('./mock-sdk.mjs', import.meta.url).href, shortCircuit: true }
     return next(specifier, context)
   }\n`)
+  // Synthetic OpenAI transport: synchronous Chat Completions always answer from the
+  // fixture; the Files + Batches API answers only when a test opts in. Anything else
+  // is recorded as forbidden.
   const networkGuard = join(root, 'network-guard.mjs')
+  const batchMock = new URL('./helpers/openai-batch-mock.mjs', import.meta.url).href
   writeFileSync(networkGuard, `import { appendFileSync } from 'node:fs'
-    let submitted
-    globalThis.fetch = async (url, options) => {
-      if (process.env.ATLAS_TEST_BATCH === '1') {
-        if (options.method === 'POST') {
-          submitted = JSON.parse(options.body)
-          appendFileSync(process.env.ATLAS_TEST_PAID_LOG, JSON.stringify({ batch: submitted }) + '\\n')
-          return { ok: true, status: 202, json: async () => ({ id: 'batch_mock', status: 'validating' }) }
-        }
-        return { ok: true, status: 200, json: async () => ({ id: 'batch_mock', status: 'completed', results: submitted.requests.map(({custom_id}) => ({
-          custom_id, error: null, response: { status_code: 200, body: submitted.endpoint === '/v1/messages'
-            ? { content: [{ type: 'text', text: '{"features":[]}' }], stop_reason: 'end_turn' }
-            : { choices: [{ message: { content: JSON.stringify({boundaries:[], label:'Synthetic period', summary:'Synthetic', coherent:true, confidence:0.5}) }, finish_reason:'stop' }] } },
-        })) }) }
+    import { chatCompletion, createOpenAIBatchMock } from ${JSON.stringify(batchMock)}
+    const log = (event) => appendFileSync(process.env.ATLAS_TEST_PAID_LOG, JSON.stringify(event) + '\\n')
+    let batches = 0
+    const batch = createOpenAIBatchMock({
+      batchId: () => batches++ ? 'batch_mock_' + batches : 'batch_mock',
+      onSubmit: (submission) => log({ batch: { endpoint: submission.endpoint, model: submission.model, requests: submission.lines.length } }),
+      respond: () => chatCompletion({ features: [], boundaries: [], label: 'Synthetic period', summary: 'Synthetic', coherent: true, confidence: 0.5 }),
+    })
+    globalThis.fetch = async (url, options = {}) => {
+      if (String(url) === 'https://api.openai.com/v1/chat/completions' && options.method === 'POST') {
+        log({ request: true, model: JSON.parse(options.body).model, transport: 'chat-completions' })
+        if (process.env.ATLAS_TEST_PROVIDER_FAIL) return { ok: false, status: 503, headers: new Headers(), text: async () => 'Synthetic transient failure' }
+        return { ok: true, status: 200, json: async () => chatCompletion({ features: [] }, { prompt_tokens: 1, completion_tokens: 1 }) }
       }
-      appendFileSync(process.env.ATLAS_TEST_PAID_LOG, '{"forbiddenFetch":true}\\n')
+      if (process.env.ATLAS_TEST_BATCH === '1') return batch.fetchImpl(url, options)
+      log({ forbiddenFetch: true })
       throw new Error('HTTP is forbidden in synthetic CLI tests')
     }\n`)
   const env = {
@@ -172,12 +180,12 @@ test('gallery rejects absent caches, missing pins and invalid flags before any o
     { subject: { slug: 'fixture', url: SOURCE, commit: 'abcdef0' }, args: ['--fetch'], message: /40-character/ },
     { args: ['--interpret', '--fetch'], message: /requires --allow-paid/ },
     { args: ['--allow-paid', '--fetch'], message: /require --interpret/ },
-    { args: ['--provider', 'openrouter', '--fetch'], message: /require --interpret/ },
+    { args: ['--provider', 'openai', '--fetch'], message: /require --interpret/ },
     { args: ['--interpret', '--allow-paid', '--skip-interpret', '--fetch'], message: /cannot be combined/ },
     { args: ['--retries', '2x', '--fetch'], message: /positive integer/ },
     { args: ['--retries', '2', '--fetch'], message: /require --interpret/ },
     { args: ['--interpret', '--allow-paid', '--provider', 'invalid', '--fetch'], message: /Unknown provider/ },
-    { args: ['--interpret', '--allow-paid', '--provider', 'openrouter', '--fetch'], message: /requires OPENROUTER_API_KEY/ },
+    { args: ['--interpret', '--allow-paid', '--provider', 'openai', '--fetch'], message: /requires OPENAI_API_KEY/ },
   ]
   for (const entry of cases) {
     const f = setup(t)
@@ -192,7 +200,7 @@ test('gallery rejects absent caches, missing pins and invalid flags before any o
 test('gallery validates all selected pins before a requested fetch', (t) => {
   const f = setup(t)
   f.catalogSubjects([f.subject, { slug: 'second', url: SOURCE }])
-  const result = f.runGallery(['--fetch', '--interpret', '--allow-paid'], { OPENROUTER_API_KEY: 'synthetic' })
+  const result = f.runGallery(['--fetch', '--interpret', '--allow-paid'], { OPENAI_API_KEY: 'synthetic' })
   assert.equal(result.status, 1)
   assert.match(result.stderr, /second.*40-character/)
   f.assertNoEffects()
@@ -207,7 +215,7 @@ test('gallery rejects locally present blob and tag pins before any requested fet
       pin = git(f.repository, ['rev-parse', 'synthetic-tag'])
     }
     f.catalogSubjects([{ ...f.subject, commit: pin }])
-    const result = f.runGallery(['--fetch', '--interpret', '--allow-paid', '--provider', 'openrouter'], { OPENROUTER_API_KEY: 'synthetic' })
+    const result = f.runGallery(['--fetch', '--interpret', '--allow-paid', '--provider', 'openai'], { OPENAI_API_KEY: 'synthetic' })
     assert.equal(result.status, 1)
     assert.match(result.stderr, /commit object directly/)
     f.assertNoEffects()
@@ -217,8 +225,8 @@ test('gallery rejects locally present blob and tag pins before any requested fet
 test('gallery finishes acquisition and pin validation for all subjects before the first paid request', (t) => {
   const f = setup(t)
   f.catalogSubjects([f.subject, { slug: 'absent', url: SOURCE, commit: 'f'.repeat(40) }])
-  const result = f.runGallery(['--fetch', '--interpret', '--allow-paid', '--provider', 'openrouter', '--model', SYNC_MODEL], {
-    OPENROUTER_API_KEY: 'synthetic', ATLAS_TEST_ACQUISITION: 'simulate',
+  const result = f.runGallery(['--fetch', '--interpret', '--allow-paid', '--provider', 'openai', '--model', SYNC_MODEL], {
+    OPENAI_API_KEY: 'synthetic', ATLAS_TEST_ACQUISITION: 'simulate',
   })
   assert.equal(result.status, 1)
   assert.match(result.stderr, /pinned commit is not available locally/)
@@ -293,7 +301,7 @@ test('gallery rejects shallow cached history rather than labeling a truncated lo
 })
 
 function savedInterpretation(f, model = 'synthetic-model') {
-  const method = `llm-induction:openrouter:${model}`
+  const method = `llm-induction:openai:${model}`
   const features = validateFeatures([{ label: 'Synthetic module', rationale: 'Authored fixture only.', confidence: 0.5, commitShas: [f.pin] }], f.observed, method)
   const lifecycle = validateSemanticEpisodes([], f.observed, features.featureCandidates, method)
   const dataset = mergeInterpretation(f.observed, features, lifecycle)
@@ -314,7 +322,7 @@ test('saved gallery interpretation is reused offline with exact bytes recorded a
   assert.equal(dataset.analysis.mode, 'interpreted')
   const entry = JSON.parse(readFileSync(join(f.out, 'manifest.json'), 'utf8')).subjects[0]
   assert.equal(entry.interpretation.reusedSha256, createHash('sha256').update(saved.bytes).digest('hex'))
-  assert.equal(entry.interpretation.provider, 'openrouter')
+  assert.equal(entry.interpretation.provider, 'openai')
   assert.equal(entry.interpretation.model, 'synthetic-model')
   assert.equal(existsSync(f.paidLog), false)
   assert.ok(f.events(f.gitLog).every(({ args }) => !args.includes('fetch')))
@@ -391,7 +399,7 @@ test('gallery preserves expensive output without a trustworthy unchanged manifes
         { slug: 'fixture', headSha: f.pin, interpreted: true, sha256: reason === 'forced' ? hash : '0'.repeat(64) },
       ] }))
     }
-    const result = f.runGallery(['--interpret', '--allow-paid', '--provider', 'openrouter', ...(reason === 'forced' ? ['--force'] : [])], { OPENROUTER_API_KEY: 'synthetic' })
+    const result = f.runGallery(['--interpret', '--allow-paid', '--provider', 'openai', ...(reason === 'forced' ? ['--force'] : [])], { OPENAI_API_KEY: 'synthetic' })
     assert.equal(result.status, 1)
     assert.match(result.stderr, /Output already exists/)
     assert.deepEqual(readFileSync(output), saved.bytes)
@@ -401,13 +409,13 @@ test('gallery preserves expensive output without a trustworthy unchanged manifes
 
 test('gallery skips verified unchanged paid output by exact manifest hash without another inference', (t) => {
   const f = setup(t)
-  const args = ['--interpret', '--allow-paid', '--provider', 'openrouter', '--model', SYNC_MODEL]
-  const first = f.runGallery(args, { OPENROUTER_API_KEY: 'synthetic' })
+  const args = ['--interpret', '--allow-paid', '--provider', 'openai', '--model', SYNC_MODEL]
+  const first = f.runGallery(args, { OPENAI_API_KEY: 'synthetic' })
   assert.equal(first.status, 0, first.stderr)
   const before = readFileSync(join(f.out, 'fixture.json'))
   const entry = JSON.parse(readFileSync(join(f.out, 'manifest.json'), 'utf8')).subjects[0]
   assert.equal(entry.sha256, createHash('sha256').update(before).digest('hex'))
-  const next = f.runGallery(args, { OPENROUTER_API_KEY: 'synthetic' })
+  const next = f.runGallery(args, { OPENAI_API_KEY: 'synthetic' })
   assert.equal(next.status, 0, next.stderr)
   assert.match(next.stderr, /unchanged; skipping/)
   assert.deepEqual(readFileSync(join(f.out, 'fixture.json')), before)
@@ -448,7 +456,7 @@ test('gallery rejects an invalid existing manifest and reserved output slug befo
   const manifest = join(f.out, 'manifest.json')
   const bytes = Buffer.from('{"saved-expensive-response":true}')
   writeFileSync(manifest, bytes)
-  const result = f.runGallery(['--fetch', '--interpret', '--allow-paid', '--provider', 'openrouter'], { OPENROUTER_API_KEY: 'synthetic' })
+  const result = f.runGallery(['--fetch', '--interpret', '--allow-paid', '--provider', 'openai'], { OPENAI_API_KEY: 'synthetic' })
   assert.equal(result.status, 1)
   assert.match(result.stderr, /manifest is invalid/)
   assert.deepEqual(readFileSync(manifest), bytes)
@@ -463,15 +471,15 @@ test('gallery rejects an invalid existing manifest and reserved output slug befo
   reserved.assertNoEffects()
 })
 
-test('explicit gallery inference uses a mock provider with no SDK or whole-pass retries by default', (t) => {
+test('explicit gallery inference uses a mock provider with no client or whole-pass retries by default', (t) => {
   const f = setup(t)
-  const result = f.runGallery(['--interpret', '--allow-paid', '--provider', 'openrouter', '--model', SYNC_MODEL], {
-    OPENROUTER_API_KEY: 'synthetic', ATLAS_TEST_PROVIDER_FAIL: '1',
+  const result = f.runGallery(['--interpret', '--allow-paid', '--provider', 'openai', '--model', SYNC_MODEL], {
+    OPENAI_API_KEY: 'synthetic', ATLAS_TEST_PROVIDER_FAIL: '1',
   })
   assert.equal(result.status, 1)
   const events = f.events(f.paidLog)
-  assert.deepEqual(events[0], { constructor: true, maxRetries: 0 })
-  assert.equal(events.filter((event) => event.request).length, 1)
+  assert.equal(events.some((event) => event.constructor === true), false)
+  assert.deepEqual(events.filter((event) => event.request), [{ request: true, model: SYNC_MODEL, transport: 'chat-completions' }])
   assert.equal(existsSync(f.out), false)
   assert.match(result.stderr, /existing output and manifest were preserved/)
 })
@@ -479,7 +487,7 @@ test('explicit gallery inference uses a mock provider with no SDK or whole-pass 
 test('interpret requires paid opt-in, while revalidation accepts batch provenance without constructing a client', (t) => {
   const f = setup(t)
   const output = join(f.root, 'interpreted.json')
-  const rejected = f.invoke('interpret.mjs', ['--in', f.dataset, '--out', output], { OPENROUTER_API_KEY: 'synthetic' })
+  const rejected = f.invoke('interpret.mjs', ['--in', f.dataset, '--out', output], { OPENAI_API_KEY: 'synthetic' })
   assert.equal(rejected.status, 1)
   assert.match(rejected.stderr, /requires --allow-paid/)
   assert.equal(existsSync(output), false)
@@ -493,7 +501,7 @@ test('interpret requires paid opt-in, while revalidation accepts batch provenanc
     const local = f.invoke('interpret.mjs', ['--in', saved.path, '--out', localOutput, '--revalidate', ...args])
     assert.equal(local.status, 0, local.stderr)
     const dataset = JSON.parse(readFileSync(localOutput, 'utf8'))
-    assert.equal(dataset.featureCandidates[0].method, `llm-induction:openrouter:${BATCH_MODEL}`)
+    assert.equal(dataset.featureCandidates[0].method, `llm-induction:openai:${BATCH_MODEL}`)
     assert.deepEqual(readFileSync(saved.path), before)
   }
   assert.equal(existsSync(f.paidLog), false)
@@ -502,34 +510,39 @@ test('interpret requires paid opt-in, while revalidation accepts batch provenanc
 test('explicit interpret inference disables SDK retries and uses only the mock provider', (t) => {
   const f = setup(t)
   const output = join(f.root, 'interpreted.json')
-  const result = f.invoke('interpret.mjs', ['--in', f.dataset, '--out', output, '--allow-paid', '--provider', 'openrouter', '--model', SYNC_MODEL], { OPENROUTER_API_KEY: 'synthetic' })
+  const result = f.invoke('interpret.mjs', ['--in', f.dataset, '--out', output, '--allow-paid', '--provider', 'anthropic'], { ANTHROPIC_API_KEY: 'synthetic' })
   assert.equal(result.status, 0, result.stderr)
   assert.deepEqual(f.events(f.paidLog)[0], { constructor: true, maxRetries: 0 })
   assert.equal(f.events(f.paidLog).filter((event) => event.request).length, 1)
+  const openai = f.invoke('interpret.mjs', ['--in', f.dataset, '--out', join(f.root, 'openai.json'), '--allow-paid', '--provider', 'openai', '--model', SYNC_MODEL], { OPENAI_API_KEY: 'synthetic' })
+  assert.equal(openai.status, 0, openai.stderr)
+  assert.equal(f.events(f.paidLog).filter((event) => event.constructor === true).length, 1, 'OpenAI never constructs the SDK')
+  assert.equal(f.events(f.paidLog).filter((event) => event.request).length, 2)
 })
 
 test('interpret CLI keeps credential detection, explicit providers and synchronous model overrides', (t) => {
   const f = setup(t)
   const cases = [
-    { env: { OPENROUTER_API_KEY: 'synthetic' }, args: ['--model', SYNC_MODEL], model: SYNC_MODEL, baseURL: 'https://openrouter.ai/api' },
-    { env: { OPENROUTER_API_KEY: 'synthetic', ANTHROPIC_API_KEY: 'synthetic' }, args: [], model: 'claude-opus-5', baseURL: null },
-    { env: { ANTHROPIC_API_KEY: 'synthetic' }, args: [], model: 'claude-opus-5', baseURL: null },
-    { env: { OPENROUTER_API_KEY: 'synthetic', ANTHROPIC_API_KEY: 'synthetic' }, args: ['--provider', 'openrouter', '--model', SYNC_MODEL], model: SYNC_MODEL, baseURL: 'https://openrouter.ai/api' },
-    { env: { OPENROUTER_API_KEY: 'synthetic' }, args: ['--model', 'synthetic/explicit'], model: 'synthetic/explicit', baseURL: 'https://openrouter.ai/api' },
-    { env: { OPENROUTER_API_KEY: 'synthetic' }, args: ['--provider', 'anthropic'], model: 'claude-opus-5', baseURL: null },
+    { env: { OPENAI_API_KEY: 'synthetic' }, args: ['--model', SYNC_MODEL], event: { request: true, model: SYNC_MODEL, transport: 'chat-completions' } },
+    { env: { OPENAI_API_KEY: 'synthetic', ANTHROPIC_API_KEY: 'synthetic' }, args: [], event: { request: true, model: 'claude-opus-5', baseURL: null } },
+    { env: { ANTHROPIC_API_KEY: 'synthetic' }, args: [], event: { request: true, model: 'claude-opus-5', baseURL: null } },
+    { env: { OPENAI_API_KEY: 'synthetic', ANTHROPIC_API_KEY: 'synthetic' }, args: ['--provider', 'openai', '--model', SYNC_MODEL], event: { request: true, model: SYNC_MODEL, transport: 'chat-completions' } },
+    { env: { OPENAI_API_KEY: 'synthetic' }, args: ['--model', 'gpt-5.4-mini'], event: { request: true, model: 'gpt-5.4-mini', transport: 'chat-completions' } },
+    { env: { OPENAI_API_KEY: 'synthetic' }, args: ['--provider', 'anthropic'], event: { request: true, model: 'claude-opus-5', baseURL: null } },
+    { env: { OPENROUTER_API_KEY: 'synthetic', ANTHROPIC_API_KEY: 'synthetic' }, args: [], event: { request: true, model: 'claude-opus-5', baseURL: null } },
   ]
   for (const [index, entry] of cases.entries()) {
     const result = f.invoke('interpret.mjs', ['--in', f.dataset, '--out', join(f.root, `interpret-${index}.json`), '--allow-paid', ...entry.args], entry.env)
     assert.equal(result.status, 0, result.stderr)
-    assert.deepEqual(f.events(f.paidLog).at(-1), { request: true, model: entry.model, baseURL: entry.baseURL })
+    assert.deepEqual(f.events(f.paidLog).at(-1), entry.event)
   }
 })
 
 test('interpret CLI submits default and explicit batch models with immutable outputs', (t) => {
   const cases = [
-    { env: { OPENROUTER_API_KEY: 'synthetic' }, args: [], model: BATCH_MODEL },
-    { env: { OPENROUTER_API_KEY: 'synthetic', ANTHROPIC_API_KEY: 'synthetic' }, args: ['--provider', 'openrouter'], model: BATCH_MODEL },
-    { env: { OPENROUTER_API_KEY: 'synthetic' }, args: ['--model', 'synthetic/explicit:batch'], model: 'synthetic/explicit:batch' },
+    { env: { OPENAI_API_KEY: 'synthetic' }, args: [], model: BATCH_MODEL },
+    { env: { OPENAI_API_KEY: 'synthetic', ANTHROPIC_API_KEY: 'synthetic' }, args: ['--provider', 'openai'], model: BATCH_MODEL },
+    { env: { OPENAI_API_KEY: 'synthetic' }, args: ['--model', 'synthetic/explicit:batch'], model: 'synthetic/explicit:batch' },
   ]
   for (const entry of cases) {
     const f = setup(t)
@@ -541,8 +554,8 @@ test('interpret CLI submits default and explicit batch models with immutable out
     assert.deepEqual(readFileSync(f.dataset), before)
     const batches = f.events(f.paidLog).filter(event => event.batch)
     assert.equal(batches.length, 1)
-    assert.equal(batches[0].batch.model, entry.model)
-    assert.equal(batches[0].batch.endpoint, '/v1/messages')
+    assert.equal(batches[0].batch.model, wire(entry.model))
+    assert.equal(batches[0].batch.endpoint, '/v1/chat/completions')
     assert.equal(f.events(f.paidLog).some(event => event.constructor === true), false)
     const sidecar = JSON.parse(readFileSync(`${output}.batch-state.json`))
     assert.equal(sidecar.stages.features.batchId, 'batch_mock')
@@ -553,11 +566,11 @@ test('gallery rejects default and explicit batch models before acquisition, retr
   for (const [args, model] of [[[], BATCH_MODEL], [['--model', 'synthetic/explicit:batch'], 'synthetic/explicit:batch']]) {
     const f = setup(t)
     const result = f.runGallery(['--interpret', '--allow-paid', '--fetch', '--retries', '3', ...args], {
-      OPENROUTER_API_KEY: 'synthetic', ATLAS_TEST_ACQUISITION: 'simulate',
+      OPENAI_API_KEY: 'synthetic', ATLAS_TEST_ACQUISITION: 'simulate',
     })
     assertBatchModelRejected(result, model)
     assert.equal(existsSync(f.out), false)
-    assert.equal(f.events(f.paidLog).filter((event) => event.constructor === true).length, 1)
+    assert.equal(f.events(f.paidLog).filter((event) => event.constructor === true).length, 0)
     assertNoModelRequests(f)
     assert.ok(f.events(f.gitLog).every(({ args }) => !args.some((arg) => ['fetch', 'clone', 'checkout', 'reset'].includes(arg))))
     assert.equal(git(f.repository, ['rev-parse', 'HEAD']), f.current)
@@ -567,11 +580,11 @@ test('gallery rejects default and explicit batch models before acquisition, retr
 test('interpret chooses an immutable sibling output and preserves its source dataset', (t) => {
   const f = setup(t)
   const before = readFileSync(f.dataset)
-  const result = f.invoke('interpret.mjs', ['--in', f.dataset, '--allow-paid', '--provider', 'openrouter', '--model', SYNC_MODEL], { OPENROUTER_API_KEY: 'synthetic' })
+  const result = f.invoke('interpret.mjs', ['--in', f.dataset, '--allow-paid', '--provider', 'openai', '--model', SYNC_MODEL], { OPENAI_API_KEY: 'synthetic' })
   assert.equal(result.status, 0, result.stderr)
   assert.deepEqual(readFileSync(f.dataset), before)
   assert.equal(existsSync(join(f.root, 'atlas.interpreted.json')), true)
-  const replay = f.invoke('interpret.mjs', ['--in', f.dataset, '--allow-paid', '--provider', 'openrouter', '--model', SYNC_MODEL], { OPENROUTER_API_KEY: 'synthetic' })
+  const replay = f.invoke('interpret.mjs', ['--in', f.dataset, '--allow-paid', '--provider', 'openai', '--model', SYNC_MODEL], { OPENAI_API_KEY: 'synthetic' })
   assert.equal(replay.status, 1)
   assert.match(replay.stderr, /Output already exists/)
   assert.equal(f.events(f.paidLog).filter((event) => event.request).length, 1)
@@ -587,7 +600,7 @@ test('interpret rejects source aliases and existing output before constructing a
     else if (alias === 'hardlink') linkSync(f.dataset, output)
     else if (alias === 'broken-symlink') symlinkSync(join(f.root, 'absent.json'), output)
     else writeFileSync(output, 'keep existing artifact\n')
-    const result = f.invoke('interpret.mjs', ['--in', f.dataset, '--out', output, '--allow-paid', '--provider', 'openrouter'], { OPENROUTER_API_KEY: 'synthetic' })
+    const result = f.invoke('interpret.mjs', ['--in', f.dataset, '--out', output, '--allow-paid', '--provider', 'openai'], { OPENAI_API_KEY: 'synthetic' })
     assert.equal(result.status, 1)
     assert.match(result.stderr, /Output must be separate|Output already exists/)
     assert.deepEqual(readFileSync(f.dataset), before)
@@ -599,7 +612,7 @@ test('epochs requires paid permission for either missing proposals or period nam
   const f = setup(t)
   const output = join(f.root, 'epochs.json')
   for (const args of [[], ['--no-labels'], ['--proposals', 'missing.json']]) {
-    const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, ...args], { OPENROUTER_API_KEY: 'synthetic' })
+    const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, ...args], { OPENAI_API_KEY: 'synthetic' })
     assert.equal(result.status, 1)
     assert.match(result.stderr, /requires --allow-paid/)
     assert.equal(existsSync(output), false)
@@ -624,14 +637,14 @@ test('epochs batches proposal windows and skips paid submission for histories to
     for (const [index, model] of [BATCH_MODEL, 'synthetic/explicit:batch'].entries()) {
       const output = join(f.root, `epochs-${index}.json`)
       const proposals = join(f.root, `proposals-${index}.json`)
-      const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, '--save-proposals', proposals, '--allow-paid', '--no-labels', '--batch-poll-ms', '1', ...(index ? ['--model', model] : [])], { OPENROUTER_API_KEY: 'synthetic', ATLAS_TEST_BATCH: '1' })
+      const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, '--save-proposals', proposals, '--allow-paid', '--no-labels', '--batch-poll-ms', '1', ...(index ? ['--model', model] : [])], { OPENAI_API_KEY: 'synthetic', ATLAS_TEST_BATCH: '1' })
       assert.equal(result.status, 0, result.stderr)
       assert.equal(existsSync(output), true)
       assert.equal(existsSync(proposals), true)
       assert.deepEqual(readFileSync(f.dataset), before)
-      assert.equal(JSON.parse(readFileSync(output)).method, `epoch-boundaries:openrouter:${model}`)
+      assert.equal(JSON.parse(readFileSync(output)).method, `epoch-boundaries:openai:${model}`)
       if (episodeCount > 1) {
-        assert.equal(f.events(f.paidLog).at(-1).batch.model, model)
+        assert.equal(f.events(f.paidLog).at(-1).batch.model, wire(model))
         assert.equal(f.events(f.paidLog).at(-1).batch.endpoint, '/v1/chat/completions')
       }
     }
@@ -646,14 +659,14 @@ test('epochs batches period naming when reusing saved proposals', (t) => {
   writeFileSync(proposals, bytes)
   for (const [index, model] of [BATCH_MODEL, 'synthetic/explicit:batch'].entries()) {
     const output = join(f.root, `epochs-${index}.json`)
-    const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, '--proposals', proposals, '--allow-paid', '--batch-poll-ms', '1', ...(index ? ['--model', model] : [])], { OPENROUTER_API_KEY: 'synthetic', ATLAS_TEST_BATCH: '1' })
+    const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, '--proposals', proposals, '--allow-paid', '--batch-poll-ms', '1', ...(index ? ['--model', model] : [])], { OPENAI_API_KEY: 'synthetic', ATLAS_TEST_BATCH: '1' })
     assert.equal(result.status, 0, result.stderr)
     assert.equal(existsSync(output), true)
     assert.deepEqual(readFileSync(proposals), bytes)
-    assert.equal(f.events(f.paidLog).at(-1).batch.model, model)
+    assert.equal(f.events(f.paidLog).at(-1).batch.model, wire(model))
     const document = JSON.parse(readFileSync(output))
     assert.equal(document.levels[0][0].label, 'Synthetic period')
-    assert.equal(document.levels[0][0].labelMethod, `period-label:openrouter:${model}`)
+    assert.equal(document.levels[0][0].labelMethod, `period-label:openai:${model}`)
   }
   assert.equal(f.events(f.paidLog).length, 2)
 })
@@ -671,7 +684,7 @@ test('epochs replay preserves synchronous or batch provenance despite current de
       const document = JSON.parse(readFileSync(output, 'utf8'))
       assert.equal(document.headSha, f.pin)
       assert.equal(document.model.model, model)
-      assert.equal(document.method, `epoch-boundaries:openrouter:${model}`)
+      assert.equal(document.method, `epoch-boundaries:openai:${model}`)
       assert.equal(document.model.reusedSha256, createHash('sha256').update(bytes).digest('hex'))
       assert.equal(document.labels, null)
     }
@@ -695,7 +708,7 @@ test('epochs refuses replay/output aliases and invalid numeric flags before any 
     if (alias === 'save-proposals') args = ['--allow-paid', '--save-proposals', f.dataset]
     if (alias === 'fractional-stride') args = ['--allow-paid', '--stride', '0.5']
     if (alias === 'depth-too-large') args = ['--allow-paid', '--depth', '4']
-    const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, ...args], { OPENROUTER_API_KEY: 'synthetic' })
+    const result = f.invoke('epochs.mjs', ['--in', f.dataset, '--out', output, ...args], { OPENAI_API_KEY: 'synthetic' })
     assert.equal(result.status, 1)
     assert.match(result.stderr, /Output must be separate|positive integer|integer from 0 to 3/)
     assert.deepEqual(readFileSync(proposals), bytes)

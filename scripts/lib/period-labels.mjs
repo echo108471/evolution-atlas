@@ -11,9 +11,9 @@
  * which is what keeps the request bounded no matter how long the repository is.
  */
 
-import { OPENROUTER_ENDPOINT, extractJson } from './phase-model.mjs'
-import { requireSynchronousModel } from './model-defaults.mjs'
-import { batchResultBody } from './openrouter-batch.mjs'
+import { extractJson } from './phase-model.mjs'
+import { providerMethod, requestChatCompletion, requireSynchronousModel } from './openai-provider.mjs'
+import { batchResultBody } from './openai-batch.mjs'
 
 const REQUEST_TIMEOUT_MS = 180000
 const MAX_SAMPLED_COMMITS = 60
@@ -117,7 +117,7 @@ Name the era these periods form.`
 export function buildLabelRequest(prompt, systemPrompt, model) {
   return {
     model,
-    max_tokens: 1500,
+    max_completion_tokens: 1500,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: prompt },
@@ -134,22 +134,8 @@ export function parseLabelResponse(payload) {
 }
 
 export async function requestLabel(prompt, systemPrompt, { model, apiKey, fetchImpl = fetch } = {}) {
-  requireSynchronousModel(model)
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-  let response
-  try {
-    response = await fetchImpl(OPENROUTER_ENDPOINT, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify(buildLabelRequest(prompt, systemPrompt, model)),
-    })
-  } finally {
-    clearTimeout(timer)
-  }
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 180)}`)
-  return parseLabelResponse(await response.json())
+  const payload = await requestChatCompletion(buildLabelRequest(prompt, systemPrompt, model), { apiKey, fetchImpl, timeoutMs: REQUEST_TIMEOUT_MS, timeoutMessage: 'period label request' })
+  return parseLabelResponse(payload)
 }
 
 function applyLabel(period, parsed, method) {
@@ -176,7 +162,7 @@ export async function labelPeriodLevels(
 ) {
   // Configuration errors must abort, not become recoverable per-period failures.
   if (!batchRunner) requireSynchronousModel(model)
-  const method = `period-label:openrouter:${model}`
+  const method = providerMethod('period-label', model)
   const labeled = []
   const failures = []
   const usage = {}

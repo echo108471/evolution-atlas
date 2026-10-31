@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  PROVIDERS,
   buildCorpus,
   createClient,
   detectProvider,
@@ -404,16 +403,16 @@ test('interpretAtlas can reuse validated features when calibrating lifecycle dis
 for (const { name, options, provider, model } of [
   { name: 'Anthropic default', options: {}, provider: 'anthropic', model: 'claude-opus-5' },
   {
-    name: 'OpenRouter synchronous workaround',
-    options: { provider: 'openrouter', model: 'openai/gpt-6-luna' },
-    provider: 'openrouter',
-    model: 'openai/gpt-6-luna',
+    name: 'OpenAI synchronous workaround',
+    options: { provider: 'openai', model: 'gpt-6-luna' },
+    provider: 'openai',
+    model: 'gpt-6-luna',
   },
   {
-    name: 'OpenRouter model override',
-    options: { provider: 'openrouter', model: '~deepseek/deepseek-v4-flash-latest' },
-    provider: 'openrouter',
-    model: '~deepseek/deepseek-v4-flash-latest',
+    name: 'OpenAI model override',
+    options: { provider: 'openai', model: 'gpt-5.4-mini' },
+    provider: 'openai',
+    model: 'gpt-5.4-mini',
   },
 ]) {
   test(`interpretAtlas records ${name} in feature and lifecycle candidates`, async () => {
@@ -465,19 +464,21 @@ for (const { name, options, provider, model } of [
 }
 
 test('resolveProvider rejects an unknown provider name', () => {
-  assert.equal(resolveProvider('openrouter').baseURL, 'https://openrouter.ai/api')
+  assert.equal(resolveProvider('openai').transport, 'chat-completions')
+  assert.throws(() => resolveProvider('openrouter'), /Unknown provider/)
   assert.throws(() => resolveProvider('ollama'), /Unknown provider/)
 })
 
-test('detectProvider prefers OpenRouter only when it is the sole credential', () => {
-  assert.equal(detectProvider({ OPENROUTER_API_KEY: 'x' }), 'openrouter')
-  assert.equal(detectProvider({ ANTHROPIC_API_KEY: 'x', OPENROUTER_API_KEY: 'y' }), 'anthropic')
+test('detectProvider prefers OpenAI only when it is the sole credential', () => {
+  assert.equal(detectProvider({ OPENAI_API_KEY: 'x' }), 'openai')
+  assert.equal(detectProvider({ ANTHROPIC_API_KEY: 'x', OPENAI_API_KEY: 'y' }), 'anthropic')
   assert.equal(detectProvider({ ANTHROPIC_API_KEY: 'x' }), 'anthropic')
-  assert.equal(detectProvider({ ANTHROPIC_API_KEY: '', OPENROUTER_API_KEY: 'y' }), 'openrouter')
+  assert.equal(detectProvider({ ANTHROPIC_API_KEY: '', OPENAI_API_KEY: 'y' }), 'openai')
+  assert.equal(detectProvider({ OPENROUTER_API_KEY: 'x' }), 'anthropic')
   assert.equal(detectProvider({}), 'anthropic')
 })
 
-test('createClient points the SDK at the provider base URL and refuses a missing key', () => {
+test('createClient uses the Anthropic SDK only for Anthropic and refuses a missing OpenAI key', () => {
   const constructed = []
   class FakeAnthropic {
     constructor(options) {
@@ -485,32 +486,72 @@ test('createClient points the SDK at the provider base URL and refuses a missing
     }
   }
 
-  const env = { OPENROUTER_API_KEY: 'sk-or-test', ANTHROPIC_API_KEY: 'sk-ant-test' }
-  createClient(FakeAnthropic, 'openrouter', env)
-  assert.deepEqual(constructed[0], {
-    baseURL: PROVIDERS.openrouter.baseURL,
-    apiKey: 'sk-or-test',
-  })
+  const env = { OPENAI_API_KEY: 'sk-test', ANTHROPIC_API_KEY: 'sk-ant-test' }
+  const openai = createClient(FakeAnthropic, 'openai', env)
+  assert.equal(constructed.length, 0, 'the OpenAI provider never constructs the Anthropic SDK')
+  assert.equal(typeof openai.messages.stream, 'function')
 
   // Anthropic can authenticate from an `ant auth login` profile, so an absent
   // environment variable must not be treated as a missing credential.
   createClient(FakeAnthropic, 'anthropic', {})
-  assert.deepEqual(constructed[1], {})
+  assert.deepEqual(constructed[0], {})
 
   createClient(FakeAnthropic, 'anthropic', env)
-  assert.deepEqual(constructed[2], { apiKey: 'sk-ant-test' })
+  assert.deepEqual(constructed[1], { apiKey: 'sk-ant-test' })
 
-  createClient(FakeAnthropic, 'anthropic', { OPENROUTER_API_KEY: 'sk-or-test' })
-  assert.deepEqual(constructed[3], {}, 'an explicit Anthropic provider never uses the OpenRouter key')
+  createClient(FakeAnthropic, 'anthropic', { OPENAI_API_KEY: 'sk-test' })
+  assert.deepEqual(constructed[2], {}, 'an explicit Anthropic provider never uses the OpenAI key')
 
   assert.throws(
-    () => createClient(FakeAnthropic, 'openrouter', {}),
-    /OPENROUTER_API_KEY/,
+    () => createClient(FakeAnthropic, 'openai', {}),
+    /OPENAI_API_KEY/,
   )
   assert.throws(
-    () => createClient(FakeAnthropic, 'openrouter', { ANTHROPIC_API_KEY: 'sk-ant-test' }),
-    /OPENROUTER_API_KEY/,
+    () => createClient(FakeAnthropic, 'openai', { ANTHROPIC_API_KEY: 'sk-ant-test' }),
+    /OPENAI_API_KEY/,
   )
+})
+
+test('the OpenAI client translates Messages requests to Chat Completions and back', async () => {
+  const requests = []
+  const fetchImpl = async (url, options) => {
+    requests.push({ url, ...options, body: JSON.parse(options.body) })
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: '{"features":[]}' } }],
+        usage: { prompt_tokens: 12, completion_tokens: 3, prompt_tokens_details: { cached_tokens: 4 } },
+      }),
+    }
+  }
+  const client = createClient(class { constructor() { throw new Error('SDK constructed') } }, 'openai', { OPENAI_API_KEY: 'sk-test' }, { fetchImpl })
+  const { dataset, usage } = await interpretAtlas(observedDataset(), { client, provider: 'openai', model: 'gpt-6-luna' })
+
+  assert.equal(dataset.featureCandidates.length, 0)
+  assert.equal(requests.length, 1)
+  const [request] = requests
+  assert.equal(request.url, 'https://api.openai.com/v1/chat/completions')
+  assert.equal(request.headers.authorization, 'Bearer sk-test')
+  assert.deepEqual(Object.keys(request.body).sort(), ['max_completion_tokens', 'messages', 'model', 'response_format'])
+  assert.equal(request.body.model, 'gpt-6-luna')
+  assert.equal(request.body.max_completion_tokens, 32000)
+  assert.deepEqual(request.body.response_format, { type: 'json_object' })
+  assert.deepEqual(request.body.messages.map((message) => message.role), ['system', 'user'])
+  assert.match(request.body.messages[0].content, /candidate features/)
+  assert.match(request.body.messages[1].content, /Propose at most 40 candidate features/)
+  assert.doesNotMatch(JSON.stringify(request.body), /cache_control|output_config/)
+  assert.deepEqual(usage, { input_tokens: 12, cache_read_input_tokens: 4, output_tokens: 3 })
+})
+
+test('the OpenAI client maps truncation and refusal to the shared failure messages', async () => {
+  for (const [choice, pattern] of [
+    [{ finish_reason: 'length', message: { content: '{"feat' } }, /truncated during feature discovery/],
+    [{ finish_reason: 'stop', message: { content: null, refusal: 'Synthetic refusal' } }, /declined feature discovery \(Synthetic refusal\)/],
+  ]) {
+    const fetchImpl = async () => ({ ok: true, json: async () => ({ choices: [choice] }) })
+    const client = createClient(null, 'openai', { OPENAI_API_KEY: 'sk-test' }, { fetchImpl })
+    await assert.rejects(interpretAtlas(observedDataset(), { client, provider: 'openai', model: 'gpt-6-luna' }), pattern)
+  }
 })
 
 test('extractJson recovers an object from fenced or prose-wrapped output', () => {
@@ -522,16 +563,17 @@ test('extractJson recovers an object from fenced or prose-wrapped output', () =>
   assert.throws(() => extractJson('no object here'), /no JSON object/)
 })
 
-test('interpretAtlas requires persistent batch transport for the OpenRouter default', async () => {
+test('interpretAtlas requires persistent batch transport for the OpenAI default', async () => {
   const client = { messages: { stream: () => { throw new Error('Unexpected synchronous dispatch') } } }
   await assert.rejects(
-    interpretAtlas(observedDataset(), { client, provider: 'openrouter' }),
-    /requires a persistent OpenRouter batchRunner/,
+    interpretAtlas(observedDataset(), { client, provider: 'openai' }),
+    /requires a persistent OpenAI batchRunner/,
   )
 })
 
 test('interpretationMethod distinguishes provider and model', () => {
-  assert.equal(interpretationMethod('openrouter', 'anthropic/claude-opus-5'), 'llm-induction:openrouter:anthropic/claude-opus-5')
+  assert.equal(interpretationMethod('openai', 'gpt-6-luna:batch'), 'llm-induction:openai:gpt-6-luna:batch')
+  assert.equal(interpretationMethod('anthropic', 'claude-opus-5'), 'llm-induction:anthropic:claude-opus-5')
 })
 
 test('interpretAtlas surfaces a refusal rather than writing an empty interpretation', async () => {
@@ -550,26 +592,22 @@ test('interpretAtlas surfaces a refusal rather than writing an empty interpretat
   await assert.rejects(() => interpretAtlas(observedDataset(), { client }), /declined.*cyber/)
 })
 
-test('resolveProvider accepts a model override only for gateway providers', () => {
-  assert.equal(
-    resolveProvider('openrouter', '~deepseek/deepseek-v4-flash-latest').model,
-    '~deepseek/deepseek-v4-flash-latest',
-  )
-  assert.equal(resolveProvider('openrouter').model, 'openai/gpt-6-luna:batch')
+test('resolveProvider accepts a model override only for the OpenAI provider', () => {
+  assert.equal(resolveProvider('openai', 'gpt-5.4-mini').model, 'gpt-5.4-mini')
+  assert.equal(resolveProvider('openai').model, 'gpt-6-luna:batch')
   assert.equal(resolveProvider('anthropic').model, 'claude-opus-5')
   assert.equal(resolveProvider().name, 'anthropic')
   assert.equal(resolveProvider().model, 'claude-opus-5')
   assert.throws(() => resolveProvider('anthropic', 'some/other-model'), /only meaningful/)
-  assert.throws(() => resolveProvider('anthropic', 'openai/gpt-6-luna:batch'), /only meaningful/)
+  assert.throws(() => resolveProvider('anthropic', 'gpt-6-luna:batch'), /only meaningful/)
 })
 
 test('supportsOutputConfig gates Anthropic-only request fields', () => {
   assert.equal(supportsOutputConfig('claude-opus-5'), true)
   assert.equal(supportsOutputConfig('anthropic/claude-opus-5'), true)
-  assert.equal(supportsOutputConfig('~deepseek/deepseek-v4-flash-latest'), false)
-  assert.equal(supportsOutputConfig('x-ai/grok-4.6'), false)
-  assert.equal(supportsOutputConfig('openai/gpt-5.2'), false)
-  assert.equal(supportsOutputConfig('openai/gpt-6-luna:batch'), false)
+  assert.equal(supportsOutputConfig('gpt-5.4-mini'), false)
+  assert.equal(supportsOutputConfig('gpt-6-luna'), false)
+  assert.equal(supportsOutputConfig('gpt-6-luna:batch'), false)
 })
 
 test('interpretAtlas omits output_config for a non-Anthropic model', async () => {
@@ -591,15 +629,11 @@ test('interpretAtlas omits output_config for a non-Anthropic model', async () =>
 
   await interpretAtlas(observedDataset(), {
     client,
-    provider: 'openrouter',
-    model: '~deepseek/deepseek-v4-flash-latest',
+    provider: 'openai',
+    model: 'gpt-5.4-mini',
   })
   assert.equal('output_config' in requests[0], false)
 
-  await interpretAtlas(observedDataset(), {
-    client,
-    provider: 'openrouter',
-    model: 'anthropic/claude-opus-5',
-  })
+  await interpretAtlas(observedDataset(), { client, provider: 'anthropic' })
   assert.equal(requests[1].output_config.format.type, 'json_schema')
 })

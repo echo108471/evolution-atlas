@@ -112,7 +112,7 @@ async function main() {
   const criticized = parseHierarchyCriticPayload(payload, dataset)
   const document = {
     schemaVersion: '0.1.0',
-    method: `capability-hierarchy-critic:openrouter:${options.model}`,
+    method: `capability-hierarchy-critic:openai:${options.model}`,
     repository: dataset.repository,
     headSha: dataset.headSha,
     source: { hierarchyReviewContentSha256: dataset.protocol?.contentSha256 ?? null },

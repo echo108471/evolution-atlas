@@ -66,22 +66,21 @@ and a confidence. Every cited SHA is resolved against the observed dataset;
 unresolvable citations are dropped rather than trusted, as in the interpretation
 stage.
 
-Requests use the `/v1/chat/completions` shape. Models ending in `:batch` send
-that shape through OpenRouter's Batch API; other slugs send live requests to
-`https://openrouter.ai/api/v1/chat/completions`. Interpretation uses the
-Anthropic Messages shape instead.
+Requests use the OpenAI `/v1/chat/completions` shape. Models ending in `:batch`
+send that shape through the OpenAI Batch API (the `:batch` marker is stripped
+from the model ID sent to OpenAI); other model IDs send live requests to
+`https://api.openai.com/v1/chat/completions`.
 
-The default is `openai/gpt-6-luna:batch`, shared with OpenRouter interpretation
-through `scripts/lib/model-defaults.mjs`. `--model` overrides it for both
-proposal discovery and period labeling. This is an OpenRouter-only path;
-`OPENROUTER_API_KEY` supplies credentials, and there is no environment model
-override. Batch proposal windows share one submission. After proposals are
+The default is `gpt-6-luna:batch`, shared with OpenAI interpretation through
+`scripts/lib/openai-provider.mjs`. `--model` overrides it for both proposal
+discovery and period labeling. This path uses OpenAI only; `OPENAI_API_KEY`
+supplies credentials, and there is no environment model override. Batch proposal windows share one submission. After proposals are
 validated and the hierarchy is built, all period labels at a given hierarchy
 level share a batch; parent labels wait for their child results. This preserves
 the existing candidate validation and `method` recording. Use
-`--model openai/gpt-6-luna` for live proposals and labels. See
-[request formats and preserved experiment pins](EXPERIMENTS.md#model-defaults-and-request-formats)
-and [batch operation](EXPERIMENTS.md#openrouter-batch-runs).
+`--model gpt-6-luna` for live proposals and labels. See
+[request formats and default models](EXPERIMENTS.md#model-defaults-and-request-formats)
+and [batch operation](EXPERIMENTS.md#openai-batch-runs).
 
 ### Focus signals — `scripts/lib/epochs.mjs`
 
@@ -301,7 +300,7 @@ node scripts/epochs.mjs --in scratch/atlas.json --allow-paid \
   --save-proposals scratch/proposals-next.json --out scratch/epochs-next.json
 ```
 
-Needs `--allow-paid` and `OPENROUTER_API_KEY`. The default uses asynchronous
+Needs `--allow-paid` and `OPENAI_API_KEY`. The default uses asynchronous
 batches, each with a completion window of up to **24 hours**. New batch work
 requires `--out`; its `<output>.batch-state.json` sidecar records batch IDs
 before polling and retains the completed raw results. Rerun the original
@@ -347,7 +346,7 @@ node scripts/epochs.mjs --in scratch/atlas.json \
 ```
 
 This replay needs neither an API key nor `--allow-paid`. See
-[batch resume and replay](EXPERIMENTS.md#openrouter-batch-runs) for failure
+[batch resume and replay](EXPERIMENTS.md#openai-batch-runs) for failure
 handling, the 30-day remote retention window, and pricing.
 
 Other options: `--model`, `--window`, `--stride`, `--peaks`, `--compact`.
@@ -372,7 +371,7 @@ built.
   "schemaVersion": "0.1.0",
   "repository": "course-recommender",
   "headSha": "…",
-  "method": "epoch-boundaries:openrouter:x-ai/grok-4.6",
+  "method": "epoch-boundaries:openai:gpt-6-luna:batch",
   "boundaries": [{
     "status": "candidate",
     "confidence": 0.78,

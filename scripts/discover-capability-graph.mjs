@@ -177,7 +177,6 @@ async function main() {
           'Consider whether broader relationships explain these behaviors better than the current roots. ' +
           'continue describes this investigation; unrelated unreviewed areas may still need later rounds.' } : {}),
     }, { model: options.model, maxTokens: options.maxTokens })
-    if (options.model.startsWith('x-ai/')) decisionRequest.reasoning = { effort: 'low' }
     let decision = await stage(round, 'decision', decisionRequest)
     let result
     const rejectedAttempts = []

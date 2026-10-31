@@ -15,7 +15,7 @@ import {
   resolveProvider,
 } from './lib/interpret.mjs'
 import { isPaymentError, withRetry } from './lib/retry.mjs'
-import { requireSynchronousModel } from './lib/model-defaults.mjs'
+import { requireSynchronousModel } from './lib/openai-provider.mjs'
 import { requireNewOutput, requirePaidPermission, requirePinnedCommit, requireSeparateOutput } from './lib/experiment-permissions.mjs'
 
 const DEFAULT_CATALOG = 'gallery/catalog.json'
@@ -61,7 +61,7 @@ A whole gallery should be interpreted by one provider and model. Candidates
 produced by different models are not comparable across subjects, so the
 manifest records which route produced each dataset.
 Gallery interpretation uses live requests; :batch models fail before acquisition
-or interpretation. Pass --model openai/gpt-6-luna, or use interpret for batch runs.
+or interpretation. Pass --model gpt-6-luna, or use interpret for batch runs.
 `
 }
 
@@ -162,7 +162,7 @@ function sourceIdentity(source) {
   return `${url.origin}${url.pathname.replace(/\/?(?:\.git)?\/?$/, '')}`
 }
 
-/** `llm-induction:openrouter:x-ai/grok-4.6` -> provider and model, model may contain colons. */
+/** `llm-induction:openai:gpt-6-luna:batch` -> provider and model, model may contain colons. */
 function splitInterpretationMethod(method) {
   const parts = String(method ?? '').split(':')
   if (parts.length < 3) return { provider: null, model: null }

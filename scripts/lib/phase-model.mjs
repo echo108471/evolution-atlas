@@ -9,12 +9,11 @@
  * it.
  */
 
-import { DEFAULT_OPENROUTER_MODEL, requireSynchronousModel } from './model-defaults.mjs'
-import { batchResultBody } from './openrouter-batch.mjs'
+import { API_KEY_ENV, DEFAULT_MODEL as DEFAULT_PROVIDER_MODEL, requestChatCompletion, requireSynchronousModel } from './openai-provider.mjs'
+import { batchResultBody } from './openai-batch.mjs'
 
-export const DEFAULT_MODEL = DEFAULT_OPENROUTER_MODEL
-export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
-export const API_KEY_ENV = 'OPENROUTER_API_KEY'
+export const DEFAULT_MODEL = DEFAULT_PROVIDER_MODEL
+export { API_KEY_ENV }
 
 const DEFAULT_WINDOW = 200
 const DEFAULT_STRIDE = 100
@@ -95,7 +94,7 @@ export function extractJson(text) {
 export function buildWindowRequest(dataset, windowPlan, model) {
   return {
     model,
-    max_tokens: 4000,
+    max_completion_tokens: 4000,
     messages: [
       { role: 'system', content: PHASE_SYSTEM_PROMPT },
       {
@@ -123,28 +122,12 @@ export function parseWindowResponse(payload) {
 }
 
 /**
- * Send one window to OpenRouter. Exported separately from the loop below so callers can
+ * Send one window to OpenAI. Exported separately from the loop below so callers can
  * substitute a stub and exercise the surrounding logic without a key or a network call.
  */
 export async function requestWindow(dataset, windowPlan, { model = DEFAULT_MODEL, apiKey, fetchImpl = fetch } = {}) {
-  requireSynchronousModel(model)
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-  let response
-  try {
-    response = await fetchImpl(OPENROUTER_ENDPOINT, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(buildWindowRequest(dataset, windowPlan, model)),
-      signal: controller.signal,
-    })
-  } finally {
-    clearTimeout(timer)
-  }
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 180)}`)
-  }
-  return parseWindowResponse(await response.json())
+  const payload = await requestChatCompletion(buildWindowRequest(dataset, windowPlan, model), { apiKey, fetchImpl, timeoutMs: REQUEST_TIMEOUT_MS, timeoutMessage: 'phase window request' })
+  return parseWindowResponse(payload)
 }
 
 /**

@@ -110,7 +110,7 @@ async function main() {
   const criticized = parseCapabilityCriticPayload(payload, dataset)
   const document = {
     schemaVersion: '0.1.0',
-    method: `capability-assignment-disagreement-critic:openrouter:${options.model}`,
+    method: `capability-assignment-disagreement-critic:openai:${options.model}`,
     repository: dataset.repository,
     headSha: dataset.headSha,
     source: {

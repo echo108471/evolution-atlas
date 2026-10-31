@@ -5,6 +5,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 
+import { REASONING_EFFORTS } from './lib/openai-provider.mjs'
+
 import {
   API_KEY_ENV,
   DEFAULT_MODEL,
@@ -32,7 +34,7 @@ Options:
   --max-evidence-readings <n>     Maximum retrieved readings (default: 32)
   --plan-max-tokens <n>           Maximum planner completion tokens (default: 8000)
   --decision-max-tokens <n>       Maximum decision completion tokens (default: 12000)
-  --reasoning-effort <level>      Decision reasoning: none, minimal, low, medium, high
+  --reasoning-effort <level>      Decision reasoning: none, low, medium, high, xhigh
   --plan-response <path>          Replay an already-saved planner response
   --decision-response <path>      Replay an already-saved decision response
   --plan-raw-out <path>           Save live planner response (default: <out>.plan.response.json)
@@ -112,7 +114,7 @@ function parseArguments(argv) {
     throw new Error('--planner-protocol must be broker-ranked-v1 or hard-cap-v0')
   }
   if (options.reasoningEffort &&
-    !['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(options.reasoningEffort)) {
+    !REASONING_EFFORTS.includes(options.reasoningEffort)) {
     throw new Error('--reasoning-effort is not a supported effort level')
   }
   options.plannerModel ??= options.model

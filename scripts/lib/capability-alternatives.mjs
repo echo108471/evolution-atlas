@@ -59,8 +59,7 @@ export function comparisonRequest(phase, context, model) {
       '"selectedId":"A","strongestAlternativeId":"B","reason":"...","unresolved":["..."]}.',
   }
   assert(instructions[phase], 'unknown phase')
-  return { model, temperature: 0, max_tokens: phase === 'compare' ? 5000 : 2200,
+  return { model, max_completion_tokens: phase === 'compare' ? 5000 : 2200,
     response_format: { type: 'json_object' },
-    ...(model.startsWith('x-ai/') ? { reasoning: { effort: 'low' } } : {}),
     messages: [{ role: 'system', content: common + instructions[phase] }, { role: 'user', content: JSON.stringify(context) }] }
 }

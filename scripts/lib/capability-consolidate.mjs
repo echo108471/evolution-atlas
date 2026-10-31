@@ -14,12 +14,11 @@
  */
 
 import { extractJson } from './phase-model.mjs'
-import { requireSynchronousModel } from './model-defaults.mjs'
+import { API_KEY_ENV, DEFAULT_ANALYSIS_MODEL, requestChatCompletion, requireSynchronousModel } from './openai-provider.mjs'
 import { withRetry } from './retry.mjs'
 
-export const DEFAULT_MODEL = 'x-ai/grok-4.6'
-export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
-export const API_KEY_ENV = 'OPENROUTER_API_KEY'
+export const DEFAULT_MODEL = DEFAULT_ANALYSIS_MODEL
+export { API_KEY_ENV }
 
 const DEFAULT_CHUNK = 250
 const REQUEST_TIMEOUT_MS = 600000
@@ -73,8 +72,7 @@ export function renderNames(names) {
 export function buildConsolidationRequest(names, { model, system = CONSOLIDATE_SYSTEM_PROMPT }) {
   return {
     model,
-    max_tokens: 16000,
-    usage: { include: true },
+    max_completion_tokens: 16000,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: `${renderNames(names)}\n\nGroup these ${names.length} names.` },
@@ -119,33 +117,8 @@ export function parseConsolidation(payload, names) {
 }
 
 export async function requestConsolidation(names, { model = DEFAULT_MODEL, apiKey, system, fetchImpl = fetch } = {}) {
-  requireSynchronousModel(model)
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-  let response
-  try {
-    response = await fetchImpl(OPENROUTER_ENDPOINT, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(buildConsolidationRequest(names, { model, system })),
-      signal: controller.signal,
-    })
-  } catch (error) {
-    if (error?.name === 'AbortError' || controller.signal.aborted) {
-      const timeout = new Error(`consolidation exceeded ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s`)
-      timeout.status = 408
-      throw timeout
-    }
-    throw error
-  } finally {
-    clearTimeout(timer)
-  }
-  if (!response.ok) {
-    const error = new Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 180)}`)
-    error.status = response.status
-    throw error
-  }
-  return parseConsolidation(await response.json(), names)
+  const payload = await requestChatCompletion(buildConsolidationRequest(names, { model, system }), { apiKey, fetchImpl, timeoutMs: REQUEST_TIMEOUT_MS, timeoutMessage: 'consolidation' })
+  return parseConsolidation(payload, names)
 }
 
 const chunk = (items, size) => {
