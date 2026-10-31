@@ -1,5 +1,10 @@
 # Existing repository: release scope and findings
 
+This document records the October 12 release audit. The Zod snapshot was later
+replaced with an owner-approved interpreted dataset; see the
+[current inventory](ZOD-DEMO-RELEASE-INVENTORY.md) and
+[later approval](RELEASE-APPROVAL.md#owner-approval-2026-10-30).
+
 The owner has chosen to make [echo108471/evolution-atlas](https://github.com/echo108471/evolution-atlas)
 public with its existing history. The earlier clean-export recommendation is
 superseded. Old reports, contact-like text, local paths and ordinary Git
