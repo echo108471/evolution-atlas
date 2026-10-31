@@ -118,8 +118,8 @@ credential variable, and the default models live in one module,
 | --- | --- | --- |
 | `DEFAULT_MODEL` | `gpt-6-luna:batch` | Interpretation (including gallery interpretation, which must pass a synchronous `--model`), epoch proposals, and epoch labels |
 | `DEFAULT_ANALYSIS_MODEL` | `gpt-6-luna` | Capability induction, consolidation, assignment, and the critics |
-| `DEFAULT_CHEAP_MODEL` | `gpt-5.4-mini` | Capability naming and first-tier commit readings |
-| `DEFAULT_DEPTH_MODEL` | `gpt-5.4` | Second-tier commit readings |
+| `DEFAULT_CHEAP_MODEL` | `gpt-6-luna` | Capability naming and first-tier commit readings |
+| `DEFAULT_DEPTH_MODEL` | `gpt-6-luna` | Second-tier commit readings |
 
 `:batch` is a local routing marker, not part of an OpenAI model ID. It selects
 the Batch API, is kept in candidate `method` values and sidecars, and is

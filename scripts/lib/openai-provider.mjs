@@ -22,9 +22,9 @@ export const DEFAULT_SYNC_MODEL = 'gpt-6-luna'
 // Heavy synchronous analysis: capability induction, consolidation, critics, assignment.
 export const DEFAULT_ANALYSIS_MODEL = 'gpt-6-luna'
 // Cheap, high-volume calls: capability naming and first-tier commit readings.
-export const DEFAULT_CHEAP_MODEL = 'gpt-5.4-mini'
+export const DEFAULT_CHEAP_MODEL = 'gpt-6-luna'
 // Second-tier (depth) commit readings.
-export const DEFAULT_DEPTH_MODEL = 'gpt-5.4'
+export const DEFAULT_DEPTH_MODEL = 'gpt-6-luna'
 
 /** Reasoning effort values the current OpenAI reasoning models accept. */
 export const REASONING_EFFORTS = ['none', 'low', 'medium', 'high', 'xhigh']
