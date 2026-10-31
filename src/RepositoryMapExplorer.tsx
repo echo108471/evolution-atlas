@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 
 import {
   asRecord,
+  historyConsultations,
+  integrationAccounting,
   parseCandidateMapText,
+  receiptGitLocation,
   receiptProvenance,
   resolveLocalMapUrl,
   safeText,
@@ -338,6 +341,8 @@ function EvidenceInspector({ receipt, missingId }: { receipt: JsonRecord | null;
       <dl className="map-evidence-facts">
         {path && <div><dt>Path</dt><dd><code>{path}</code></dd></div>}
         {commitSha && <div><dt>Commit</dt><dd><code>{commitSha}</code></dd></div>}
+        {safeText(receipt.pinnedCommitSha) && safeText(receipt.pinnedCommitSha) !== commitSha && <div><dt>Read at revision</dt><dd><code>{safeText(receipt.pinnedCommitSha)}</code></dd></div>}
+        {safeText(receipt.blobSha) && <div><dt>Blob</dt><dd><code>{safeText(receipt.blobSha)}</code></dd></div>}
         {typeof startLine === 'number' && <div><dt>Saved lines</dt><dd>{startLine}{typeof endLine === 'number' ? `–${endLine}` : ''}</dd></div>}
         {safeText(receipt.subject) && <div><dt>Subject</dt><dd>{safeText(receipt.subject)}</dd></div>}
         {safeText(receipt.tier) && <div><dt>Reading tier</dt><dd>{safeText(receipt.tier)}</dd></div>}
@@ -582,6 +587,234 @@ function CoverageSection({ artifact }: { artifact: CandidateMapArtifact }) {
   )
 }
 
+function shortSha(value: string) {
+  return /^[a-f0-9]{40,64}$/.test(value) ? value.slice(0, 10) : value
+}
+
+function NodeRef({ id, onOpenNode, known }: { id: string; onOpenNode: (id: string) => void; known: (id: string) => boolean }) {
+  if (!known(id)) return <code className="map-node-ref">{id}</code>
+  return <button type="button" className="map-node-ref" onClick={() => onOpenNode(id)}>{id}</button>
+}
+
+function GitLocation({ receipt }: { receipt: JsonRecord }) {
+  const { commitSha, path, lines } = receiptGitLocation(receipt)
+  if (!commitSha && !path) return null
+  return (
+    <span className="map-git-location">
+      {path && <code>{path}{lines ? `:${lines}` : ''}</code>}
+      {commitSha && <code title={commitSha}>@{shortSha(commitSha)}</code>}
+    </span>
+  )
+}
+
+function ConsultedHistory({ history }: { history: JsonRecord }) {
+  const { priorMaps, commitReadings } = historyConsultations(history)
+  return (
+    <section className="map-history-section map-consulted" aria-label="Earlier interpretations consulted">
+      <div className="map-section-heading">
+        <div>
+          <p className="map-kicker">Candidate context · not evidence</p>
+          <h2>Earlier interpretations consulted</h2>
+        </div>
+        <span>{priorMaps.length + commitReadings.length}</span>
+      </div>
+      <p className="map-history-boundary">Prior maps and cached per-commit readings are earlier model interpretations. Integration may consult them, but they cannot be cited as proof; claims must still cite observed source or diff receipts.</p>
+      <div className="map-consulted-grid">
+        <section>
+          <h3>Prior maps consulted<span>{priorMaps.length}</span></h3>
+          {priorMaps.length ? (
+            <ul className="map-consulted-list">
+              {priorMaps.map((map) => (
+                <li key={map.id}>
+                  <strong>{map.displayName || map.id}</strong>
+                  <span>{map.id}{map.version ? ` · ${map.version}` : ''}</span>
+                  {map.commitSha && <code title={map.commitSha}>@{shortSha(map.commitSha)}</code>}
+                  <p>
+                    {map.accessedNodeCount ?? '—'} of {map.nodeCount ?? '—'} candidate capabilities looked up
+                    {map.unaccessedNodeCount ? ` · ${map.unaccessedNodeCount} never opened` : ''}
+                    {map.edgeCount !== null ? ` · ${map.edgeCount} relationships in the map` : ''}
+                  </p>
+                  {map.artifactSha256 && <small>artifact sha256 {map.artifactSha256.slice(0, 16)}…</small>}
+                </li>
+              ))}
+            </ul>
+          ) : <p className="map-empty-field">No prior map was configured or consulted for this run.</p>}
+        </section>
+        <section>
+          <h3>Cached readings used<span>{commitReadings.length}</span></h3>
+          {commitReadings.length ? (
+            <ul className="map-consulted-list">
+              {commitReadings.map((reading, index) => (
+                <li key={`${reading.artifactId}:${reading.commitSha}:${index}`}>
+                  <strong>{reading.subject || 'Commit reading'}</strong>
+                  <span>{reading.artifactId}{reading.repositoryName ? ` · ${reading.repositoryName}` : ''}</span>
+                  {reading.commitSha && <code title={reading.commitSha}>@{shortSha(reading.commitSha)}</code>}
+                  {reading.readings.map((entry, entryIndex) => (
+                    <p key={entryIndex}>
+                      <em>Tier {safeText(String(entry.tier ?? '?'))}</em>{' '}
+                      {safeText(entry.summary, safeText(entry.intent, safeText(entry.reading, 'Reading recorded; open the raw record for fields.')))}
+                    </p>
+                  ))}
+                  <ObjectDetails value={reading.readings} label="Saved reading fields" />
+                </li>
+              ))}
+            </ul>
+          ) : <p className="map-empty-field">No cached per-commit reading was configured or retrieved for this run.</p>}
+        </section>
+      </div>
+    </section>
+  )
+}
+
+function IntegrationRecord({
+  graph,
+  onOpenNode,
+  known,
+  onSelectEvidence,
+}: {
+  graph: JsonRecord
+  onOpenNode: (id: string) => void
+  known: (id: string) => boolean
+  onSelectEvidence: (id: string) => void
+}) {
+  const { comparisons, decisions, lineage, edgeLineage } = integrationAccounting(graph)
+  if (!comparisons.length && !decisions.length && !lineage.length && !edgeLineage.length) return null
+  const edgeText = (edge: JsonRecord) => `${safeText(edge.from, '?')} — ${safeText(edge.type, 'relationship').replaceAll('_', ' ')} → ${safeText(edge.to, '?')}`
+  return (
+    <section className="map-history-section map-integration" aria-label="Integration record">
+      <div className="map-section-heading">
+        <div>
+          <p className="map-kicker">How the integrator consolidated proposals</p>
+          <h2>Graph comparisons and decisions</h2>
+        </div>
+        <span>candidate interpretation</span>
+      </div>
+      {comparisons.length > 0 && (
+        <details className="map-lineage-edges" open>
+          <summary>Comparisons with the earlier map · {comparisons.length}</summary>
+          <ol className="map-lineage-list">
+            {comparisons.map((entry, index) => (
+              <li key={`cmp:${index}`}>
+                <div className="map-lineage-title">
+                  <strong>{safeText(entry.relation, 'relation not recorded')}</strong>
+                  <span>{safeText(entry.disposition)}</span>
+                </div>
+                <p>
+                  <NodeRef id={safeText(entry.newNodeId, '?')} onOpenNode={onOpenNode} known={known} />
+                  {' compared with '}
+                  {safeTextList(entry.existingNodeIds).length
+                    ? safeTextList(entry.existingNodeIds).map((id, i) => <span key={id}>{i > 0 && ', '}<NodeRef id={id} onOpenNode={onOpenNode} known={known} /></span>)
+                    : 'no earlier capability'}
+                </p>
+                {safeText(entry.reason) && <p>{safeText(entry.reason)}</p>}
+                {safeTextList(entry.uncertainty).length > 0 && <p className="map-empty-field">Uncertainty: {safeTextList(entry.uncertainty).join(' ')}</p>}
+                <EvidenceLinks ids={safeTextList(entry.evidenceIds)} onSelect={onSelectEvidence} />
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+      {decisions.length > 0 && (
+        <details className="map-lineage-edges" open>
+          <summary>Global decisions · {decisions.length}</summary>
+          <ol className="map-lineage-list">
+            {decisions.map((entry, index) => (
+              <li key={`dec:${index}`}>
+                <div className="map-lineage-title"><strong>{safeText(entry.question, 'Question not recorded')}</strong></div>
+                <blockquote>{safeText(entry.decision)}</blockquote>
+                {safeText(entry.reason) && <p>{safeText(entry.reason)}</p>}
+                {safeTextList(entry.uncertainty).length > 0 && <p className="map-empty-field">Uncertainty: {safeTextList(entry.uncertainty).join(' ')}</p>}
+                <EvidenceLinks ids={safeTextList(entry.evidenceIds)} onSelect={onSelectEvidence} />
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+      {lineage.length > 0 && (
+        <details className="map-lineage-edges">
+          <summary>Capability consolidation lineage · {lineage.length}</summary>
+          <ol className="map-lineage-list">
+            {lineage.map((entry, index) => (
+              <li key={`lin:${index}`}>
+                <div className="map-lineage-title"><strong>{safeText(entry.decision, 'decision not recorded')}</strong></div>
+                <p>
+                  <NodeRef id={safeText(entry.originalId, '?')} onOpenNode={onOpenNode} known={known} />
+                  {' → '}
+                  {safeTextList(entry.successorIds).length
+                    ? safeTextList(entry.successorIds).map((id, i) => <span key={id}>{i > 0 && ', '}<NodeRef id={id} onOpenNode={onOpenNode} known={known} /></span>)
+                    : 'no successor'}
+                </p>
+                {safeText(entry.reason) && <p>{safeText(entry.reason)}</p>}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+      {edgeLineage.length > 0 && (
+        <details className="map-lineage-edges">
+          <summary>Relationship consolidation lineage · {edgeLineage.length}</summary>
+          <ol className="map-lineage-list">
+            {edgeLineage.map((entry, index) => (
+              <li key={`elin:${index}`}>
+                <div className="map-lineage-title">
+                  <strong>{safeText(entry.decision, 'decision not recorded')}</strong>
+                  <span>{safeText(entry.source, 'input')} edge #{typeof entry.originalIndex === 'number' ? entry.originalIndex : '?'}</span>
+                </div>
+                <p>{recordList(entry.successorEdges).length ? recordList(entry.successorEdges).map(edgeText).join('; ') : 'no successor'}</p>
+                {safeText(entry.reason) && <p>{safeText(entry.reason)}</p>}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </section>
+  )
+}
+
+function ProvenanceSection({ artifact }: { artifact: CandidateMapArtifact }) {
+  const provenance = asRecord(artifact.provenance)
+  const facts: Array<[string, string]> = [
+    ['Engine output version', safeText(artifact.version)],
+    ['Run status', safeText(artifact.status)],
+    ['Interpretation status', safeText(artifact.interpretationStatus, 'candidate')],
+    ['Independent verification', safeText(artifact.independentVerification, 'not-performed')],
+  ]
+  if (provenance) {
+    facts.push(['Run plan sha256', safeText(provenance.runPlanSha256)])
+    facts.push(['Integration packet sha256', safeText(provenance.integrationPacketSha256)])
+    facts.push(['Baseline output sha256', safeText(provenance.baselineRawSha256)])
+    facts.push(['Baseline run plan sha256', safeText(provenance.baselineRunPlanSha256)])
+  }
+  const shown = facts.filter(([, value]) => value)
+  const fingerprints = asRecord(provenance?.outputFingerprints)
+  return (
+    <section className="map-history-section map-provenance" aria-label="Artifact provenance">
+      <div className="map-section-heading">
+        <div>
+          <p className="map-kicker">Replay pins</p>
+          <h2>Provenance</h2>
+        </div>
+      </div>
+      <p>These digests pin the run plan, frozen integration packet and saved worker outputs this map was published from. They identify bytes for replay; they do not validate the interpretation.</p>
+      {shown.length > 0 ? (
+        <dl className="map-coverage-metrics map-provenance-facts">
+          {shown.map(([label, value]) => <div key={label}><dt>{label}</dt><dd><code>{value}</code></dd></div>)}
+        </dl>
+      ) : <p className="map-empty-field">No provenance record was included in this artifact.</p>}
+      {fingerprints && Object.keys(fingerprints).length > 0 && (
+        <details className="map-raw-details">
+          <summary>Worker output fingerprints · {Object.keys(fingerprints).length}</summary>
+          <dl className="map-coverage-metrics map-provenance-facts">
+            {Object.entries(fingerprints).map(([agent, digest]) => <div key={agent}><dt>{agent}</dt><dd><code>{safeText(digest)}</code></dd></div>)}
+          </dl>
+        </details>
+      )}
+      <ObjectDetails value={provenance?.priorMapPins} label="Prior-map pins" />
+      <ObjectDetails value={provenance?.commitReadingPins} label="Cached-reading pins" />
+    </section>
+  )
+}
+
 function MapError({ message, onDismiss }: { message: string; onDismiss: () => void }) {
   return (
     <div className="map-error" role="alert">
@@ -594,6 +827,7 @@ function MapError({ message, onDismiss }: { message: string; onDismiss: () => vo
 export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: RepositoryMapExplorerProps) {
   const [artifact, setArtifact] = useState<CandidateMapArtifact | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [graphView, setGraphView] = useState<'current' | 'baseline'>('current')
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   const [routeInput, setRouteInput] = useState(sourceUrl ?? '')
@@ -641,6 +875,7 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
         const loaded = await parseCandidateMapText(body)
         if (!controller.signal.aborted && sequence === loadSequence.current) {
           setArtifact(loaded)
+          setGraphView('current')
           setSelectedNodeId(loaded.graph.nodes[0]?.id ?? null)
         }
       } catch (cause) {
@@ -652,10 +887,31 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
     return () => controller.abort()
   }, [sourceUrl, routeAttempt])
 
-  const nodes = artifact?.graph.nodes ?? []
-  const edges = artifact?.graph.edges ?? []
+  const baselineGraph = artifact?.baselineGraph?.nodes.length ? artifact.baselineGraph : null
+  const showingBaseline = graphView === 'baseline' && baselineGraph !== null
+  const nodes = (showingBaseline ? baselineGraph?.nodes : artifact?.graph.nodes) ?? []
+  const edges = (showingBaseline ? baselineGraph?.edges : artifact?.graph.edges) ?? []
+  const currentIds = new Set(artifact?.graph.nodes.map((node) => node.id) ?? [])
+  const baselineIds = new Set(baselineGraph?.nodes.map((node) => node.id) ?? [])
+  const knownNode = (id: string) => currentIds.has(id) || baselineIds.has(id)
+  function openNode(id: string) {
+    if (currentIds.has(id)) setGraphView('current')
+    else if (baselineIds.has(id)) setGraphView('baseline')
+    else return
+    setSelectedNodeId(id)
+    setSelectedEvidenceId(null)
+    document.getElementById('map-capabilities')?.scrollIntoView({ block: 'start', behavior: 'instant' })
+  }
+  function switchGraph(view: 'current' | 'baseline') {
+    const target = view === 'baseline' ? baselineGraph : artifact?.graph
+    setGraphView(view)
+    setFilter('')
+    setSelectedEvidenceId(null)
+    setSelectedNodeId(target?.nodes[0]?.id ?? null)
+  }
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? nodes[0] ?? null
-  const receipts = artifact ? [...artifact.receipts, ...artifact.historyReceipts] : []
+  // v3 lists history receipts by ID against top-level receipts, so the same body can appear in both lists.
+  const receipts = artifact ? [...artifact.receipts, ...artifact.historyReceipts.filter((receipt) => !artifact.receipts.includes(receipt))] : []
   const evidenceById = useMemo(() => {
     const indexed = new Map<string, JsonRecord>()
     receipts.forEach((receipt) => {
@@ -672,6 +928,7 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
   const reviewNotes = recordList(asRecord(artifact?.reviewNotes)?.notes)
   const history = asRecord(artifact?.history)
   const transition = asRecord(history?.transition)
+  const baselineCommitSha = safeText(transition?.fromCommitSha)
   const reviewHistory = asRecord(artifact?.reviewHistory)
   const coverage = asRecord(artifact?.coverage)
 
@@ -691,6 +948,7 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
       onSourceUrl(null)
       setFilter('')
       setArtifact(loaded)
+      setGraphView('current')
       setSelectedNodeId(loaded.graph.nodes[0]?.id ?? null)
       setSelectedEvidenceId(null)
     } catch (cause) {
@@ -802,6 +1060,7 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
             <div><strong>{metric(edges.length)}</strong><span>relationships</span></div>
             <div><strong>{metric(artifact.receipts.filter((receipt) => receipt.kind === 'source').length)}</strong><span>source windows</span></div>
             <div><strong>{metric(coverage?.files)}</strong><span>files inspected</span></div>
+            <div><strong>{metric(artifact.historyReceipts.length)}</strong><span>history receipts</span></div>
             <div><strong>{reviewNotes.length}</strong><span>review notes</span></div>
           </section>
 
@@ -811,13 +1070,30 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
             <a href="#map-evidence">Evidence store</a>
             <a href="#map-review">Review context</a>
             <a href="#map-coverage">Coverage &amp; omissions</a>
+            <a href="#map-provenance">Provenance</a>
           </nav>
+
+          {baselineGraph && (
+            <section className="map-graph-toggle" aria-label="Choose which revision's candidate map to show">
+              <div role="group" aria-label="Revision">
+                <button type="button" aria-pressed={!showingBaseline} className={!showingBaseline ? 'is-selected' : ''} onClick={() => switchGraph('current')}>
+                  Current map<small>{artifact.commitSha ? `@${shortSha(artifact.commitSha)}` : 'this revision'} · {artifact.graph.nodes.length} capabilities</small>
+                </button>
+                <button type="button" aria-pressed={showingBaseline} className={showingBaseline ? 'is-selected' : ''} onClick={() => switchGraph('baseline')}>
+                  Baseline map<small>{baselineCommitSha ? `@${shortSha(baselineCommitSha)}` : 'earlier revision'} · {baselineGraph.nodes.length} capabilities</small>
+                </button>
+              </div>
+              <p>{showingBaseline
+                ? 'Showing the earlier candidate map this expansion compared against. Its IDs and receipts carry the old: prefix; source receipts were read at the earlier revision.'
+                : 'Showing the integrated candidate map at this revision. Switch to the baseline to compare it with the earlier map.'}</p>
+            </section>
+          )}
 
           <section id="map-capabilities" className="map-explorer" aria-label="Candidate capability map">
             <nav className="map-node-index" aria-label="Capability list">
               <div className="map-index-heading">
                 <div>
-                  <p className="map-kicker">The candidate map</p>
+                  <p className="map-kicker">{showingBaseline ? 'Baseline candidate map' : 'The candidate map'}</p>
                   <h2>Capabilities</h2>
                 </div>
                 <span>{filteredNodes.length}/{nodes.length}</span>
@@ -887,6 +1163,8 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
           <div id="map-history" className="map-anchor-section">
             {transition && <RevisionTransition transition={transition} />}
             {history && <HistoryLineage history={history} onSelectEvidence={selectEvidence} />}
+            {history && Object.hasOwn(history, 'priorMaps') && <ConsultedHistory history={history} />}
+            <IntegrationRecord graph={artifact.graph} onOpenNode={openNode} known={knownNode} onSelectEvidence={selectEvidence} />
             {!transition && !recordList(history?.lineage).length && !recordList(history?.edgeLineage).length && (
               <section className="map-history-section"><p className="map-kicker">History</p><h2>No cross-revision history included</h2><p>This artifact supplies a snapshot candidate map. It does not establish capability evolution. Open a descendant-revision expansion to inspect observed changes and candidate lineage.</p></section>
             )}
@@ -898,7 +1176,7 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
             <ul className="map-receipt-catalog">
               {receipts.map((receipt, index) => (
                 <li key={`${safeText(receipt.id)}:${index}`}><button type="button" onClick={() => selectEvidence(safeText(receipt.id))}>
-                  <strong>{safeText(receipt.id)}</strong><span>{receiptProvenance(receipt.kind).label}</span><code>{safeText(receipt.path, safeText(receipt.commitSha))}</code>
+                  <strong>{safeText(receipt.id)}</strong><span>{receiptProvenance(receipt.kind).label}</span><GitLocation receipt={receipt} />
                 </button></li>
               ))}
             </ul>
@@ -913,6 +1191,7 @@ export function RepositoryMapExplorer({ sourceUrl, onSourceUrl, onBack }: Reposi
             {reviewHistory && <ReviewHistory reviewHistory={reviewHistory} onSelectEvidence={selectEvidence} />}
           </div>
           <div id="map-coverage" className="map-anchor-section"><CoverageSection artifact={artifact} /></div>
+          <div id="map-provenance" className="map-anchor-section"><ProvenanceSection artifact={artifact} /></div>
         </>
       )}
       <footer className="map-footer">

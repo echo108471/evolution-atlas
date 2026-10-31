@@ -197,3 +197,14 @@ test('missing or malformed publication manifests fail closed', t => {
   manifest(root, [{ ...asset, sha256: createHash('sha256').update(bytes).digest('hex') }])
   assert.throws(() => loadPublicationAssets(root), /invalid JSON asset/)
 })
+
+test('approval manifest accepts an approved candidate map under maps/ and nothing broader', t => {
+  const root = fixture(t)
+  const { asset } = approvedFixture(root)
+  manifest(root, [{ ...asset, path: 'maps/synthetic/reviewed-output.json' }])
+  assert.equal(loadPublicationAssets(root)[0].path, 'maps/synthetic/reviewed-output.json')
+  for (const path of ['maps', 'mapsx/output.json', 'maps/../gallery/x.json', 'maps/.hidden/output.json']) {
+    manifest(root, [{ ...asset, path }])
+    assert.throws(() => loadPublicationAssets(root), /Publication manifest:/)
+  }
+})

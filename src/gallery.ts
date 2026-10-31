@@ -31,6 +31,11 @@ export interface GallerySubject {
   /** Reviewed snapshot metadata served beside an optional exported demo. */
   notice?: string
   provenance?: string
+  /**
+   * Same-site route to an owner-approved candidate capability map for this subject, such as
+   * `/maps/zod/reviewed-output.json`. Absent until a map is approved for publication.
+   */
+  map?: string
 }
 
 export interface GalleryManifest {

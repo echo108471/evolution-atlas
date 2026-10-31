@@ -90,6 +90,9 @@ export function GalleryIndex({ subjects, onSelectSubject }: GalleryIndexProps) {
                 </span>
                 {subject.notice && <a href={subject.notice}>License notice</a>}
                 {subject.provenance && <a href={subject.provenance}>Snapshot provenance</a>}
+                {subject.map?.startsWith('/') && (
+                  <a href={`?view=map&map=${encodeURIComponent(subject.map)}`}>Open candidate capability map</a>
+                )}
               </footer>
             </article>
           </li>

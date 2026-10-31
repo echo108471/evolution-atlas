@@ -138,8 +138,14 @@ Open **Candidate map** from the app and choose `output.json` or
 `reviewed-output.json`. Imports stay in browser memory. A local preview can also
 use `?view=map&map=/graph-reviews/YOUR_RUN/reviewed-output.json`. The view separates
 observed revision changes, candidate evolution, coverage limits, source receipts,
-current review notes, and historical review notes. Importing a file does not add
-it to the hosted gallery.
+current review notes, and historical review notes. For an expansion it can switch
+between the current map and the `baselineGraph` it was compared against, lists the
+prior maps and cached per-commit readings integration consulted (labeled candidate
+context, never evidence), shows the integrator's comparisons, decisions and
+consolidation lineage, and shows the output's provenance pins. History receipts are
+resolved from `history.receiptIds` against the top-level `receipts`. Importing a file
+does not add it to the hosted gallery. A gallery subject links to a map only when an
+owner-approved map is published under `maps/` and named by the subject's `map` field.
 
 ## Acceptance boundary
 
