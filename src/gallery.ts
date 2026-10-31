@@ -28,6 +28,11 @@ export interface GallerySubject {
   lastAuthoredAt: string
   interpreted: boolean
   interpretation: GalleryInterpretation | null
+  /**
+   * Same-origin path of this subject's epoch document (e.g. `/gallery/zod-epochs.json`).
+   * Absent when no periods were generated; the viewer then requests none.
+   */
+  periods?: string
   /** Reviewed snapshot metadata served beside an optional exported demo. */
   notice?: string
   provenance?: string

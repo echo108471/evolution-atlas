@@ -32,6 +32,8 @@ npm run dev
 
 - The optional Periods view needs a matching periods document. Keep generated
   repository data in ignored local paths.
+- Datasets with no contributor records (for example the published zod demo, which omits
+  identities) hide People and Manage identities; their routes fall back to Overview.
 
 ## User-facing surfaces
 

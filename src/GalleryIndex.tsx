@@ -56,8 +56,9 @@ export function GalleryIndex({ subjects, onSelectSubject }: GalleryIndexProps) {
                     <dd>{NUMBER.format(subject.commitCount)}</dd>
                   </div>
                   <div>
-                    <dt>Contributor records</dt>
-                    <dd>{NUMBER.format(subject.contributorCount)}</dd>
+                    {/* Every Git history has authors, so zero records means the export omitted them. */}
+                    <dt>Contributor identities</dt>
+                    <dd>{subject.contributorCount > 0 ? NUMBER.format(subject.contributorCount) : 'Omitted'}</dd>
                   </div>
                   <div>
                     <dt>Span</dt>

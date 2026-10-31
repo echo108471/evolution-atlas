@@ -42,6 +42,7 @@ const EXPECTED_FETCH_CANCEL_PATHS = new Set([
   '/gallery/synthetic-atlas.json',
   '/atlas.json',
   '/epochs.json',
+  '/gallery/synthetic-epochs.json',
   '/maps/output.json',
 ])
 const HARNESS_SOURCE_FILES = [
@@ -362,6 +363,7 @@ function populateRuntime(runtime) {
   writeJsonFile(join(publicDir, 'epochs.json'), syntheticPeriods(dataset))
   writeJsonFile(join(publicDir, 'gallery', 'manifest.json'), syntheticGallery(dataset))
   writeJsonFile(join(publicDir, 'gallery', 'synthetic-atlas.json'), dataset)
+  writeJsonFile(join(publicDir, 'gallery', 'synthetic-epochs.json'), syntheticPeriods(dataset))
   writeJsonFile(join(publicDir, 'maps', 'output.json'), syntheticCandidateMap())
   writeJsonFile(join(publicDir, 'maps', 'history-output.json'), syntheticHistoryCandidateMap())
   return { ...runtime, dataset }

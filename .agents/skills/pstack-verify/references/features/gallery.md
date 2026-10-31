@@ -41,8 +41,9 @@ GET responses against exact hashes when those fields are present. It records
 gallery, overview, repository and selected-commit evidence screenshots plus
 source/build fingerprints. It checks a previous checkpoint when available and
 compares the selected commit's revision, label and touched paths against the
-prepared dataset without copying its full commit corpus into evidence logs. A missing
-optional epochs.json is recorded as a scoped 404; other browser or request
+prepared dataset without copying its full commit corpus into evidence logs. The app no
+longer probes a root epochs.json for gallery subjects (only a subject's manifest `periods`
+path is requested), so the scoped epochs.json 404 allowance should go unused; other browser or request
 errors fail. It does not approve publication or attest that assets were emitted
 by the publication plugin. Synthetic `verify --feature gallery` stays the
 default; no prepared snapshot is loaded by that command.

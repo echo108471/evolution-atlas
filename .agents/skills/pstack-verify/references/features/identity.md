@@ -14,7 +14,8 @@ Source basis: [src/App.tsx](../../../../../src/App.tsx), [src/IdentityReview.tsx
 
 ## How to get to it (user POV)
 
-- Choose **Manage identities** in the product utilities.
+- Choose **Manage identities** in the product utilities. It is hidden, and
+  `?view=identity` falls back to Overview, when the dataset has no contributor records.
 - Choose **Merge identities**, **Keep separate**, or **Undo decision** on a match.
 - Choose a stop in **Automatic merge threshold**.
 - Use **Export decisions** or **Import decisions** to move the review document.

@@ -351,8 +351,12 @@ handling, the 30-day remote retention window, and pricing.
 
 Other options: `--model`, `--window`, `--stride`, `--peaks`, `--compact`.
 
-The viewer reads `public/epochs.json` if it is present and adds a **Periods** tab. The
-file is optional: producing it needs a model credential, the atlas does not, and the
+A local single-dataset viewer reads `public/epochs.json` if it is present and adds a
+**Periods** tab. A gallery subject instead names its own document through the optional
+manifest field `periods` (for example `/gallery/zod-epochs.json`; `npm run gallery` sets it
+when `<out>/<slug>-epochs.json` exists), and the viewer requests nothing for a subject
+without one. Publishing such a document still needs its own owner approval and
+publication manifest entry. The file is optional: producing it needs a model credential, the atlas does not, and the
 viewer works unchanged without it. A document generated against a different head commit
 is ignored rather than rendered, because boundaries are commit indices and a stale
 document would point at the wrong commits.
