@@ -3202,7 +3202,9 @@ p {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .overview-metrics div:nth-child(3) {
+  /* Two columns: every row starts flush left, without a divider before its first cell. */
+  .overview-metrics div:nth-child(odd) {
+    padding-left: 0;
     border-left: 0;
   }
 
