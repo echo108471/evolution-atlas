@@ -1,12 +1,21 @@
 import { createHash } from 'node:crypto'
 import { buildStructuralEpisodes } from '../../src/structure.mjs'
-import { DEFAULT_OPENROUTER_MODEL } from './model-defaults.mjs'
-import { batchResultBody, isBatchModel } from './openrouter-batch.mjs'
+import {
+  API_KEY_ENV as OPENAI_API_KEY_ENV,
+  CHAT_COMPLETIONS_PATH,
+  DEFAULT_MODEL as DEFAULT_OPENAI_MODEL,
+  PROVIDER_LABEL as OPENAI_LABEL,
+  chatCompletionToMessage,
+  createChatMessagesClient,
+  messagesToChatBody,
+} from './openai-provider.mjs'
+import { batchResultBody, isBatchModel } from './openai-batch.mjs'
 
 /**
- * OpenRouter serves the Anthropic Messages API, so the same client and request shape
- * work against either provider for synchronous models. Batch models use the same
- * Messages shape through OpenRouter's asynchronous Batch API.
+ * Requests are built in the Anthropic Messages shape. The Anthropic provider sends them
+ * as-is; the OpenAI provider translates them to Chat Completions, synchronously or
+ * through OpenAI's asynchronous Batch API for `:batch` models, and translates the
+ * response back so one parser serves both.
  */
 export const PROVIDERS = {
   anthropic: {
@@ -18,13 +27,14 @@ export const PROVIDERS = {
     // environment variable is not by itself a missing credential.
     requiresApiKey: false,
   },
-  openrouter: {
-    label: 'OpenRouter',
-    // Candidates record the selected model ID, including its routing suffix.
-    model: DEFAULT_OPENROUTER_MODEL,
-    baseURL: 'https://openrouter.ai/api',
-    apiKeyEnv: 'OPENROUTER_API_KEY',
+  openai: {
+    label: OPENAI_LABEL,
+    // Candidates record the selected model ID, including its local :batch marker.
+    model: DEFAULT_OPENAI_MODEL,
+    transport: 'chat-completions',
+    apiKeyEnv: OPENAI_API_KEY_ENV,
     requiresApiKey: true,
+    allowsModelOverride: true,
   },
 }
 
@@ -491,48 +501,51 @@ export function resolveProvider(name = DEFAULT_PROVIDER, modelOverride = null) {
   if (!provider) {
     throw new Error(`Unknown provider "${name}". Expected one of: ${Object.keys(PROVIDERS).join(', ')}`)
   }
-  if (modelOverride && !provider.baseURL) {
-    throw new Error('--model is only meaningful for a gateway provider such as openrouter')
+  if (modelOverride && !provider.allowsModelOverride) {
+    throw new Error('--model is only meaningful for the openai provider')
   }
   return { name, ...provider, model: modelOverride ?? provider.model }
 }
 
 /**
- * `output_config` (effort, native JSON schema) is Anthropic-specific. A gateway will
- * happily route to a model that does not implement it, so only send it when the model
- * is one that does; the prompt-level JSON contract covers everything else.
+ * `output_config` (effort, native JSON schema) is Anthropic-specific, so only send it
+ * to a Claude model; the prompt-level JSON contract covers everything else.
  */
 export function supportsOutputConfig(model) {
   return /(^|\/)claude-/.test(model)
 }
 
 /**
- * Pick a provider from the environment when the caller did not name one: an
- * OpenRouter key is only useful for OpenRouter, so its presence is a clear signal.
+ * Pick a provider from the environment when the caller did not name one: an OpenAI key
+ * with no Anthropic key is a clear signal.
  */
 export function detectProvider(env = process.env) {
-  if (env.OPENROUTER_API_KEY && !env.ANTHROPIC_API_KEY) return 'openrouter'
+  if (env[OPENAI_API_KEY_ENV] && !env.ANTHROPIC_API_KEY) return 'openai'
   return DEFAULT_PROVIDER
 }
 
-export function createClient(Anthropic, providerName, env = process.env, { maxRetries } = {}) {
+export function createClient(Anthropic, providerName, env = process.env, { maxRetries, fetchImpl } = {}) {
   const provider = resolveProvider(providerName)
   const apiKey = env[provider.apiKeyEnv]
 
   if (provider.requiresApiKey && !apiKey) {
     throw new Error(`${provider.label} requires ${provider.apiKeyEnv} to be set`)
   }
+  // The Chat Completions client never retries by itself; callers own any retry policy.
+  if (provider.transport === 'chat-completions') {
+    // Matches the Anthropic SDK's default request timeout.
+    return createChatMessagesClient({ apiKey, timeoutMs: 600_000, ...(fetchImpl ? { fetchImpl } : {}) })
+  }
 
   return new Anthropic({
-    ...(provider.baseURL ? { baseURL: provider.baseURL } : {}),
     ...(apiKey ? { apiKey } : {}),
     ...(maxRetries === undefined ? {} : { maxRetries }),
   })
 }
 
 /**
- * Models occasionally wrap JSON in prose or a markdown fence, and OpenRouter may not
- * forward every provider-native output constraint. Recover the object rather than
+ * Models occasionally wrap JSON in prose or a markdown fence, and not every model
+ * honors a native output constraint. Recover the object rather than
  * failing the whole run on formatting.
  */
 export function extractJson(text) {
@@ -615,16 +628,16 @@ export async function interpretAtlas(
 
   const batch = isBatchModel(model)
   if (batch && typeof batchRunner !== 'function') {
-    throw new Error(`Model "${model}" requires a persistent OpenRouter batchRunner`)
+    throw new Error(`Model "${model}" requires a persistent OpenAI batchRunner`)
   }
   const requestMessage = async (stage, body) => {
     if (!batch) return client.messages.stream(body).finalMessage()
     const results = await batchRunner({
       stage,
-      endpoint: '/v1/messages',
-      requests: [{ custom_id: stage, body }],
+      endpoint: CHAT_COMPLETIONS_PATH,
+      requests: [{ custom_id: stage, body: messagesToChatBody(body) }],
     })
-    return batchResultBody(results.get(stage))
+    return chatCompletionToMessage(batchResultBody(results.get(stage)))
   }
   const corpus = buildCorpus(dataset)
   let featureMessage = null

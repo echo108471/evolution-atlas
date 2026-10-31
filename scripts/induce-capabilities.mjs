@@ -107,7 +107,7 @@ async function main() {
   const induced = parseInductionPayload(payload, readings)
   const document = {
     schemaVersion: '0.2.0',
-    method: `hierarchical-capability-induction:openrouter:${options.model}`,
+    method: `hierarchical-capability-induction:openai:${options.model}`,
     protocol: {
       model: options.model,
       maxDepth: MAX_INDUCTION_DEPTH,

@@ -249,16 +249,16 @@ test('a truncated window fails loudly instead of yielding partial boundaries', (
 })
 
 for (const { name, options, expectedModel } of [
-  { name: 'synchronous', options: { model: 'openai/gpt-6-luna' }, expectedModel: 'openai/gpt-6-luna' },
-  { name: 'explicit override', options: { model: 'x-ai/grok-4.6' }, expectedModel: 'x-ai/grok-4.6' },
+  { name: 'synchronous', options: { model: 'gpt-6-luna' }, expectedModel: 'gpt-6-luna' },
+  { name: 'explicit override', options: { model: 'gpt-5.4' }, expectedModel: 'gpt-5.4' },
 ]) {
-  test(`phase requests send the ${name} model with OpenRouter chat completions`, async () => {
+  test(`phase requests send the ${name} model with OpenAI chat completions`, async () => {
     const dataset = { repository: { name: 'fixture' }, episodes: splitHistory(80) }
     const [windowPlan] = planWindows(dataset.episodes)
     const requests = []
     const result = await requestWindow(dataset, windowPlan, {
       ...options,
-      apiKey: 'sk-or-synthetic',
+      apiKey: 'sk-synthetic',
       fetchImpl: async (url, request) => {
         requests.push({ url, ...request, body: JSON.parse(request.body) })
         return {
@@ -273,15 +273,15 @@ for (const { name, options, expectedModel } of [
 
     assert.equal(requests.length, 1)
     const [request] = requests
-    assert.equal(request.url, 'https://openrouter.ai/api/v1/chat/completions')
+    assert.equal(request.url, 'https://api.openai.com/v1/chat/completions')
     assert.equal(request.method, 'POST')
     assert.deepEqual(request.headers, {
-      authorization: 'Bearer sk-or-synthetic',
+      authorization: 'Bearer sk-synthetic',
       'content-type': 'application/json',
     })
-    assert.deepEqual(Object.keys(request.body).sort(), ['max_tokens', 'messages', 'model'])
+    assert.deepEqual(Object.keys(request.body).sort(), ['max_completion_tokens', 'messages', 'model'])
     assert.equal(request.body.model, expectedModel)
-    assert.equal(request.body.max_tokens, 4000)
+    assert.equal(request.body.max_completion_tokens, 4000)
     assert.deepEqual(request.body.messages.map((message) => message.role), ['system', 'user'])
     assert.ok(request.body.messages.every((message) => typeof message.content === 'string'))
     assert.match(request.body.messages[1].content, /c0000000 2025-01-01 render the landing page/)
@@ -293,7 +293,7 @@ for (const { name, options, expectedModel } of [
     const requestOptions = []
     const result = await proposePhaseBoundaries(dataset, {
       ...options,
-      apiKey: 'sk-or-synthetic',
+      apiKey: 'sk-synthetic',
       request: async (_dataset, _windowPlan, receivedOptions) => {
         requestOptions.push(receivedOptions)
         return { boundaries: [], usage: null }
@@ -303,7 +303,7 @@ for (const { name, options, expectedModel } of [
     assert.ok(result.windowCount > 1)
     assert.equal(requestOptions.length, result.windowCount)
     for (const received of requestOptions) {
-      assert.deepEqual(received, { model: expectedModel, apiKey: 'sk-or-synthetic' })
+      assert.deepEqual(received, { model: expectedModel, apiKey: 'sk-synthetic' })
     }
     assert.deepEqual(result.failures, [])
   })
@@ -314,7 +314,7 @@ for (const { name, options, expectedModel } of [
     const requests = []
     const result = await labelPeriodLevels(dataset, [epochs], {
       model: options.model ?? DEFAULT_MODEL,
-      apiKey: 'sk-or-synthetic',
+      apiKey: 'sk-synthetic',
       request: (prompt, systemPrompt, receivedOptions) => requestLabel(prompt, systemPrompt, {
         ...receivedOptions,
         fetchImpl: async (url, request) => {
@@ -334,18 +334,18 @@ for (const { name, options, expectedModel } of [
 
     assert.equal(requests.length, 1)
     const [request] = requests
-    assert.equal(request.url, 'https://openrouter.ai/api/v1/chat/completions')
+    assert.equal(request.url, 'https://api.openai.com/v1/chat/completions')
     assert.equal(request.method, 'POST')
     assert.deepEqual(request.headers, {
-      authorization: 'Bearer sk-or-synthetic',
+      authorization: 'Bearer sk-synthetic',
       'content-type': 'application/json',
     })
-    assert.deepEqual(Object.keys(request.body).sort(), ['max_tokens', 'messages', 'model'])
+    assert.deepEqual(Object.keys(request.body).sort(), ['max_completion_tokens', 'messages', 'model'])
     assert.equal(request.body.model, expectedModel)
-    assert.equal(request.body.max_tokens, 1500)
+    assert.equal(request.body.max_completion_tokens, 1500)
     assert.deepEqual(request.body.messages.map((message) => message.role), ['system', 'user'])
     assert.ok(request.body.messages.every((message) => typeof message.content === 'string'))
-    assert.equal(result.method, `period-label:openrouter:${expectedModel}`)
+    assert.equal(result.method, `period-label:openai:${expectedModel}`)
     assert.equal(result.levels[0][0].labelMethod, result.method)
     assert.equal(result.levels[0][0].labelStatus, 'candidate')
     assert.deepEqual(result.failures, [])
@@ -353,7 +353,7 @@ for (const { name, options, expectedModel } of [
 }
 
 test('epochs keeps the configured batch default', () => {
-  assert.equal(DEFAULT_MODEL, 'openai/gpt-6-luna:batch')
+  assert.equal(DEFAULT_MODEL, 'gpt-6-luna:batch')
 })
 
 for (const options of [{}, { model: 'synthetic/explicit:batch' }]) {
@@ -387,7 +387,7 @@ test('the proposal pass resolves cited commits and drops the ones it cannot', as
   const dataset = { repository: { name: 'fixture' }, episodes }
 
   const result = await proposePhaseBoundaries(dataset, {
-    model: 'openai/gpt-6-luna',
+    model: 'gpt-6-luna',
     window: 200,
     stride: 100,
     request: async (_dataset, windowPlan) => ({
@@ -415,7 +415,7 @@ test('one failing window does not abandon the rest of the history', async () => 
   const dataset = { repository: { name: 'fixture' }, episodes }
 
   const result = await proposePhaseBoundaries(dataset, {
-    model: 'openai/gpt-6-luna',
+    model: 'gpt-6-luna',
     window: 200,
     stride: 100,
     request: async (_dataset, windowPlan) => {

@@ -35,7 +35,6 @@ export function validateWholeDecision(raw, graph, evidence, required, round) {
 export function wholeRequest(phase, context, model) {
   if (phase === 'decision') {
     const req = buildGraphRequest('decision', context, { model, maxTokens: 9000 })
-    if (model.startsWith('x-ai/')) req.reasoning = { effort: 'low' }
     req.messages[0].content += `
 This is a combined whole-project map, including infrastructure and data capabilities as first-class behaviors, not just UI features. The requiredNodeIds are an evidence coverage queue, NOT a suggested grouping. Account for every required ID, or explicitly defer it. New nodes will also be investigated in later rounds.
 Investigate coherent broader outcomes and substantive narrower capabilities. An umbrella retains children: do not erase their identities or demand a shared source module. Different implementations can serve the same outcome. A dependency is independently compatible with containment. Do not create generic parents that merely rename their sole child. No target number of layers or groups.

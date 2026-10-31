@@ -93,7 +93,7 @@ test('hierarchy critic is a proposal-only evidence review without an owner targe
   assert.match(HIERARCHY_CRITIC_SYSTEM_PROMPT, /suggestions only/)
   assert.match(HIERARCHY_CRITIC_SYSTEM_PROMPT, /No maintainer taxonomy/)
   assert.doesNotMatch(request.messages[1].content, /gold answer/)
-  assert.equal(buildHierarchyCriticRequest(dataset, { maxTokens: 12000 }).max_tokens, 12000)
+  assert.equal(buildHierarchyCriticRequest(dataset, { maxTokens: 12000 }).max_completion_tokens, 12000)
 })
 
 test('hierarchy critic keeps supported proposals provisional and reports incomplete review', () => {

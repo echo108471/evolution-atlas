@@ -125,7 +125,7 @@ async function main() {
   const assigned = parseCapabilityAssignmentPayload(payload, readings, capabilityDocument)
   const document = {
     schemaVersion: '0.3.0',
-    method: `fixed-hierarchy-evidence-assignment:openrouter:${options.model}`,
+    method: `fixed-hierarchy-evidence-assignment:openai:${options.model}`,
     repository: readingsDocument.repository,
     headSha: readingsDocument.headSha,
     readingCount: readings.length,

@@ -210,7 +210,7 @@ Return JSON only:
 "upsertEdges":[{"id":"E1","from":"P1","to":"N0","type":"contains",
 "evidenceIds":["R0"],"reason":"..."}],"removeEdgeIds":[],
 "reviewedNodeIds":["N0"],"unresolved":["..."],"continue":true,"reason":"..."}`
-  return { model, temperature: 0, max_tokens: maxTokens,
+  return { model, max_completion_tokens: maxTokens,
     response_format: { type: 'json_object' },
     messages: [{ role: 'system', content: `${BASE}\n${phase === 'plan' ? plan : decide}` },
       { role: 'user', content: JSON.stringify(context) }] }

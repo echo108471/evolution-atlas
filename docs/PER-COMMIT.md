@@ -322,13 +322,16 @@ rate is an artifact of the test subject and should not be taken as a general rat
 
 ## Provider notes
 
-Inference goes through OpenRouter's native `/v1/chat/completions` with `usage:
-{include: true}`, which returns real cost per request.
+Inference goes through OpenAI's `/v1/chat/completions`. The defaults are
+`gpt-5.4-mini` for tier 1 and `gpt-5.4` for tier 2; responses report token
+usage, not cost. The measurements below were recorded through an earlier
+gateway with an earlier volume model and have not been repeated on these
+defaults.
 
-The default volume model reasons before answering, and reasoning is billed and budgeted as
+The earlier volume model reasoned before answering, and reasoning is billed and budgeted as
 output. Left at its default it spent 866 of a 900-token budget thinking and was cut off
-mid-JSON on 17 of 19 commits. Disabling reasoning outright is rejected — *"Reasoning is
-mandatory for this endpoint"* — but `reasoning: {effort: 'low'}` measured zero reasoning
+mid-JSON on 17 of 19 commits. Disabling reasoning outright was rejected — *"Reasoning is
+mandatory for this endpoint"* — but low reasoning effort measured zero reasoning
 tokens and a clean stop, turning a 1,540-token answer into a 175-token one at the same
 price.
 

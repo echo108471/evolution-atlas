@@ -1,11 +1,10 @@
 /** Independently audit commits whose assignments varied against one fixed hierarchy. */
 
 import { extractJson } from './phase-model.mjs'
-import { requireSynchronousModel } from './model-defaults.mjs'
+import { requestChatCompletion } from './openai-provider.mjs'
 import {
   API_KEY_ENV,
   DEFAULT_MODEL,
-  OPENROUTER_ENDPOINT,
   fingerprintInductionRequest,
 } from './capability-induction.mjs'
 
@@ -133,8 +132,7 @@ export function buildCapabilityCriticRequest(
 ) {
   return {
     model,
-    max_tokens: 30000,
-    usage: { include: true },
+    max_completion_tokens: 30000,
     messages: [
       {
         role: 'system',
@@ -338,31 +336,5 @@ export async function requestCapabilityCriticPayload(
     showCandidateUnion = false,
   } = {},
 ) {
-  requireSynchronousModel(model)
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  let response
-  try {
-    response = await fetchImpl(OPENROUTER_ENDPOINT, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(buildCapabilityCriticRequest(dataset, { model, showCandidateUnion })),
-      signal: controller.signal,
-    })
-  } catch (error) {
-    if (error?.name === 'AbortError' || controller.signal.aborted) {
-      const timeout = new Error(`capability critic exceeded ${Math.round(timeoutMs / 1000)}s`)
-      timeout.status = 408
-      throw timeout
-    }
-    throw error
-  } finally {
-    clearTimeout(timer)
-  }
-  if (!response.ok) {
-    const error = new Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 180)}`)
-    error.status = response.status
-    throw error
-  }
-  return response.json()
+  return requestChatCompletion(buildCapabilityCriticRequest(dataset, { model, showCandidateUnion }), { apiKey, fetchImpl, timeoutMs, timeoutMessage: 'capability critic' })
 }

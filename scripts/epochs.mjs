@@ -16,7 +16,7 @@ import {
 } from './lib/epochs.mjs'
 import { API_KEY_ENV, DEFAULT_MODEL, proposePhaseBoundaries } from './lib/phase-model.mjs'
 import { labelPeriodLevels } from './lib/period-labels.mjs'
-import { createBatchRunner, isBatchModel } from './lib/openrouter-batch.mjs'
+import { createBatchRunner, isBatchModel } from './lib/openai-batch.mjs'
 import { createHash } from 'node:crypto'
 import { requireNewOutput, requirePaidPermission, requirePinnedCommit, requireSeparateOutput } from './lib/experiment-permissions.mjs'
 
@@ -34,7 +34,7 @@ Every boundary is a candidate for review. The focus signals beside it are observ
 Options:
   --in <path>            Observed dataset to read (default: public/atlas.json)
   --out <path>           New file for the epoch document (default: stdout)
-  --model <id>           OpenRouter model (default: ${DEFAULT_MODEL})
+  --model <id>           OpenAI model (default: ${DEFAULT_MODEL})
   --batch-model <id>     Override the batch-level model (default: --model unchanged)
   --batch-poll-ms <n>    Initial polling interval, with backoff (default: 30000)
   --batch-max-wait-ms <n> Maximum wait per batch (default: 86400000, 24 hours)
@@ -59,7 +59,8 @@ Free replay uses --proposals <path> --no-labels or --batch-replay <path>.
 Saved proposals must match the dataset's repository and full head SHA. New model
 requests require --allow-paid and ${API_KEY_ENV}; failed requests are not automatically resubmitted.
 New requests use --model or the default above; replay retains the saved proposal model.
-Models ending in :batch use OpenRouter batches with /v1/chat/completions bodies.
+Models ending in :batch use the OpenAI Batch API with /v1/chat/completions bodies;
+the :batch marker is stripped from the model ID sent to OpenAI.
 Batch runs require --out and save <out>.batch-state.json before polling. Rerun the same
 command after a timeout to resume; changed inputs are refused. Results may take up to
 24 hours per stage. Keep the sidecar to replay without a key or --allow-paid using
@@ -175,7 +176,7 @@ try {
 
   const requestsNeeded = !options.proposalsPath || options.labels
   if (!isBatchModel(options.model) && (options.batchReplayPath || options.batchModel || options.batchPollMs || options.batchMaxWaitMs)) {
-    throw new Error('Batch options require an OpenRouter model ending in :batch')
+    throw new Error('Batch options require a model ending in :batch')
   }
   if (requestsNeeded && !options.batchReplayPath) {
     requirePaidPermission(options.allowPaid, 'Epoch proposal discovery or period naming')
@@ -326,7 +327,7 @@ try {
     schemaVersion: '0.2.0',
     repository: dataset.repository.name,
     headSha: dataset.repository.headSha,
-    method: `${EPOCH_METHOD_PREFIX}:openrouter:${modelReport.model}`,
+    method: `${EPOCH_METHOD_PREFIX}:openai:${modelReport.model}`,
     commitCount: dataset.episodes.length,
     model: modelReport,
     labels: labelReport,

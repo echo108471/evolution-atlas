@@ -13,7 +13,7 @@ import {
   validateSemanticEpisodes,
 } from './lib/interpret.mjs'
 import { requireNewOutput, requirePaidPermission, requireSeparateOutput } from './lib/experiment-permissions.mjs'
-import { createBatchRunner, isBatchModel } from './lib/openrouter-batch.mjs'
+import { createBatchRunner, isBatchModel } from './lib/openai-batch.mjs'
 
 function usage() {
   const providers = Object.entries(PROVIDERS)
@@ -31,7 +31,7 @@ Options:
   --out <path>          New output file (default: <input-stem>.interpreted.json;
                         local revalidation uses <input-stem>.revalidated.json)
   --provider <name>     Where to send the request (default: auto-detected from env)
-  --model <id>          Override the provider's default model (gateways only)
+  --model <id>          Override the provider's default model (openai only)
   --batch-model <id>    Batch-level model (default: selected model, including :batch)
   --batch-poll-ms <n>   Initial poll interval in milliseconds (default: 30000)
   --batch-max-wait-ms <n>
@@ -49,14 +49,15 @@ Options:
 Providers:
 ${providers}
 
-Both providers use the Anthropic Messages API; OpenRouter uses /api/v1/messages.
-OpenRouter :batch models submit separate feature and dependent lifecycle batches.
+Anthropic uses its Messages API; OpenAI uses /v1/chat/completions.
+OpenAI :batch models submit separate feature and dependent lifecycle batches through
+the OpenAI Batch API; the :batch marker is stripped from the model ID sent to OpenAI.
 Results may arrive within the 24-hour batch window. Polling backs off to 5 minutes.
 Batch IDs are saved in <output>.batch-state.json before polling; completed raw
 results are retained there for replay. Rerun the same command to resume.
 Changed inputs refuse to reuse a saved batch.
-For immediate calls, pass --model openai/gpt-6-luna to use a synchronous model.
-Without --provider, OpenRouter is selected only when OPENROUTER_API_KEY is set
+For immediate calls, pass --model gpt-6-luna to use a synchronous model.
+Without --provider, OpenAI is selected only when OPENAI_API_KEY is set
 and ANTHROPIC_API_KEY is absent; otherwise Anthropic keeps its own default model.
 Neither this command nor epochs reads a model environment variable; use --model.
 Anthropic also accepts an 'ant auth login' profile instead of an API key.
@@ -217,11 +218,11 @@ try {
     }
     tokenUsage = null
   } else {
-    const provider = options.provider ?? (options.batchReplay ? 'openrouter' : detectProvider())
+    const provider = options.provider ?? (options.batchReplay ? 'openai' : detectProvider())
     const { model } = resolveProvider(provider, options.model)
     const batch = isBatchModel(model)
     if (!batch && (options.batchModel || options.batchReplay || options.batchPollMs || options.batchMaxWaitMs)) {
-      throw new Error('Batch options require an OpenRouter model ending in :batch')
+      throw new Error('Batch options require an OpenAI model ending in :batch')
     }
     const onProgress = (message) => process.stderr.write(`${message}\n`)
     const statePath = resolve(options.batchReplay ?? `${outputPath}.batch-state.json`)
@@ -236,7 +237,7 @@ try {
       },
       model,
       batchModel: options.batchModel ?? undefined,
-      apiKey: process.env.OPENROUTER_API_KEY,
+      apiKey: process.env.OPENAI_API_KEY,
       pollIntervalMs: options.batchPollMs,
       maxWaitMs: options.batchMaxWaitMs,
       replayOnly: Boolean(options.batchReplay),

@@ -20,15 +20,14 @@
  */
 
 import { extractJson } from './phase-model.mjs'
-import { requireSynchronousModel } from './model-defaults.mjs'
+import { API_KEY_ENV, DEFAULT_CHEAP_MODEL, DEFAULT_DEPTH_MODEL, requestChatCompletion } from './openai-provider.mjs'
 
-export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
-export const API_KEY_ENV = 'OPENROUTER_API_KEY'
+export { API_KEY_ENV }
 
-/** Volume tier: $0.075/$0.250 per 1M, 1.31M context. */
-export const DEFAULT_TIER1_MODEL = 'z-ai/glm-5.3-flash'
-/** Depth tier: $0.300/$1.000 per 1M, code-specialized. */
-export const DEFAULT_TIER2_MODEL = 'qwen/qwen3-coder'
+/** Volume tier: the cheap default model. */
+export const DEFAULT_TIER1_MODEL = DEFAULT_CHEAP_MODEL
+/** Depth tier: a stronger, still moderately priced model. */
+export const DEFAULT_TIER2_MODEL = DEFAULT_DEPTH_MODEL
 
 const REQUEST_TIMEOUT_MS = 300000
 
@@ -133,24 +132,22 @@ export function renderCommitPrompt({ repositoryName, contextText, subject, diff 
 }
 
 /**
- * Tier 1 asks for the lowest reasoning effort the endpoint allows.
+ * Tier 1 asks for low reasoning effort.
  *
- * The default volume model reasons before answering, and reasoning is billed and
- * budgeted as output: a first run spent 866 of a 900-token budget thinking and was cut
- * off mid-JSON on 17 of 19 commits. Disabling it outright is rejected - "Reasoning is
- * mandatory for this endpoint" - but `effort: low` measured zero reasoning tokens and a
- * clean stop, turning a 1,540-token answer into a 175-token one at the same price.
+ * Reasoning is billed and budgeted as output. With an earlier volume model a first run
+ * spent 866 of a 900-token budget thinking and was cut off mid-JSON on 17 of 19 commits,
+ * while `low` effort measured zero reasoning tokens and a clean stop. That measurement
+ * predates the current OpenAI default and has not been repeated on it.
  *
  * Summarizing a diff already present in the prompt is not a task that needs
- * deliberation, and tier 2 exists to re-read whatever tier 1 found hard. `reasoning`
- * stays a parameter so the two can be compared rather than assumed.
+ * deliberation, and tier 2 exists to re-read whatever tier 1 found hard.
+ * `reasoningEffort` stays a parameter so the two can be compared rather than assumed.
  */
-export function buildTier1Request({ repositoryName, contextText, subject, diff, model, reasoning = { effort: 'low' } }) {
+export function buildTier1Request({ repositoryName, contextText, subject, diff, model, reasoningEffort = 'low' }) {
   return {
     model,
-    max_tokens: 2000,
-    usage: { include: true },
-    ...(reasoning ? { reasoning } : {}),
+    max_completion_tokens: 2000,
+    ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
     messages: [
       { role: 'system', content: TIER1_SYSTEM_PROMPT },
       { role: 'user', content: `${renderCommitPrompt({ repositoryName, contextText, subject, diff })}
@@ -172,12 +169,11 @@ What does this commit accomplish?` },
  * Read blind, the two tiers are independent readings of the same commit, so their
  * agreement is a measurement of tier 1 rather than an echo of it.
  */
-export function buildTier2Request({ repositoryName, contextText, subject, diff, model, reasoning = null }) {
+export function buildTier2Request({ repositoryName, contextText, subject, diff, model, reasoningEffort = null }) {
   return {
     model,
-    max_tokens: 2500,
-    usage: { include: true },
-    ...(reasoning ? { reasoning } : {}),
+    max_completion_tokens: 2500,
+    ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
     messages: [
       { role: 'system', content: TIER2_SYSTEM_PROMPT },
       { role: 'user', content: `${renderCommitPrompt({ repositoryName, contextText, subject, diff })}
@@ -205,7 +201,7 @@ export function parseCommitResponse(payload, { tier }) {
     parsed = extractJson(choice.message?.content ?? '')
   } catch (error) {
     if (choice.finish_reason === 'length') {
-      throw new Error(`output truncated after ${payload.usage?.completion_tokens_details?.reasoning_tokens ?? 0} reasoning tokens; raise max_tokens or disable reasoning`)
+      throw new Error(`output truncated after ${payload.usage?.completion_tokens_details?.reasoning_tokens ?? 0} reasoning tokens; raise max_completion_tokens or lower reasoning_effort`)
     }
     throw error
   }
@@ -240,33 +236,8 @@ export function parseCommitResponse(payload, { tier }) {
  * to answer, and the ones most worth reading - were the only ones permanently dropped.
  */
 export async function requestReading(body, { apiKey, tier, fetchImpl = fetch, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
-  requireSynchronousModel(body.model)
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  let response
-  try {
-    response = await fetchImpl(OPENROUTER_ENDPOINT, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    })
-  } catch (error) {
-    if (error?.name === 'AbortError' || controller.signal.aborted) {
-      const timeout = new Error(`request exceeded ${Math.round(timeoutMs / 1000)}s`)
-      timeout.status = 408
-      throw timeout
-    }
-    throw error
-  } finally {
-    clearTimeout(timer)
-  }
-  if (!response.ok) {
-    const error = new Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 180)}`)
-    error.status = response.status
-    throw error
-  }
-  return parseCommitResponse(await response.json(), { tier })
+  const payload = await requestChatCompletion(body, { apiKey, fetchImpl, timeoutMs, timeoutMessage: 'request' })
+  return parseCommitResponse(payload, { tier })
 }
 
 /**

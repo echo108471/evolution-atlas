@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { interpretAtlas, validateFeatures } from '../scripts/lib/interpret.mjs'
-import { createBatchRunner } from '../scripts/lib/openrouter-batch.mjs'
+import { createBatchRunner } from '../scripts/lib/openai-batch.mjs'
 import { createOfflineEnvironment } from '../scripts/verification/offline-environment.mjs'
+import { chatCompletion, createOpenAIBatchMock } from './helpers/openai-batch-mock.mjs'
 
-const MODEL = 'openai/gpt-6-luna:batch'
+const MODEL = 'gpt-6-luna:batch'
 
 function observedDataset() {
   return {
@@ -41,64 +42,56 @@ function fixture(t, { lifecycle = true } = {}) {
   }
   const statePath = join(directory, 'output.json.batch-state.json')
   const input = { kind: 'interpret', dataset, maxFeatures: 1, maxLifecycleEpisodes: 1, reuseFeatures: false }
-  const requests = []
-  const polls = new Map()
   let time = 0
-  const fetchImpl = async (url, options) => {
-    requests.push({ url, ...options })
-    assert.equal(options.headers.Authorization, 'Bearer synthetic-key')
-    if (options.method === 'POST') {
-      const body = JSON.parse(options.body)
-      const stage = body.requests[0].custom_id
-      assert.equal(body.endpoint, '/v1/messages')
-      assert.equal(body.model, MODEL)
-      assert.equal(body.requests.length, 1)
-      assert.equal('model' in body.requests[0].body, false)
-      assert.equal('stream' in body.requests[0].body, false)
-      assert.equal('output_config' in body.requests[0].body, false)
-      assert.ok(body.requests[0].body.system)
-      if (stage === 'lifecycle') assert.match(JSON.stringify(body.requests[0].body.messages), new RegExp(featureId))
-      return { ok: true, status: 202, json: async () => ({ id: `batch-${stage}`, status: 'validating' }) }
-    }
-    assert.ok(existsSync(statePath), 'batch ID must be on disk before polling')
-    const stage = url.split('batch-').at(-1)
-    assert.match(readFileSync(statePath, 'utf8'), new RegExp(`batch-${stage}`))
-    const count = (polls.get(stage) ?? 0) + 1
-    polls.set(stage, count)
-    return { ok: true, status: 200, json: async () => ({
-      id: `batch-${stage}`, status: count === 1 ? 'in_progress' : 'completed',
-      results: count === 1 ? null : [{
-        id: `request-${stage}`, custom_id: stage, error: null,
-        response: { status_code: 200, request_id: `response-${stage}`, body: {
-          stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(outputs[stage]) }],
-          usage: { input_tokens: 10, output_tokens: 5 },
-        } },
-      }],
-    }) }
-  }
+  const mock = createOpenAIBatchMock({
+    onRequest: (request) => assert.equal(request.headers.authorization, 'Bearer synthetic-key'),
+    onSubmit: (submission) => {
+      const [line] = submission.lines
+      assert.equal(submission.endpoint, '/v1/chat/completions')
+      assert.equal(submission.purpose, 'batch')
+      assert.equal(submission.lines.length, 1)
+      assert.equal(line.url, '/v1/chat/completions')
+      assert.equal(line.body.model, 'gpt-6-luna')
+      assert.equal('stream' in line.body, false)
+      assert.equal('output_config' in line.body, false)
+      assert.equal('system' in line.body, false)
+      assert.equal(line.body.messages[0].role, 'system')
+      assert.equal(typeof line.body.messages[1].content, 'string')
+      assert.equal(line.body.max_completion_tokens, 32000)
+      if (line.custom_id === 'lifecycle') assert.match(line.body.messages[1].content, new RegExp(featureId))
+    },
+    poll: (submission, count) => {
+      assert.ok(existsSync(statePath), 'batch ID must be on disk before polling')
+      assert.match(readFileSync(statePath, 'utf8'), new RegExp(submission.id))
+      return count === 1 ? 'in_progress' : 'completed'
+    },
+    respond: (line) => chatCompletion(outputs[line.custom_id], { prompt_tokens: 10, completion_tokens: 5 }),
+  })
+  const requests = mock.requests
+  const fetchImpl = mock.fetchImpl
   const runner = (overrides = {}) => createBatchRunner({
     statePath, input, model: MODEL, apiKey: 'synthetic-key', pollIntervalMs: 1,
     maxWaitMs: 100, now: () => time, sleep: async (ms) => { time += ms }, fetchImpl,
     ...overrides,
   })
   const interpret = (batchRunner) => interpretAtlas(dataset, {
-    provider: 'openrouter', batchRunner, maxFeatures: 1, maxLifecycleEpisodes: 1,
+    provider: 'openai', batchRunner, maxFeatures: 1, maxLifecycleEpisodes: 1,
     client: { messages: { stream: () => { throw new Error('Batch used synchronous transport') } } },
   })
-  return { directory, dataset, statePath, input, requests, runner, interpret }
+  return { directory, dataset, statePath, input, requests, submissions: mock.submissions, runner, interpret }
 }
 
 test('interpret batches feature discovery before dependent lifecycle and preserves validation and methods', async (t) => {
   const f = fixture(t)
   const result = await f.interpret(f.runner())
-  assert.deepEqual(f.requests.filter((request) => request.method === 'POST').map((request) => JSON.parse(request.body).requests[0].custom_id), ['features', 'lifecycle'])
+  assert.deepEqual(f.submissions.map((submission) => submission.lines[0].custom_id), ['features', 'lifecycle'])
   assert.equal(result.dataset.featureCandidates.length, 1)
   assert.equal(result.dataset.featureCandidates[0].evidence.length, 1)
   assert.deepEqual(result.validated.unresolvedShas, [{ label: 'Ranking', sha: 'unknown0' }])
   assert.equal(result.dataset.semanticEpisodes[0].lifecycleStage, 'hardened')
-  assert.equal(result.dataset.featureCandidates[0].method, `llm-induction:openrouter:${MODEL}`)
-  assert.equal(result.dataset.semanticEpisodes[0].method, `llm-induction:openrouter:${MODEL}`)
-  assert.deepEqual(result.usage, { input_tokens: 20, output_tokens: 10 })
+  assert.equal(result.dataset.featureCandidates[0].method, `llm-induction:openai:${MODEL}`)
+  assert.equal(result.dataset.semanticEpisodes[0].method, `llm-induction:openai:${MODEL}`)
+  assert.deepEqual(result.usage, { input_tokens: 20, cache_read_input_tokens: 0, output_tokens: 10 })
   const replay = await f.interpret(f.runner({ replayOnly: true, apiKey: undefined, fetchImpl: () => { throw new Error('Replay attempted network') } }))
   assert.deepEqual(replay, result)
 })
@@ -108,7 +101,7 @@ test('interpret timeout resumes the same batch without another submit', async (t
   await assert.rejects(f.interpret(f.runner({ maxWaitMs: 1 })), /batch-features.*(?:status|in_progress|validating)/i)
   const result = await f.interpret(f.runner())
   assert.equal(result.dataset.featureCandidates.length, 0)
-  assert.equal(f.requests.filter((request) => request.method === 'POST').length, 1)
+  assert.equal(f.submissions.length, 1)
 })
 
 test('interpret batches only lifecycle when validated features are reused with a batch override', async () => {
@@ -116,36 +109,33 @@ test('interpret batches only lifecycle when validated features are reused with a
   dataset.featureCandidates = validateFeatures([{ label: 'Ranking', commitShas: ['aaaaaaaa'] }], dataset).featureCandidates
   const stages = []
   const result = await interpretAtlas(dataset, {
-    provider: 'openrouter', model: 'synthetic/explicit:batch', reuseFeatures: true,
+    provider: 'openai', model: 'synthetic/explicit:batch', reuseFeatures: true,
     batchRunner: async ({ stage, endpoint }) => {
       stages.push(stage)
-      assert.equal(endpoint, '/v1/messages')
-      return new Map([[stage, { custom_id: stage, error: null, response: { status_code: 200, body: {
-        stop_reason: 'end_turn', content: [{ type: 'text', text: '{"semanticEpisodes":[]}' }],
-      } } }]])
+      assert.equal(endpoint, '/v1/chat/completions')
+      return new Map([[stage, { custom_id: stage, error: null, response: { status_code: 200, body: chatCompletion({ semanticEpisodes: [] }) } }]])
     },
   })
   assert.deepEqual(stages, ['lifecycle'])
-  assert.equal(result.dataset.featureCandidates[0].method, 'llm-induction:openrouter:synthetic/explicit:batch')
+  assert.equal(result.dataset.featureCandidates[0].method, 'llm-induction:openai:synthetic/explicit:batch')
 })
 
 for (const status of ['failed', 'expired']) {
   test(`interpret surfaces a ${status} batch`, async (t) => {
     const f = fixture(t)
-    const fetchImpl = async (_url, { method }) => ({ ok: true, status: method === 'POST' ? 202 : 200, json: async () => ({
-      id: 'batch-failure', status: method === 'POST' ? 'validating' : status,
-      error: method === 'POST' ? null : { message: 'Synthetic provider failure' }, results: null,
-    }) })
+    const { fetchImpl } = createOpenAIBatchMock({
+      batchId: () => 'batch-failure',
+      poll: () => ({ status, errors: { data: [{ message: 'Synthetic provider failure' }] } }),
+    })
     await assert.rejects(f.interpret(f.runner({ fetchImpl })), new RegExp(`batch-failure.*${status}`))
   })
 }
 
 test('interpret surfaces per-request errors instead of writing an empty interpretation', async (t) => {
   const f = fixture(t)
-  const fetchImpl = async (_url, { method }) => ({ ok: true, status: method === 'POST' ? 202 : 200, json: async () => ({
-    id: 'batch-error', status: method === 'POST' ? 'validating' : 'completed',
-    results: method === 'POST' ? null : [{ id: 'request-error', custom_id: 'features', response: null, error: { message: 'Synthetic request rejection' } }],
-  }) })
+  const { fetchImpl } = createOpenAIBatchMock({
+    item: (line) => ({ id: 'request-error', custom_id: line.custom_id, response: null, error: { message: 'Synthetic request rejection' } }),
+  })
   await assert.rejects(f.interpret(f.runner({ fetchImpl })), /Synthetic request rejection/)
 })
 

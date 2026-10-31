@@ -9,7 +9,7 @@ import {
   withRetry,
 } from '../scripts/lib/retry.mjs'
 
-/** The body OpenRouter returned when a second interpretation ran before the first settled. */
+/** A gateway-wrapped 402 body, as returned when a second interpretation ran before the first settled. */
 const IN_FLIGHT_BUDGET_MESSAGE =
   '402 {"type":"error","error":{"type":"billing_error","message":"This request would exceed ' +
   'your available credits given your current in-flight requests."},"metadata":{"reason":' +

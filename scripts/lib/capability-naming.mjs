@@ -12,10 +12,9 @@
  */
 
 import { extractJson } from './phase-model.mjs'
-import { requireSynchronousModel } from './model-defaults.mjs'
+import { DEFAULT_CHEAP_MODEL, requestChatCompletion, requireSynchronousModel } from './openai-provider.mjs'
 
-export const DEFAULT_MODEL = 'z-ai/glm-5.3-flash'
-export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions'
+export const DEFAULT_MODEL = DEFAULT_CHEAP_MODEL
 
 const MAX_SUBJECTS = 12
 const REQUEST_TIMEOUT_MS = 120000
@@ -80,9 +79,8 @@ export function buildNamingRequest(evidence, { model, show = [] }) {
   })
   return {
     model,
-    max_tokens: 600,
-    reasoning: { effort: 'low' },
-    usage: { include: true },
+    max_completion_tokens: 600,
+    reasoning_effort: 'low',
     messages: [
       { role: 'system', content: NAMING_SYSTEM_PROMPT },
       {
@@ -112,33 +110,8 @@ export function parseNaming(payload) {
 }
 
 export async function requestNaming(evidence, { model = DEFAULT_MODEL, apiKey, fetchImpl = fetch, show = [] } = {}) {
-  requireSynchronousModel(model)
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-  let response
-  try {
-    response = await fetchImpl(OPENROUTER_ENDPOINT, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(buildNamingRequest(evidence, { model, show })),
-      signal: controller.signal,
-    })
-  } catch (error) {
-    if (error?.name === 'AbortError' || controller.signal.aborted) {
-      const timeout = new Error('naming request timed out')
-      timeout.status = 408
-      throw timeout
-    }
-    throw error
-  } finally {
-    clearTimeout(timer)
-  }
-  if (!response.ok) {
-    const error = new Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 180)}`)
-    error.status = response.status
-    throw error
-  }
-  return parseNaming(await response.json())
+  const payload = await requestChatCompletion(buildNamingRequest(evidence, { model, show }), { apiKey, fetchImpl, timeoutMs: REQUEST_TIMEOUT_MS, timeoutMessage: 'naming request' })
+  return parseNaming(payload)
 }
 
 /**

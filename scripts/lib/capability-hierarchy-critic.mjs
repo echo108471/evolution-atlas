@@ -1,11 +1,10 @@
 /** Propose evidence-backed changes to a provisional capability hierarchy without applying them. */
 
 import { extractJson } from './phase-model.mjs'
-import { requireSynchronousModel } from './model-defaults.mjs'
+import { requestChatCompletion } from './openai-provider.mjs'
 import {
   API_KEY_ENV,
   DEFAULT_MODEL,
-  OPENROUTER_ENDPOINT,
   fingerprintInductionRequest,
 } from './capability-induction.mjs'
 
@@ -130,8 +129,7 @@ export function buildHierarchyCriticRequest(
 ) {
   return {
     model,
-    max_tokens: maxTokens,
-    usage: { include: true },
+    max_completion_tokens: maxTokens,
     messages: [
       { role: 'system', content: HIERARCHY_CRITIC_SYSTEM_PROMPT },
       {
@@ -308,31 +306,5 @@ export async function requestHierarchyCriticRequestPayload(
   request,
   { apiKey, fetchImpl = fetch, timeoutMs = REQUEST_TIMEOUT_MS } = {},
 ) {
-  requireSynchronousModel(request.model)
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  let response
-  try {
-    response = await fetchImpl(OPENROUTER_ENDPOINT, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(request),
-      signal: controller.signal,
-    })
-  } catch (error) {
-    if (error?.name === 'AbortError' || controller.signal.aborted) {
-      const timeout = new Error(`hierarchy critic exceeded ${Math.round(timeoutMs / 1000)}s`)
-      timeout.status = 408
-      throw timeout
-    }
-    throw error
-  } finally {
-    clearTimeout(timer)
-  }
-  if (!response.ok) {
-    const error = new Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 180)}`)
-    error.status = response.status
-    throw error
-  }
-  return response.json()
+  return requestChatCompletion(request, { apiKey, fetchImpl, timeoutMs, timeoutMessage: 'hierarchy critic' })
 }
