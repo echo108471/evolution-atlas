@@ -518,6 +518,11 @@ async function buildSubject(subject, options, context) {
   }
 
   mkdirSync(options.outputDir, { recursive: true })
+  // Periods are optional and generated separately (`npm run epochs -- --out
+  // <out>/<slug>-epochs.json`). Only a document actually present beside the dataset is
+  // advertised; the viewer requests nothing for a subject without one.
+  const periodsFile = `${subject.slug}-epochs.json`
+  const periods = existsSync(resolve(options.outputDir, periodsFile)) ? `/gallery/${periodsFile}` : undefined
   const serialized = `${JSON.stringify(dataset, null, options.pretty ? 2 : 0)}\n`
   writeFileSync(datasetPath, serialized, { encoding: 'utf8', flag: options.interpret || options.reuseInterpretation ? 'wx' : 'w' })
 
@@ -539,6 +544,7 @@ async function buildSubject(subject, options, context) {
     lastAuthoredAt: dataset.timeRange?.lastAuthoredAt ?? null,
     interpreted: dataset.analysis.mode === 'interpreted',
     interpretation,
+    ...(periods ? { periods } : {}),
     bytes: statSync(datasetPath).size,
     sha256: createHash('sha256').update(serialized).digest('hex'),
     generatedAt: new Date().toISOString(),

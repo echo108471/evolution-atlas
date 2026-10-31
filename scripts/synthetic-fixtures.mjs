@@ -68,6 +68,7 @@ function fixtureDocuments() {
     'epochs.json': serialize(syntheticPeriods(dataset)),
     'gallery/manifest.json': serialize(syntheticGallery(dataset)),
     'gallery/synthetic-atlas.json': serialize(dataset),
+    'gallery/synthetic-epochs.json': serialize(syntheticPeriods(dataset)),
     'maps/output.json': serialize(syntheticCandidateMap()),
     'LIMITATIONS.txt': `${LIMITS.join('\n\n')}\n`,
     ...SOURCE_FILES,

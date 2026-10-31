@@ -15,7 +15,8 @@ import {
   LOCAL_DATASET_URL,
   type GalleryManifest,
 } from './gallery'
-import { PERIODS_URL, matchesDataset, parsePeriodDocument, type PeriodDocument } from './periods'
+import { matchesDataset, parsePeriodDocument, resolvePeriodsUrl, type PeriodDocument } from './periods'
+import { labelEpisode } from './commitSubject'
 import { buildStructuralEpisodes } from './structure.mjs'
 import {
   applyIdentityDecision,
@@ -340,6 +341,12 @@ function EvidencePanel({
         <div className="inspector-heading">
           <span className="eyebrow">Observed commit evidence</span>
           <h2>{episode.subject}</h2>
+          {episode.subjectOmitted && (
+            <p className="inspector-note">
+              The original commit message is omitted from this dataset; the title summarizes the
+              changed paths below.
+            </p>
+          )}
           <div className="status-line">
             <code>{episode.shortSha}</code>
             <span>{formatDate(episode.authoredAt)}</span>
@@ -592,6 +599,7 @@ export default function App() {
     useState<IdentityDecisionsDocument | null>(null)
   const [manifest, setManifest] = useState<GalleryManifest | null>(null)
   const [periodDocument, setPeriodDocument] = useState<PeriodDocument | null>(null)
+  const [periodsLoading, setPeriodsLoading] = useState(false)
   const [manifestSettled, setManifestSettled] = useState(false)
 
   // Every navigation coordinate lives in the query string. Selections that the user never
@@ -654,8 +662,12 @@ export default function App() {
         return response.json() as Promise<AtlasDataset>
       })
       .then((loadedDataset) => {
+        // An explicitly empty structuralEpisodes array is the exporter's published
+        // treatment (for example, the reviewed zod demo omits structural candidates), so
+        // only a missing field is rebuilt from paths.
         const normalizedDataset: AtlasDataset = {
           ...loadedDataset,
+          episodes: loadedDataset.episodes.map(labelEpisode),
           structuralEpisodes:
             loadedDataset.structuralEpisodes ?? buildStructuralEpisodes(loadedDataset.episodes),
         }
@@ -682,14 +694,23 @@ export default function App() {
   }, [manifestSettled, datasetUrl])
 
   // Periods are optional. The document is produced by a separate command that needs a
-  // model credential, so its absence is the normal case rather than a failure, and a
-  // document generated against a different head is ignored: its boundaries are commit
-  // indices and would silently point at the wrong commits.
+  // model credential, so its absence is the normal case rather than a failure. A gallery
+  // subject names its own document, and one that names none is never probed. A document
+  // generated against a different head is ignored: its boundaries are commit indices and
+  // would silently point at the wrong commits.
+  const periodsUrl = resolvePeriodsUrl({
+    gallery: manifest !== null,
+    subjectPeriods: activeSubject?.periods ?? null,
+  })
   useEffect(() => {
-    if (!dataset) return
-    const controller = new AbortController()
     setPeriodDocument(null)
-    fetch(PERIODS_URL, { signal: controller.signal })
+    if (!dataset || periodsUrl === null) {
+      setPeriodsLoading(false)
+      return
+    }
+    const controller = new AbortController()
+    setPeriodsLoading(true)
+    fetch(periodsUrl, { signal: controller.signal })
       .then((response) => (response.ok ? (response.json() as Promise<unknown>) : null))
       .then((loaded) => {
         const parsed = loaded === null ? null : parsePeriodDocument(loaded)
@@ -704,9 +725,12 @@ export default function App() {
       .catch(() => {
         // No period document means the epoch pass has not been run here.
       })
+      .finally(() => {
+        if (!controller.signal.aborted) setPeriodsLoading(false)
+      })
 
     return () => controller.abort()
-  }, [dataset])
+  }, [dataset, periodsUrl])
 
   const minConfidence = EVIDENCE_PRESETS[evidencePreset].threshold
   const confidenceFeatures = useMemo(() => {
@@ -1066,8 +1090,20 @@ export default function App() {
     )
   }
 
+  // Exports may omit contributor identities entirely. People and identity management have
+  // nothing to show then, and a periods link without a matching document has nothing to
+  // render; each falls back to the overview rather than into another section.
+  const hasContributors = dataset.contributors.length > 0
+  const hasStructuralCandidates = (dataset.structuralEpisodes ?? []).length > 0
+  const periodsPending = section === 'periods' && !periodDocument && periodsLoading
+  const activeSection: AtlasSection =
+    (section === 'periods' && !periodDocument && !periodsLoading) ||
+    ((section === 'people' || section === 'identity') && !hasContributors)
+      ? 'overview'
+      : section
+
   return (
-    <main className={`app-shell app-shell--product${section === 'features' ? ' app-shell--features' : ''}`}>
+    <main className={`app-shell app-shell--product${activeSection === 'features' ? ' app-shell--features' : ''}`}>
       <header ref={productHeaderRef} className="product-header">
         <button
           type="button"
@@ -1110,16 +1146,16 @@ export default function App() {
         <nav className="product-nav" aria-label="Primary navigation">
           <button
             type="button"
-            className={section === 'overview' ? 'is-active' : ''}
-            aria-current={section === 'overview' ? 'page' : undefined}
+            className={activeSection === 'overview' ? 'is-active' : ''}
+            aria-current={activeSection === 'overview' ? 'page' : undefined}
             onClick={() => handleSectionChange('overview')}
           >
             Overview
           </button>
           <button
             type="button"
-            className={section === 'repository' ? 'is-active' : ''}
-            aria-current={section === 'repository' ? 'page' : undefined}
+            className={activeSection === 'repository' ? 'is-active' : ''}
+            aria-current={activeSection === 'repository' ? 'page' : undefined}
             onClick={() => handleSectionChange('repository')}
           >
             Repository
@@ -1133,8 +1169,8 @@ export default function App() {
           {periodDocument && (
             <button
               type="button"
-              className={section === 'periods' ? 'is-active' : ''}
-              aria-current={section === 'periods' ? 'page' : undefined}
+              className={activeSection === 'periods' ? 'is-active' : ''}
+              aria-current={activeSection === 'periods' ? 'page' : undefined}
               onClick={() => handleSectionChange('periods')}
             >
               Periods
@@ -1142,31 +1178,35 @@ export default function App() {
           )}
           <button
             type="button"
-            className={section === 'features' ? 'is-active' : ''}
-            aria-current={section === 'features' ? 'page' : undefined}
+            className={activeSection === 'features' ? 'is-active' : ''}
+            aria-current={activeSection === 'features' ? 'page' : undefined}
             onClick={() => handleSectionChange('features')}
           >
             Features
           </button>
-          <button
-            type="button"
-            className={section === 'people' ? 'is-active' : ''}
-            aria-current={section === 'people' ? 'page' : undefined}
-            onClick={() => handleSectionChange('people')}
-          >
-            People
-          </button>
+          {hasContributors && (
+            <button
+              type="button"
+              className={activeSection === 'people' ? 'is-active' : ''}
+              aria-current={activeSection === 'people' ? 'page' : undefined}
+              onClick={() => handleSectionChange('people')}
+            >
+              People
+            </button>
+          )}
         </nav>
 
         <div className="product-utilities">
-          <button
-            type="button"
-            className={section === 'identity' ? 'is-active' : ''}
-            onClick={() => handleSectionChange('identity')}
-          >
-            Manage identities
-            {identityResolution.suggestedCount > 0 && <span>{identityResolution.suggestedCount}</span>}
-          </button>
+          {hasContributors && (
+            <button
+              type="button"
+              className={activeSection === 'identity' ? 'is-active' : ''}
+              onClick={() => handleSectionChange('identity')}
+            >
+              Manage identities
+              {identityResolution.suggestedCount > 0 && <span>{identityResolution.suggestedCount}</span>}
+            </button>
+          )}
           <div className="repository-meta">
             <span>{dataset.repository.ref}</span>
             <code>{dataset.repository.headSha.slice(0, 8)}</code>
@@ -1174,7 +1214,9 @@ export default function App() {
         </div>
       </header>
 
-      {section === 'overview' ? (
+      {periodsPending ? (
+        <p className="section-loading">Loading periods…</p>
+      ) : activeSection === 'overview' ? (
         <RepositoryOverview
           dataset={dataset}
           story={overviewStory}
@@ -1185,14 +1227,18 @@ export default function App() {
           onExploreStage={handleExploreStage}
           onInspect={handleInspectStructure}
         />
-      ) : section === 'repository' ? (
+      ) : activeSection === 'repository' ? (
         <>
           <header className="section-header">
             <div>
               <span className="eyebrow">Repository history</span>
               <h1>See how the codebase changed shape.</h1>
             </div>
-            <span className="candidate-key">Observed activity with candidate structure overlays</span>
+            <span className="candidate-key">
+              {hasStructuralCandidates
+                ? 'Observed activity with candidate structure overlays'
+                : 'Observed activity · no structural candidates in this dataset'}
+            </span>
           </header>
           <ScopeControls
             chapters={baseStory.chapters}
@@ -1202,7 +1248,11 @@ export default function App() {
             onLifecycleStage={handleLifecycleStage}
             evidencePreset={evidencePreset}
             onEvidencePreset={handleEvidencePreset}
-            resultLabel={`${repositoryAreaCount} observed code areas · ${repositoryStory.structuralEvents.length} candidate reorganizations`}
+            resultLabel={
+              hasStructuralCandidates
+                ? `${repositoryAreaCount} observed code areas · ${repositoryStory.structuralEvents.length} candidate reorganizations`
+                : `${repositoryAreaCount} observed code areas`
+            }
             showLifecycle={false}
           />
           <section className="repository-workspace">
@@ -1220,9 +1270,9 @@ export default function App() {
             />
           </section>
         </>
-      ) : section === 'periods' && periodDocument ? (
+      ) : activeSection === 'periods' && periodDocument ? (
         <PeriodBands dataset={dataset} document={periodDocument} />
-      ) : section === 'features' ? (
+      ) : activeSection === 'features' ? (
         <>
           <ScopeControls
             title="Feature stories"
@@ -1259,7 +1309,7 @@ export default function App() {
             />
           </section>
         </>
-      ) : section === 'people' ? (
+      ) : activeSection === 'people' ? (
         <>
           <header className="section-header people-header">
             <div>
@@ -1309,7 +1359,7 @@ export default function App() {
             </aside>
           </section>
         </>
-      ) : (
+      ) : activeSection === 'identity' ? (
         <section className="identity-workspace utility-workspace">
           <header className="section-header">
             <div>
@@ -1330,7 +1380,7 @@ export default function App() {
             onOpenContributor={handleOpenContributor}
           />
         </section>
-      )}
+      ) : null}
     </main>
   )
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { levelLabel, matchesDataset, parsePeriodDocument, type PeriodDocument } from '../src/periods'
+import { LOCAL_PERIODS_URL, levelLabel, matchesDataset, parsePeriodDocument, resolvePeriodsUrl, type PeriodDocument } from '../src/periods'
 
 function document(overrides: Partial<PeriodDocument> = {}): PeriodDocument {
   return {
@@ -53,4 +53,21 @@ test('level labels pluralize the level name rather than a generic word', () => {
   assert.equal(levelLabel('epoch', 1), '1 epoch')
   assert.equal(levelLabel('epoch', 14), '14 epochs')
   assert.equal(levelLabel('era', 2), '2 eras')
+})
+
+test('a gallery subject without a periods path requests no period document', () => {
+  // The live gallery once probed a shared /epochs.json for every subject and logged a 404.
+  assert.equal(resolvePeriodsUrl({ gallery: true }), null)
+  assert.equal(resolvePeriodsUrl({ gallery: true, subjectPeriods: null }), null)
+  assert.equal(resolvePeriodsUrl({ gallery: true, subjectPeriods: '/gallery/zod-epochs.json' }), '/gallery/zod-epochs.json')
+})
+
+test('only same-origin absolute period paths are fetched', () => {
+  assert.equal(resolvePeriodsUrl({ gallery: true, subjectPeriods: 'https://example.invalid/epochs.json' }), null)
+  assert.equal(resolvePeriodsUrl({ gallery: true, subjectPeriods: '//example.invalid/epochs.json' }), null)
+  assert.equal(resolvePeriodsUrl({ gallery: true, subjectPeriods: 'gallery/zod-epochs.json' }), null)
+})
+
+test('a local single-dataset install keeps its epoch document beside atlas.json', () => {
+  assert.equal(resolvePeriodsUrl({ gallery: false }), LOCAL_PERIODS_URL)
 })

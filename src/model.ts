@@ -79,6 +79,11 @@ export interface ChangeEpisode {
    * on the pilot is 27.6% of the first-parent chain.
    */
   body?: string
+  /**
+   * Set by the viewer, never by an exporter: the dataset carried no original message, so
+   * `subject` was replaced with a changed-path summary (see src/commitSubject.ts).
+   */
+  subjectOmitted?: boolean
   authoredAt: string
   committedAt: string
   parentShas: string[]

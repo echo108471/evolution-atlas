@@ -183,17 +183,19 @@ export function FeatureFocus({
             ))}
           </div>
         </section>
-        <section>
-          <span className="eyebrow">Git associations</span>
-          <h3>Contributors</h3>
-          <div className="context-chips">
-            {associations.contributors.map((contributor) => (
-              <button key={contributor.id} type="button" onClick={() => onSelect(contributor.id)}>
-                {contributor.displayName}<small>{contributor.count}</small>
-              </button>
-            ))}
-          </div>
-        </section>
+        {associations.contributors.length > 0 && (
+          <section>
+            <span className="eyebrow">Git associations</span>
+            <h3>Contributors</h3>
+            <div className="context-chips">
+              {associations.contributors.map((contributor) => (
+                <button key={contributor.id} type="button" onClick={() => onSelect(contributor.id)}>
+                  {contributor.displayName}<small>{contributor.count}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       <section className="lifecycle-cards" aria-labelledby="lifecycle-heading">

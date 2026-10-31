@@ -146,6 +146,10 @@ export function RepositoryOverview({
     )
     .slice(0, 4)
 
+  const hasContributors = dataset.contributors.length > 0
+  // An explicitly empty array is a published "none", not something to count as zero.
+  const hasStructuralCandidates = (dataset.structuralEpisodes ?? []).length > 0
+
   return (
     <div className="overview">
       <section className="overview-hero">
@@ -153,8 +157,10 @@ export function RepositoryOverview({
           <span className="eyebrow">Repository overview</span>
           <h2>Read the codebase as a history of capabilities.</h2>
           <p>
-            Start with a calendar chapter or lifecycle stage, then follow one feature into the
-            commits, paths, and contributor associations that support it.
+            Start with a calendar chapter or lifecycle stage, then follow one feature into the{' '}
+            {hasContributors
+              ? 'commits, paths, and contributor associations that support it.'
+              : 'commits and paths that support it.'}
           </p>
         </div>
         <button type="button" className="primary-action" onClick={onExplore}>
@@ -165,7 +171,9 @@ export function RepositoryOverview({
       <section className="overview-metrics" aria-label="Repository evidence summary">
         <div><strong>{dataset.featureCandidates.length}</strong><span>candidate features</span></div>
         <div><strong>{dataset.semanticEpisodes?.length ?? 0}</strong><span>lifecycle episodes</span></div>
-        <div><strong>{dataset.structuralEpisodes?.length ?? 0}</strong><span>repository reorganizations</span></div>
+        {hasStructuralCandidates && (
+          <div><strong>{dataset.structuralEpisodes?.length ?? 0}</strong><span>candidate reorganizations</span></div>
+        )}
         <div><strong>{dataset.episodes.length.toLocaleString()}</strong><span>observed commits</span></div>
       </section>
 

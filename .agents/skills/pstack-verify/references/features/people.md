@@ -14,7 +14,8 @@ Source basis: [src/App.tsx](../../../../../src/App.tsx), [src/ContributorTrail.t
 
 ## How to get to it (user POV)
 
-- Choose **People** in primary navigation.
+- Choose **People** in primary navigation. The button is hidden, and `?view=people` falls
+  back to Overview, when the dataset has no contributor records.
 - Choose a **Contributor** from the contributor picker.
 - From a feature story or an identity review, open the related contributor trail.
 - Adjust the **Time**, **Lifecycle**, or **Evidence** controls to change the visible scope.

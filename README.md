@@ -276,7 +276,8 @@ Replay keeps the saved proposal model in its provenance and `method`, even
 when the current default differs. Historical research scripts keep their
 independent model pins so saved requests and replay fingerprints stay stable.
 
-The legacy viewer picks up a separately prepared `public/epochs.json` and adds a
+The legacy viewer picks up a separately prepared `public/epochs.json` (or, for a
+gallery subject, the document named by its manifest `periods` path) and adds a
 Periods tab; the new scratch output is not automatically served. Like
 `public/atlas.json`, it is gitignored and excluded from gallery builds, because it quotes
 commit subjects and dates.

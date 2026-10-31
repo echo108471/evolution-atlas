@@ -223,6 +223,7 @@ export function syntheticGallery(dataset = syntheticAtlas()) {
       url: 'https://example.invalid/synthetic',
       license: 'Fixture only',
       dataset: 'synthetic-atlas.json',
+      periods: '/gallery/synthetic-epochs.json',
       headSha: dataset.repository.headSha,
       commitCount: dataset.episodes.length,
       contributorCount: dataset.contributors.length,

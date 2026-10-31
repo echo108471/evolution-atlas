@@ -88,7 +88,20 @@ export interface PeriodDocument {
   unpairedFocusPeaks: UnpairedFocusPeak[]
 }
 
-export const PERIODS_URL = '/epochs.json'
+/**
+ * A local single-dataset install serves its epoch document beside `/atlas.json`. A gallery
+ * subject names its own document instead, and a subject that names none has no periods:
+ * the viewer requests nothing rather than probing a shared path that would 404.
+ */
+export const LOCAL_PERIODS_URL = '/epochs.json'
+
+/** Only same-origin absolute paths are fetched; anything else is treated as absent. */
+export function resolvePeriodsUrl(options: { gallery: boolean; subjectPeriods?: string | null }): string | null {
+  if (!options.gallery) return LOCAL_PERIODS_URL
+  const path = options.subjectPeriods
+  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.includes('\\')) return null
+  return path
+}
 
 /**
  * An epoch document is pinned to the commit it was generated from. Boundaries are commit
