@@ -292,8 +292,11 @@ export function IdentityReview({
           </div>
         ) : (
           <div className="identity-review__empty">
-            No unresolved matches. A newly generated atlas can add suggestions from private email
-            handles and repository <code>.mailmap</code> evidence without exposing email addresses.
+            {/* One paragraph, so the grid centres a single item and the code stays inline. */}
+            <p>
+              No unresolved matches. A newly generated atlas can add suggestions from private email
+              handles and repository <code>.mailmap</code> evidence without exposing email addresses.
+            </p>
           </div>
         )}
       </section>

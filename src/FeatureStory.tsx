@@ -4,6 +4,9 @@ import { FeatureFocus } from './FeatureFocus'
 import type { CalendarChapter, StoryLane } from './story'
 import type { AtlasDataset, LifecycleStage } from './model'
 
+/** Matches the stylesheet breakpoint where the explorer collapses to one column. */
+const SINGLE_COLUMN_QUERY = '(max-width: 880px)'
+
 interface FeatureStoryProps {
   dataset: AtlasDataset
   lane: StoryLane | null
@@ -12,6 +15,8 @@ interface FeatureStoryProps {
   selectedId: string | null
   selectedChapterId: string | null
   selectedLifecycleStage: LifecycleStage | 'all'
+  /** A feature the user explicitly asked for (deep link or index choice). */
+  revealFeatureId?: string | null
   onSelect: (id: string) => void
   onViewAllEvidence: (id: string) => void
 }
@@ -28,6 +33,7 @@ export function FeatureStory({
   selectedId,
   selectedChapterId,
   selectedLifecycleStage,
+  revealFeatureId = null,
   onSelect,
   onViewAllEvidence,
 }: FeatureStoryProps) {
@@ -39,6 +45,17 @@ export function FeatureStory({
     const pane = storyRef.current
     if (pane) pane.scrollTop = 0
   }, [selectedFeatureId])
+
+  // In the single-column layout the story sits below the feature index, so an explicitly
+  // requested feature would otherwise open thousands of pixels down the page. Bring it
+  // into view; a default selection (no feature in the URL) leaves the page where it is.
+  useEffect(() => {
+    const pane = storyRef.current
+    if (!pane || !revealFeatureId || revealFeatureId !== selectedFeatureId) return
+    if (typeof window.matchMedia !== 'function' || !window.matchMedia(SINGLE_COLUMN_QUERY).matches) return
+    const frame = window.requestAnimationFrame(() => pane.scrollIntoView({ block: 'start' }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [revealFeatureId, selectedFeatureId])
 
   return (
     <div

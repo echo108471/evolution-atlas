@@ -2,7 +2,7 @@
 
 People projects observed Git authorship into contributor trails alongside candidate feature context and code-area activity.
 
-Source basis: [src/App.tsx](../../../../../src/App.tsx), [src/ContributorTrail.tsx](../../../../../src/ContributorTrail.tsx), [src/StoryLanes.tsx](../../../../../src/StoryLanes.tsx), and [src/identity.ts](../../../../../src/identity.ts).
+Source basis: [src/App.tsx](../../../../../src/App.tsx), [src/ContributorTrail.tsx](../../../../../src/ContributorTrail.tsx), and [src/identity.ts](../../../../../src/identity.ts).
 
 ## Sub-features
 

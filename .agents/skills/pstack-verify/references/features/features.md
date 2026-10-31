@@ -34,6 +34,9 @@ The journey asserts that the synthetic candidate appears in the feature view and
 
 ## Gotchas
 
+- At 880px and below the explorer is one column; a `feature=` deep link (or an index choice)
+  scrolls the story into view below the sticky header, while a default selection does not
+  move the page. The section tabs scroll sideways there instead of widening the page.
 - Feature names and lifecycle stages are candidate interpretations. A resolved citation does not establish semantic accuracy.
 - Search matches feature names; scope controls independently filter the displayed stories.
 - A selected calendar chapter can leave no matching story visible. Clear it with **All** before treating an empty index as a defect.

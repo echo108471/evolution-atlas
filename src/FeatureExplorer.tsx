@@ -15,6 +15,8 @@ interface FeatureExplorerProps {
   selectedId: string | null
   selectedChapterId: string | null
   selectedLifecycleStage: LifecycleStage | 'all'
+  /** The feature named in the URL, if any; null when the selection is only a default. */
+  requestedFeatureId?: string | null
   onSelect: (id: string) => void
   onSelectFeature: (id: string) => void
   onViewAllEvidence: (id: string) => void
@@ -34,6 +36,7 @@ export function FeatureExplorer({
   selectedId,
   selectedChapterId,
   selectedLifecycleStage,
+  requestedFeatureId = null,
   onSelect,
   onSelectFeature,
   onViewAllEvidence,
@@ -64,6 +67,7 @@ export function FeatureExplorer({
         selectedId={selectedId}
         selectedChapterId={selectedChapterId}
         selectedLifecycleStage={selectedLifecycleStage}
+        revealFeatureId={requestedFeatureId}
         onSelect={onSelect}
         onViewAllEvidence={onViewAllEvidence}
       />
