@@ -42,7 +42,7 @@ ignored `scratch/experiment-summary/`; rendering does not approve publication.
 ## Build inclusion
 
 Production builds disable Vite's automatic `public/` copying. The versioned
-`publication/manifest.json` starts with an empty asset list. Explicitly reviewed
+`publication/manifest.json` lists the approved Zod demo assets. Explicitly approved
 assets must live under `publication/assets/`, specify a destination, SHA-256,
 media type, and approval reference, and pass path, regular-file, and symlink
 validation. The build emits only those exact bytes alongside the app bundle.
@@ -87,7 +87,7 @@ journeys remain separate checks described in [Verification](VERIFICATION.md).
 
 The current release uses one approved Zod snapshot; see the
 [approved inventory](ZOD-DEMO-RELEASE-INVENTORY.md) and
-[owner decision](RELEASE-APPROVAL.md#owner-approval-2026-10-12). Any additional
+[owner decision](RELEASE-APPROVAL.md#owner-approval-2026-10-30). Any additional
 demo dataset requires a separate decision. Record exact repository revisions,
 source licenses and notices, provenance, copied material, contributor metadata
 treatment, interpretation limits, and the explicitly approved snapshot paths

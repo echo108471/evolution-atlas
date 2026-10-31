@@ -1,131 +1,183 @@
 {
-  "version": 1,
-  "generatedAt": "2026-10-11T23:09:37.631Z",
+  "version": 2,
+  "assembledAt": "2026-10-31T03:50:33.935Z",
   "source": {
     "url": "https://github.com/colinhacks/zod",
     "commit": "43f729db4aa0cedff6d6b3261f33f8556b3c7102",
     "tree": "992c4000825b1e2e8b6a835b3f5471caebafa4ed",
     "historyCommits": 3094
   },
-  "analyzer": {
-    "revision": "b2228d2cada8a880e71eaf9dce986b609f499512",
-    "files": [
-      {
-        "path": "scripts/gallery.mjs",
-        "sha256": "b9d735c9b2638766d9458f8f651aefadf55b2d8901c7b1b7b7748a7310203c92",
-        "bytes": 27822
+  "observedBase": {
+    "snapshotSha256": "e37fd8f6826f746d47f1d25d78c47b0c4d21b68c48905ac577d77cffc7038558",
+    "originalProvenanceSha256": "42ca0418704cc3d2a0f40f8e462cbc5503f874e849674f49313fb2b63bda6204",
+    "originalProvenance": {
+      "version": 1,
+      "generatedAt": "2026-10-11T23:09:37.631Z",
+      "source": {
+        "url": "https://github.com/colinhacks/zod",
+        "commit": "43f729db4aa0cedff6d6b3261f33f8556b3c7102",
+        "tree": "992c4000825b1e2e8b6a835b3f5471caebafa4ed",
+        "historyCommits": 3094
       },
-      {
-        "path": "scripts/lib/atlas.mjs",
-        "sha256": "ad246db2f708b5dcbdaff5c94a5402669db91a4dd52c362e65ff33ade120672f",
-        "bytes": 11592
+      "analyzer": {
+        "revision": "b2228d2cada8a880e71eaf9dce986b609f499512",
+        "files": [
+          {
+            "path": "scripts/gallery.mjs",
+            "sha256": "b9d735c9b2638766d9458f8f651aefadf55b2d8901c7b1b7b7748a7310203c92",
+            "bytes": 27822
+          },
+          {
+            "path": "scripts/lib/atlas.mjs",
+            "sha256": "ad246db2f708b5dcbdaff5c94a5402669db91a4dd52c362e65ff33ade120672f",
+            "bytes": 11592
+          },
+          {
+            "path": "scripts/lib/identity.mjs",
+            "sha256": "0a57ec89ff747a5d1dd2202fc8760dda419a4df5d81a0a42c22782c48b7c8267",
+            "bytes": 10087
+          },
+          {
+            "path": "src/structure.mjs",
+            "sha256": "36cec4adac624ac386624239462bdf383f2629999091b90ee2bc7f8cbb28c0d7",
+            "bytes": 8288
+          },
+          {
+            "path": "scripts/lib/interpret.mjs",
+            "sha256": "7fa38efc3946b76a0ed5477d49a15d1a0a8b4f6bada5209756be04c451f9fb84",
+            "bytes": 26226
+          },
+          {
+            "path": "scripts/lib/retry.mjs",
+            "sha256": "bae929802fb7ef7c049dbdf84b68da8ed893c6c0f71165dacf967cac958a2bf4",
+            "bytes": 2650
+          },
+          {
+            "path": "scripts/lib/experiment-permissions.mjs",
+            "sha256": "5888fc9a6e149a1def5d701b935ca79d270d5ad27cdd6e5ce172d094f7dda192",
+            "bytes": 1934
+          },
+          {
+            "path": "scripts/verification/offline-environment.mjs",
+            "sha256": "613eaa39b8bbbc0a390395df254a02683aa16139b7a6c86da064c178581f8ac9",
+            "bytes": 1310
+          },
+          {
+            "path": "scripts/verification/offline-preload.cjs",
+            "sha256": "9d147d3d6690980ff965d2d6bd7de54641aba2cf399a97289c89a381e6198757",
+            "bytes": 1742
+          },
+          {
+            "path": "gallery/catalog.json",
+            "sha256": "f3e547a1e86d4c320a0915c1fe4e0a192c050ff0d9717b8c049ba148125c10dd",
+            "bytes": 1398
+          },
+          {
+            "path": "package.json",
+            "sha256": "7bb7236f066653437d72835529383a5ac51750c4b6c8bee08a328dc23fd60fee",
+            "bytes": 3312
+          },
+          {
+            "path": "package-lock.json",
+            "sha256": "95dbef22e29912d4f68b799070580cece56c2a3be8db50521eaea9e482728004",
+            "bytes": 75691
+          }
+        ],
+        "mode": "observed-only",
+        "paidOptIn": false
       },
-      {
-        "path": "scripts/lib/identity.mjs",
-        "sha256": "0a57ec89ff747a5d1dd2202fc8760dda419a4df5d81a0a42c22782c48b7c8267",
-        "bytes": 10087
+      "exporter": {
+        "revision": "86282a14ee4ca3b6cc689c33052bb04c1155bbd8",
+        "files": [
+          {
+            "path": "scripts/prepare-zod-demo.mjs",
+            "sha256": "d4f1a909816826124da3de19ad1ae749aea9127cd7e26c243f9205bf9fc490b6"
+          },
+          {
+            "path": "scripts/lib/atlas.mjs",
+            "sha256": "ad246db2f708b5dcbdaff5c94a5402669db91a4dd52c362e65ff33ade120672f"
+          },
+          {
+            "path": "scripts/lib/identity.mjs",
+            "sha256": "0a57ec89ff747a5d1dd2202fc8760dda419a4df5d81a0a42c22782c48b7c8267"
+          },
+          {
+            "path": "src/structure.mjs",
+            "sha256": "36cec4adac624ac386624239462bdf383f2629999091b90ee2bc7f8cbb28c0d7"
+          },
+          {
+            "path": "scripts/gallery.mjs",
+            "sha256": "b9d735c9b2638766d9458f8f651aefadf55b2d8901c7b1b7b7748a7310203c92"
+          }
+        ]
       },
-      {
-        "path": "src/structure.mjs",
-        "sha256": "36cec4adac624ac386624239462bdf383f2629999091b90ee2bc7f8cbb28c0d7",
-        "bytes": 8288
+      "rawInputSha256": "3d7999d5d521fb0e0bbf14b7f46a235db9e4252d196c2963eac55351327d531f",
+      "snapshotSha256": "e37fd8f6826f746d47f1d25d78c47b0c4d21b68c48905ac577d77cffc7038558",
+      "license": {
+        "name": "MIT",
+        "sourcePath": "LICENSE",
+        "sha256": "3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8"
       },
-      {
-        "path": "scripts/lib/interpret.mjs",
-        "sha256": "7fa38efc3946b76a0ed5477d49a15d1a0a8b4f6bada5209756be04c451f9fb84",
-        "bytes": 26226
+      "policy": {
+        "retained": [
+          "commit and parent hashes",
+          "timestamps",
+          "file paths and change/rename status",
+          "top-level code areas",
+          "observed touched-path relationships"
+        ],
+        "omitted": [
+          "all contributor identities, names, aliases, identity-derived IDs and authored relationships",
+          "original commit subjects and bodies",
+          "identity matches",
+          "structural, semantic and feature candidates",
+          "source excerpts and model outputs"
+        ],
+        "limits": [
+          "Data minimization is not anonymization: public commit hashes and paths permit reidentification.",
+          "No model call was used; features and lifecycle interpretations are absent.",
+          "Dates, path changes and citations establish observations, not intent, completeness of meaning, ownership or developer performance."
+        ]
       },
-      {
-        "path": "scripts/lib/retry.mjs",
-        "sha256": "bae929802fb7ef7c049dbdf84b68da8ed893c6c0f71165dacf967cac958a2bf4",
-        "bytes": 2650
-      },
-      {
-        "path": "scripts/lib/experiment-permissions.mjs",
-        "sha256": "5888fc9a6e149a1def5d701b935ca79d270d5ad27cdd6e5ce172d094f7dda192",
-        "bytes": 1934
-      },
-      {
-        "path": "scripts/verification/offline-environment.mjs",
-        "sha256": "613eaa39b8bbbc0a390395df254a02683aa16139b7a6c86da064c178581f8ac9",
-        "bytes": 1310
-      },
-      {
-        "path": "scripts/verification/offline-preload.cjs",
-        "sha256": "9d147d3d6690980ff965d2d6bd7de54641aba2cf399a97289c89a381e6198757",
-        "bytes": 1742
-      },
-      {
-        "path": "gallery/catalog.json",
-        "sha256": "f3e547a1e86d4c320a0915c1fe4e0a192c050ff0d9717b8c049ba148125c10dd",
-        "bytes": 1398
-      },
-      {
-        "path": "package.json",
-        "sha256": "7bb7236f066653437d72835529383a5ac51750c4b6c8bee08a328dc23fd60fee",
-        "bytes": 3312
-      },
-      {
-        "path": "package-lock.json",
-        "sha256": "95dbef22e29912d4f68b799070580cece56c2a3be8db50521eaea9e482728004",
-        "bytes": 75691
-      }
-    ],
-    "mode": "observed-only",
-    "paidOptIn": false
+      "publicationApproval": false
+    }
   },
-  "exporter": {
-    "revision": "86282a14ee4ca3b6cc689c33052bb04c1155bbd8",
-    "files": [
-      {
-        "path": "scripts/prepare-zod-demo.mjs",
-        "sha256": "d4f1a909816826124da3de19ad1ae749aea9127cd7e26c243f9205bf9fc490b6"
-      },
-      {
-        "path": "scripts/lib/atlas.mjs",
-        "sha256": "ad246db2f708b5dcbdaff5c94a5402669db91a4dd52c362e65ff33ade120672f"
-      },
-      {
-        "path": "scripts/lib/identity.mjs",
-        "sha256": "0a57ec89ff747a5d1dd2202fc8760dda419a4df5d81a0a42c22782c48b7c8267"
-      },
-      {
-        "path": "src/structure.mjs",
-        "sha256": "36cec4adac624ac386624239462bdf383f2629999091b90ee2bc7f8cbb28c0d7"
-      },
-      {
-        "path": "scripts/gallery.mjs",
-        "sha256": "b9d735c9b2638766d9458f8f651aefadf55b2d8901c7b1b7b7748a7310203c92"
-      }
-    ]
+  "interpretation": {
+    "savedArtifactSha256": "266396d399aa364e2abfb6c15c6d3359d0c3930bab8499bf55998a6bf382b64c",
+    "savedSchemaVersion": "0.1.0",
+    "provider": "openrouter",
+    "model": "x-ai/grok-4.6",
+    "method": "llm-induction:openrouter:x-ai/grok-4.6",
+    "featureCandidates": 40,
+    "semanticEpisodes": 149,
+    "candidateRelationships": 651,
+    "note": "Saved legacy interpretation reused without a new model call. Its recorded method identifies the provider and model; complete original request and response provenance has not been independently established."
   },
-  "rawInputSha256": "3d7999d5d521fb0e0bbf14b7f46a235db9e4252d196c2963eac55351327d531f",
-  "snapshotSha256": "e37fd8f6826f746d47f1d25d78c47b0c4d21b68c48905ac577d77cffc7038558",
+  "snapshotSha256": "fefb73bbb7a06ab9754422393436d4a7af836339ce7103c1f557aa779f00170b",
   "license": {
     "name": "MIT",
     "sourcePath": "LICENSE",
     "sha256": "3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8"
   },
-  "policy": {
-    "retained": [
-      "commit and parent hashes",
-      "timestamps",
-      "file paths and change/rename status",
-      "top-level code areas",
-      "observed touched-path relationships"
-    ],
-    "omitted": [
-      "all contributor identities, names, aliases, identity-derived IDs and authored relationships",
+  "validation": {
+    "matchingEvidenceReferences": 1291,
+    "matchingTouchedPaths": 7219,
+    "note": "Referenced commits and paths resolve to the minimized observed history; this does not verify interpretation meaning or completeness."
+  },
+  "privacy": {
+    "omittedStructuredFields": [
+      "contributor records, identity matches, identity-derived IDs and authored relationships",
       "original commit subjects and bodies",
-      "identity matches",
-      "structural, semantic and feature candidates",
-      "source excerpts and model outputs"
+      "structural candidates"
     ],
     "limits": [
-      "Data minimization is not anonymization: public commit hashes and paths permit reidentification.",
-      "No model call was used; features and lifecycle interpretations are absent.",
-      "Dates, path changes and citations establish observations, not intent, completeness of meaning, ownership or developer performance."
+      "Model-generated labels and rationales are included as candidates and may require contextual review.",
+      "Public commit hashes, paths, and timestamps can enable reidentification.",
+      "The root MIT notice does not by itself clear every historical source or copied text."
     ]
   },
-  "publicationApproval": false
+  "publication": {
+    "approval": "docs/RELEASE-APPROVAL.md#owner-approval-2026-10-30",
+    "datasetSha256": "fefb73bbb7a06ab9754422393436d4a7af836339ce7103c1f557aa779f00170b"
+  }
 }

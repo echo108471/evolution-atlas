@@ -99,7 +99,7 @@ node scripts/check-offline.mjs
 Dependency installation may use the package registry. The fixture generator and
 validation gate use local synthetic data and reject external requests.
 
-To view the approved observed-only Zod demo, build the application and open the
+To view the approved Zod demo with candidate interpretations, build the application and open the
 local preview URL printed by Vite:
 
 ```bash

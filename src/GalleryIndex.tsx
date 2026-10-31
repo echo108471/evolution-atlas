@@ -38,7 +38,7 @@ export function GalleryIndex({ subjects, onSelectSubject }: GalleryIndexProps) {
 
       <EngineEntry />
       <section className="gallery-demo-heading" aria-label="Prepared atlas demos">
-        <p className="map-kicker">Observed-history viewer</p>
+        <p className="map-kicker">Prepared history viewer</p>
         <h2>Explore a prepared atlas</h2>
         <p>These separately prepared demos show commits, paths and renames. Any feature or lifecycle labels are candidate interpretations. Contributor identities may be omitted.</p>
       </section>
@@ -56,7 +56,7 @@ export function GalleryIndex({ subjects, onSelectSubject }: GalleryIndexProps) {
                     <dd>{NUMBER.format(subject.commitCount)}</dd>
                   </div>
                   <div>
-                    <dt>Contributors</dt>
+                    <dt>Contributor records</dt>
                     <dd>{NUMBER.format(subject.contributorCount)}</dd>
                   </div>
                   <div>
