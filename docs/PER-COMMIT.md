@@ -322,8 +322,8 @@ rate is an artifact of the test subject and should not be taken as a general rat
 
 ## Provider notes
 
-Inference goes through OpenAI's `/v1/chat/completions`. The defaults are
-`gpt-5.4-mini` for tier 1 and `gpt-5.4` for tier 2; responses report token
+Inference goes through OpenAI's `/v1/chat/completions`. Both tiers default
+to `gpt-6-luna`; responses report token
 usage, not cost. The measurements below were recorded through an earlier
 gateway with an earlier volume model and have not been repeated on these
 defaults.
