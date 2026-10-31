@@ -1,5 +1,5 @@
 import { EngineEntry } from './EngineEntry'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { ContributorTrail } from './ContributorTrail'
 import { FeatureExplorer } from './FeatureExplorer'
@@ -606,6 +606,7 @@ export default function App() {
   // made stay absent from the URL and are resolved to a default at render time instead.
   const [url, setUrl] = useAtlasUrl()
   const productHeaderRef = useMeasuredHeight('--product-header-height')
+  const productNavRef = useRef<HTMLElement>(null)
   const {
     subject: urlSubject,
     section,
@@ -1040,6 +1041,17 @@ export default function App() {
     }
   }, [dataset, identityDecisions])
 
+  // On narrow screens the section tabs scroll sideways; keep the current one in view.
+  useEffect(() => {
+    const nav = productNavRef.current
+    const active = nav?.querySelector<HTMLElement>('.is-active')
+    if (!nav || !active || nav.scrollWidth <= nav.clientWidth) return
+    const navBox = nav.getBoundingClientRect()
+    const activeBox = active.getBoundingClientRect()
+    if (activeBox.right > navBox.right) nav.scrollLeft += activeBox.right - navBox.right + 12
+    else if (activeBox.left < navBox.left) nav.scrollLeft -= navBox.left - activeBox.left + 12
+  }, [section, dataset])
+
   // The index is the gallery's entry point, so it renders before the dataset guard below —
   // there is no dataset to wait for.
   if (section === 'map') {
@@ -1143,7 +1155,7 @@ export default function App() {
           </label>
         )}
 
-        <nav className="product-nav" aria-label="Primary navigation">
+        <nav ref={productNavRef} className="product-nav" aria-label="Primary navigation">
           <button
             type="button"
             className={activeSection === 'overview' ? 'is-active' : ''}
@@ -1208,8 +1220,11 @@ export default function App() {
             </button>
           )}
           <div className="repository-meta">
-            <span>{dataset.repository.ref}</span>
-            <code>{dataset.repository.headSha.slice(0, 8)}</code>
+            {/* A ref that is just the head commit would print the same SHA twice. */}
+            {dataset.repository.ref &&
+              dataset.repository.ref !== dataset.repository.headSha &&
+              !/^[0-9a-f]{40}$/i.test(dataset.repository.ref) && <span>{dataset.repository.ref}</span>}
+            <code title={dataset.repository.headSha}>{dataset.repository.headSha.slice(0, 8)}</code>
           </div>
         </div>
       </header>
@@ -1298,6 +1313,7 @@ export default function App() {
               selectedId={selectedId}
               selectedChapterId={selectedChapterId}
               selectedLifecycleStage={lifecycleStage}
+              requestedFeatureId={url.featureId}
               onSelect={handleSelect}
               onSelectFeature={handleSelectFeature}
               onViewAllEvidence={handleViewAllFeatureEvidence}

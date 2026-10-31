@@ -23,6 +23,17 @@ interface RepositoryShapeProps {
   onSelectPercent: (percent: number) => void
   onSelectStructural: (id: string) => void
   onScopeChange: (scopePath: string) => void
+  /** False when the dataset publishes no structural candidates, so the legend omits them. */
+  showStructureLegend?: boolean
+}
+
+/**
+ * Anchor a date flag proportionally to its position: left-aligned at the start, centred
+ * mid-track, right-aligned at the end, so a checkpoint at either edge is never clipped.
+ */
+function flagStyle(percent: number) {
+  const clamped = Math.min(Math.max(percent, 0), 100)
+  return { left: `${clamped}%`, transform: `translateX(-${clamped}%)` }
 }
 
 const ROW_HEIGHT = 34
@@ -137,6 +148,7 @@ export function RepositoryShape({
   onSelectPercent,
   onSelectStructural,
   onScopeChange,
+  showStructureLegend = true,
 }: RepositoryShapeProps) {
   const [chartRef, chartWidth] = useElementWidth<HTMLDivElement>()
   const [hoveredKey, setHoveredKey] = useState<string | null>(null)
@@ -409,14 +421,14 @@ export function RepositoryShape({
           {previewCheckpoint && (
             <span
               className="shape-playhead__flag shape-playhead__flag--preview"
-              style={{ left: `${previewCheckpoint.percent}%` }}
+              style={flagStyle(previewCheckpoint.percent)}
               aria-hidden="true"
             >
               {previewCheckpoint.label}
             </span>
           )}
 
-          <span className="shape-playhead__flag" style={{ left: `${playheadPercent}%` }}>
+          <span className="shape-playhead__flag" style={flagStyle(playheadPercent)}>
             {playheadLabel}
           </span>
         </div>
@@ -431,10 +443,12 @@ export function RepositoryShape({
           <i className="legend-mark legend-mark--transition" />
           candidate path transition
         </span>
-        <span>
-          <i className="legend-mark legend-mark--structure" />
-          candidate reorganization
-        </span>
+        {showStructureLegend && (
+          <span>
+            <i className="legend-mark legend-mark--structure" />
+            candidate reorganization
+          </span>
+        )}
         <span>
           <i className="legend-mark legend-mark--playhead" />
           selected checkpoint

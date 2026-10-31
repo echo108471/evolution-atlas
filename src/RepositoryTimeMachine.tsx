@@ -50,6 +50,9 @@ export function RepositoryTimeMachine({
   // Panel mode and path expansion are ephemeral view state and stay local.
   const [url, setUrl] = useAtlasUrl()
   const scopePath = url.scopePath
+  // An explicitly empty structuralEpisodes array means none were published, so the view
+  // does not mention reorganizations at every checkpoint.
+  const hasStructuralCandidates = (dataset.structuralEpisodes ?? []).length > 0
 
   const model = useMemo(
     () => buildRepositoryTimeMachine(dataset, story, scopePath),
@@ -198,6 +201,7 @@ export function RepositoryTimeMachine({
         onSelectPercent={selectNearestCheckpoint}
         onSelectStructural={inspectEvidence}
         onScopeChange={changeScope}
+        showStructureLegend={hasStructuralCandidates}
       />
 
       {shape.hiddenTrackCount > 0 && (
@@ -348,12 +352,12 @@ export function RepositoryTimeMachine({
                     </article>
                   ))}
                 </section>
-              ) : (
+              ) : hasStructuralCandidates ? (
                 <section className="checkpoint-section">
                   <span className="eyebrow">Repository state</span>
                   <p>No candidate reorganization is attached to this checkpoint.</p>
                 </section>
-              )}
+              ) : null}
 
               <details className="checkpoint-paths">
                 <summary>

@@ -35,6 +35,9 @@ The journey asserts the Repository heading and moves from the latest to the prev
 
 ## Gotchas
 
+- The checkpoint date flag anchors proportionally to its position, so the first and latest
+  checkpoints stay inside the chart. Reorganization wording and legend are hidden when the
+  dataset publishes an empty `structuralEpisodes` array.
 - An atlas dataset is required. A browser route alone does not supply repository evidence.
 - A directory row is a top-level path grouping, not proof of an architectural component or contributor ownership.
 - Structural reorganizations are candidate interpretations. The checkpoint's commit, path, and operation counts are observed evidence.
