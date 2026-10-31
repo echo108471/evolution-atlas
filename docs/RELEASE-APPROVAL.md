@@ -48,3 +48,45 @@ omitted from the prepared observed layer, but public Git links, paths, and dates
 can permit reidentification. Model-authored feature and lifecycle labels and
 rationales remain candidate interpretations; resolved evidence links do not
 independently verify them.
+
+## Owner approval 2026-10-31
+
+On 2026-10-31 at 02:42 EDT the owner approved publishing the version 3 Zod
+candidate capability map as-is. The owner answered “sure yeah” after the
+disclosures below were presented. The approval covers these exact bytes and
+the zod gallery manifest that links to them:
+
+| Repository source | Served build path | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| `publication/assets/zod/maps/zod-reviewed-output.json` | `maps/zod/reviewed-output.json` | 571,366 | `53be27b3049fa74862497fd324149e010efa5558c809a724bb0bda3b9f6d6c31` |
+| `publication/assets/zod/manifest.json` | `gallery/manifest.json` | 1,037 | `485903f8ca4c0f6365e9f3ed4ee1f738a51ed0e1934eba8d736ef311f4eceae3` |
+
+The gallery manifest change only adds `"map":"/maps/zod/reviewed-output.json"`
+to the zod subject; the rest of that file is the October 30 approved content.
+
+The map is `repository-engine/3` expansion output for public Zod, from baseline
+revision `43f729db4aa0cedff6d6b3261f33f8556b3c7102` to revision
+`1c51cbe0fe23d09f8d520b31487d50a01588fae5` (v4.6.0). Workers and integrator
+were run with model `gpt-6-luna`. It was produced by a custom host driving
+`scripts/repository-engine.mjs` with a pre-save structural check that refuses
+candidates failing the engine's own validation. The map contains 26 candidate
+capabilities and 18 candidate relationships.
+
+Disclosures accepted with this approval:
+
+- **Commit subject lines are included.** Seven `path-history` receipts embed
+  **62 original Zod commit subject lines**. No author names, email addresses,
+  or commit bodies are included. This is a deliberate, approval-scoped
+  exception to the October 30 dataset treatment, which omits original commit
+  messages; that dataset remains unchanged.
+- **Most claims cite baseline-only source.** 22 of 26 capabilities and 13 of
+  18 relationships cite only baseline-revision (`43f729db`) source, yet carry
+  the assessment `supported`. They were not re-read at `1c51cbe0`.
+- **Independent verification was not performed.** The map records
+  `independentVerification: "not-performed"`. Labels, lineage, relationships,
+  and assessments are model-generated candidate interpretations; resolved
+  receipts and content hashes establish linkage, not truth.
+
+This approval does not authorize other maps, datasets, or new model calls, and
+does not establish exhaustive privacy, copied-material, license, or semantic
+review.
